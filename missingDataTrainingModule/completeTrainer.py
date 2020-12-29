@@ -281,6 +281,9 @@ class variationalTraining(noVariationalTraining):
                     loss_rec.item(), loss_reg.item(), loss_reg_var.item(), -neg_likelihood.item(), 
                     mse_loss.item(), torch.mean((torch.mean(pi_list_var.squeeze(),1))),
                     torch.mean((torch.mean(pi_list.squeeze(),1)))))
+            optim_classifier.step()
+            optim_destruction.step()
+
             
     def test_var(self, dataset, sampling_distribution, sampling_distribution_var):
         self.classification_module.eval()
