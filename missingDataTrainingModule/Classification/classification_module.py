@@ -15,12 +15,12 @@ class ClassificationModule():
 
     def train(self):
         if self.need_imputation and self.imputation.is_learnable() :
-            self.imputation.get_learnable_parameter().requires_grad(True)
+            self.imputation.get_learnable_parameter().requires_grad_(True)
         self.classifier.train()
 
     def eval(self):
         if self.need_imputation and self.imputation.is_learnable() :
-            self.imputation.get_learnable_parameter().requires_grad(False)
+            self.imputation.get_learnable_parameter().requires_grad_(False)
         self.classifier.eval()
 
     def cuda(self):
@@ -31,7 +31,8 @@ class ClassificationModule():
     def zero_grad(self):
         self.classifier.zero_grad()
         if self.need_imputation and self.imputation.is_learnable() :
-            self.imputation.get_learnable_parameter().zero_grad()
+
+            self.imputation.zero_grad()
 
     def parameters(self):
         # if self.need_imputation and self. 

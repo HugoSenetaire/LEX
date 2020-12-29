@@ -1,5 +1,5 @@
 
-
+import torch
 
 
 class Imputation():
@@ -48,12 +48,14 @@ class MaskConstantImputation(Imputation):
 class LearnImputation(Imputation):
   def __init__(self, isRounded = False):
     self.learned_cste = torch.zeros((1), requires_grad=True)
-
     super().__init__(isRounded = isRounded)
 
   def get_learnable_parameter(self):
     return self.learned_cste
 
+  def zero_grad(self):
+    if self.learned_cste.grad is not None :
+      self.learned_cste.grad.zero_()
 
   def impute(self, data_expanded, sample_b):
     sample_b = self.round_sample(sample_b)

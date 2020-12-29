@@ -11,7 +11,8 @@ if __name__ == "__main__":
     mnist = DatasetMnist(64,1000)
 
     classifier_no_var = ClassifierModel(28*28, mnist.get_category())
-    classification_no_var = ClassificationModule(classifier_no_var, imputation=ConstantImputation())
+    imputation_method = LearnImputation()
+    classification_no_var = ClassificationModule(classifier_no_var, imputation=imputation_method)
     destructor_no_var = Destructor(28*28)
     destruction_no_var = DestructionModule(destructor_no_var, regularization=free_regularization)
     trainer_no_var = noVariationalTraining(classification_no_var, destruction_no_var)
