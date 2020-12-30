@@ -4,10 +4,10 @@ import torch
 
 # Define the generator
 class Destructor(nn.Module):
-    def __init__(self,input_size = 28*28):
+    def __init__(self,input_size = 28):
         super().__init__()
-        self.fc1 = nn.Linear(input_size,200)
-        self.pi = nn.Linear(200, input_size)
+        self.fc1 = nn.Linear(input_size**2,200)
+        self.pi = nn.Linear(200, input_size**2)
 
     def __call__(self, x):
         # print(x.shape)
@@ -16,10 +16,10 @@ class Destructor(nn.Module):
         return F.sigmoid(self.pi(pi))
 
 class DestructorVariational(nn.Module):
-  def __init__(self, input_size = 28*28, output_size = 10):
+  def __init__(self, input_size = 28, output_size = 10):
     super().__init__()
-    self.fc1 = nn.Linear(input_size+output_size,200)
-    self.pi = nn.Linear(200, input_size)
+    self.fc1 = nn.Linear(input_size**2+output_size,200)
+    self.pi = nn.Linear(200, input_size**2)
 
   def __call__(self, x, y):
     # X et Y doivent avoir N_expectation ?

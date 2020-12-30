@@ -49,14 +49,14 @@ class ClassificationModule():
 
 
 
-    def __call__(self, data_expanded, sample_b_reshaped = None):
-        if self.imputation is not None and sample_b_reshaped is None :
+    def __call__(self, data, sample_b = None):
+        if self.imputation is not None and sample_b is None :
             raise AssertionError("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
-        elif self.imputation is not None and sample_b_reshaped is not None :
-            x_imputed = self.imputation.impute(data_expanded, sample_b_reshaped)
+        elif self.imputation is not None and sample_b is not None :
+            x_imputed = self.imputation.impute(data, sample_b)
             y_hat = self.classifier(x_imputed)
         else :
-            y_hat = self.classifier(data_expanded)
+            y_hat = self.classifier(data)
         return y_hat
 
 

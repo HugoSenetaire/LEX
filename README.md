@@ -13,3 +13,5 @@ Add a save method for long training and parameter exploration
 Change data structure so that we have batch_size * Nexpectation rather than two different channels
 
 Add dataset for simple destruction
+
+When using variational, should round when calculating the probability ? Should round anyway ?

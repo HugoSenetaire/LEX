@@ -8,7 +8,7 @@ from torch.optim import *
 if __name__ == "__main__":
     mnist = DatasetMnist(64,1000)
 
-    classifier = ClassifierModel(28*28, mnist.get_category())
+    classifier = ClassifierModel(28, mnist.get_category())
     classification_vanilla = ClassificationModule(classifier)
     optim_classifier = Adam(classification_vanilla.parameters())
     trainer_vanilla = ordinaryTraining(classification_vanilla)

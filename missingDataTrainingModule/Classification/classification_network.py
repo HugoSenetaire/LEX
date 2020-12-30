@@ -20,10 +20,11 @@ class ClassifierModel(nn.Module):
         self.logsoftmax = nn.LogSoftmax(-1)
     
     def __call__(self, x):
-        x = x.flatten(2)  # N_expectation, Batch_size, Channels, SizeProduct
+        
+        x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
-        return self.logsoftmax(self.fc3(x)) #N_expectation, Batch_size, Category
+        return self.logsoftmax(self.fc3(x)) #N_expectation * Batch_size, Category
 
 
 
@@ -43,9 +44,9 @@ class ConvClassifier(nn.Module):
     def __call__(self, x):
         Nexpectation = x.shape[0]
         batch_size = x.shape[1]
-        x = torch.flatten(x,0,1)
+        # x = torch.flatten(x,0,1)
         x = self.maxpool1(self.conv1(x))
         x = self.maxpool2(self.conv2(x))
-        x = torch.flatten(x,2)
+        x = torch.flatten(x,1)
         result = self.logsoftmax(self.fc(x)).reshape(Nexpectation, batch_size, -1)
         return result #N_expectation, Batch_size, Category
