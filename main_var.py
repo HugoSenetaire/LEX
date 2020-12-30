@@ -10,10 +10,13 @@ from functools import partial
 if __name__ == "__main__":
     mnist = DatasetMnist(64,1000)
 
-    classifier_var = ClassifierModel(28*28, mnist.get_category())
+    # classifier_var = ClassifierModel(28*28, mnist.get_category())
+    classifier_var = ConvClassifier(1)
     classification_var = ClassificationModule(classifier_var, imputation=ConstantImputation())
-    destructor = Destructor(28*28)
-    destructor_var = DestructorVariational(28*28, mnist.get_category())
+    # destructor = Destructor(28*28)
+    destructor = ConvDestructor(1)
+    destructor_var = ConvDestructorVar(1)
+    # destructor_var = DestructorVariational(28*28, mnist.get_category())
     destruction_var = DestructionModule(destructor, destructorVar= destructor_var, regularization=free_regularization, regularization_var= free_regularization)
     trainer_var = variationalTraining(classification_var, destruction_var)
     temperature = torch.tensor([0.5])
@@ -21,10 +24,10 @@ if __name__ == "__main__":
         temperature = temperature.cuda()
     optim_classification = Adam(classification_var.parameters())
     optim_destruction = Adam(destruction_var.parameters())
-
-    trainer_var.train(0, mnist, optim_classification, optim_destruction,Bernoulli , partial(RelaxedBernoulli,temperature))
-    trainer_var.test_no_var(mnist, Bernoulli)
-    trainer_var.test_var(mnist, Bernoulli, partial(RelaxedBernoulli, temperature))
+    for k in range(5):
+        trainer_var.train(0, mnist, optim_classification, optim_destruction,Bernoulli , partial(RelaxedBernoulli,temperature))
+        trainer_var.test_no_var(mnist, Bernoulli)
+        trainer_var.test_var(mnist, Bernoulli, partial(RelaxedBernoulli, temperature))
     
     data, target= next(iter(mnist.test_loader))
     data = data[:2]
