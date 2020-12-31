@@ -29,7 +29,8 @@ if __name__ == "__main__":
 
 
 
-    mnist = DatasetMnist(64,1000)
+    # mnist = DatasetMnist(64,1000)
+    mnist = DatasetMnistVariation(64,1000)
     classifier_no_var = ClassifierModel(28, mnist.get_category())
     # classifier_no_var = ConvClassifier(1)
     # imputation_method = LearnImputation(isRounded=True)
