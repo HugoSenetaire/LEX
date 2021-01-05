@@ -1,3 +1,9 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# print(sys.path)
+from utils_missing import *
+
 
 import torch
 import torchvision
@@ -12,9 +18,10 @@ from torchvision.utils import save_image
 
 
 class ClassifierModel(nn.Module):
-    def __init__(self,input_size = 28, output = 10):
+    def __init__(self,input_size = (1,28,28), output = 10):
         super().__init__()
-        self.fc1 = nn.Linear(input_size**2, 400)
+        self.input_size = input_size
+        self.fc1 = nn.Linear(np.prod(input_size), 400)
         self.fc2 = nn.Linear(400, 400)
         self.fc3 = nn.Linear(400,output)
         self.logsoftmax = nn.LogSoftmax(-1)
@@ -29,12 +36,12 @@ class ClassifierModel(nn.Module):
 
 
 class ConvClassifier(nn.Module):
-    def __init__(self,input_channel, output_size = 10, input_size = 28):
+    def __init__(self, output_size = 10, input_size = (1,28,28)):
         super().__init__()
-        self.conv1 = nn.Conv2d(input_channel, input_channel, 3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(input_size[0], input_size[0], 3, stride=1, padding=1)
         # self.maxpool1 = nn.MaxPool2d(kernel_size=(2,2),stride=2,padding = 0)
         self.maxpool1 = nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
-        self.conv2 = nn.Conv2d(input_channel, 1, 3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(input_size[0], 1, 3, stride=1, padding=1)
         self.maxpool2 = nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
         # self.maxpool2 = nn.MaxPool2d(kernel_size=(2,2),stride=2,padding = 0)
   

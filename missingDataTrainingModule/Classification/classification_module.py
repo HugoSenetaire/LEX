@@ -1,3 +1,9 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# print(sys.path)
+from utils_missing import *
+
 from .classification_network import *
 from .imputation import *
 
@@ -12,6 +18,12 @@ class ClassificationModule():
             self.need_imputation = False
         else :
             self.need_imputation = True
+        self.kernel_updated = False
+
+    def kernel_update(self, kernel_patch, stride_patch):
+        if self.need_imputation:
+            self.imputation.kernel_update(kernel_patch, stride_patch)
+    
 
     def train(self):
         if self.need_imputation and self.imputation.is_learnable() :
@@ -24,14 +36,13 @@ class ClassificationModule():
         self.classifier.eval()
 
     def cuda(self):
-        self.classifier.cuda()
+        self.classifier = self.classifier.cuda()
         if self.need_imputation and self.imputation.is_learnable() :
-            self.imputation.get_learnable_parameter().cuda()
+            self.imputation.set_learnable_parameter(self.imputation.get_learnable_parameter().cuda())
 
     def zero_grad(self):
         self.classifier.zero_grad()
         if self.need_imputation and self.imputation.is_learnable() :
-
             self.imputation.zero_grad()
 
     def parameters(self):
@@ -50,6 +61,8 @@ class ClassificationModule():
 
 
     def __call__(self, data, sample_b = None):
+        if len(sample_b.shape)>2:
+            sample_b = sample_b.flatten(0,1)
         if self.imputation is not None and sample_b is None :
             raise AssertionError("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
         elif self.imputation is not None and sample_b is not None :

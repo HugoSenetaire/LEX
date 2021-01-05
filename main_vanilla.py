@@ -6,9 +6,11 @@ from torch.distributions import *
 from torch.optim import *
 
 if __name__ == "__main__":
+
+    input_size_classifier = (1, 28, 28)
     mnist = DatasetMnist(64,1000)
 
-    classifier = ClassifierModel(28, mnist.get_category())
+    classifier = ClassifierModel(input_size_classifier, mnist.get_category())
     classification_vanilla = ClassificationModule(classifier)
     optim_classifier = Adam(classification_vanilla.parameters())
     trainer_vanilla = ordinaryTraining(classification_vanilla)
