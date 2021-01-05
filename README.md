@@ -15,3 +15,5 @@ Change data structure so that we have batch_size * Nexpectation rather than two 
 Add dataset for simple destruction : OK
 
 When using variational, should round when calculating the probability ? Should round anyway ?
+
+Optimization of patch destruction
