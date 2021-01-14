@@ -11,5 +11,5 @@ def show_interpretation(sample, data, target, shape = (1,28,28)):
         plt.subplot(1,2,1)
         plt.imshow(data[i][k], cmap='gray', interpolation='none')
         plt.subplot(1,2,2)
-        plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none')
+        plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none', vmin=0, vmax=1)
         plt.show()

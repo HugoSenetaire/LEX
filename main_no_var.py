@@ -39,22 +39,24 @@ if __name__ == "__main__":
     mnist = DatasetMnistVariation(64,1000)
     # mnist = DatasetMnistVariation2(64, 1000)
     classifier_no_var = ClassifierModel(input_size_classifier, mnist.get_category())
-    # classifier_no_var = ConvClassifier(1)
-    # imputation_method = LearnImputation(isRounded=True)
     imputation_method = ConstantImputation(isRounded=False)
     classification_no_var = ClassificationModule(classifier_no_var, imputation=imputation_method)
+
     destructor_no_var = Destructor(input_size_destructor)
-    # destructor_no_var = ConvDestructor(1)
     destruction_no_var = DestructionModule(destructor_no_var, regularization=free_regularization)
     trainer_no_var = noVariationalTraining(classification_no_var, destruction_no_var, kernel_patch = kernel_patch, stride_patch = stride_patch)
-    temperature = 0.5
-    optim_classification = Adam(classification_no_var.parameters(), lr =1e-4 )
-    optim_destruction = Adam(destruction_no_var.parameters(), lr = 1e-4)
+    
+    
+    temperature = 1.0
+    optim_classification = Adam(classification_no_var.parameters())
+    optim_destruction = Adam(destruction_no_var.parameters())
+
+
     for k in range(10):
-        temperature *=0.5
         trainer_no_var.train(k, mnist, optim_classification, optim_destruction, partial(RelaxedBernoulli,temperature),
                             lambda_reg= 0)
         trainer_no_var.test_no_var(mnist, partial(RelaxedBernoulli,temperature))
+        temperature *=0.5
     
     data, target= next(iter(mnist.test_loader))
     data = data[:2]

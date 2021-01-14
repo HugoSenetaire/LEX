@@ -3,14 +3,17 @@ import torchvision
 from torch.utils.data import Dataset, DataLoader
 import numpy as np 
 from PIL import Image
+
+
 class FooDataset(Dataset):
-    def __init__(self,shape = (3,3), len = 1000):
+    def __init__(self,shape = (3,3), len_dataset = 10000, shift = 3):
         # assert(shape is tuple)
         # assert(len(shape)==2)
         self.size_x = shape[0]
         self.size_y = shape[1]
         self.nb_cat = self.size_x * self.size_y
-        self.len = 1000
+        self.shift = shift 
+        self.len = len_dataset
         self.transform = torchvision.transforms.Compose([
                                 torchvision.transforms.ToTensor(),
                                 ])
@@ -20,17 +23,17 @@ class FooDataset(Dataset):
         return self.len
 
     def __getitem__(self, idx):
-        target = int(idx%self.nb_cat)
+        target = int(idx%(self.nb_cat-self.shift))
         x = np.ones((self.nb_cat), dtype=np.float32)
-        x[target:] = np.zeros((self.nb_cat - target)) 
+        x[(target+1):] = np.zeros((self.nb_cat - (target+1))) 
         x = x.reshape((self.size_x, self.size_y))
 
         data = self.transform(x)
         return data,target
 
 class DatasetFoo():
-    def __init__(self, batch_size_train, batch_size_test, shape = (3,3) , len = 1000):
-        self.dataset = FooDataset(shape = shape, len = len)
+    def __init__(self, batch_size_train, batch_size_test, shape = (3,3) , len_dataset = 10000):
+        self.dataset = FooDataset(shape = shape, len_dataset = len_dataset)
         self.batch_size_test = batch_size_test
         self.batch_size_train = batch_size_train
 
@@ -38,7 +41,7 @@ class DatasetFoo():
         self.test_loader = torch.utils.data.DataLoader(self.dataset, self.batch_size_test, shuffle=True)
 
     def get_category(self):
-        return self.dataset.nb_cat
+        return self.dataset.nb_cat - self.dataset.shift
 
     def get_shape(self):
         return (1,self.dataset.size_x,self.dataset.size_y) 
