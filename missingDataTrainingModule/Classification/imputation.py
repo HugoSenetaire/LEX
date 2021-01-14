@@ -63,6 +63,11 @@ class Imputation():
 
       return new_sample_b
             
+  def __str__(self):
+    string = str(type(self)).split(".")[-1].replace("'","").strip(">")
+    if self.has_constant():
+      string +="_"+ str(self.cste)
+    return string
 
   def readable_sample(self, sample_b):
     return self.patch_creation(sample_b)
@@ -71,6 +76,9 @@ class Imputation():
     raise NotImplementedError
 
   def is_learnable(self):
+    return False
+
+  def has_constant(self):
     return False
 
   def add_channels(self):
@@ -83,7 +91,13 @@ class ConstantImputation(Imputation):
   def __init__(self, cste = 0, input_size = (1,28,28), kernel_patch = (1,1), stride = (1,1), isRounded = False):
     self.cste = cste
     super().__init__(input_size =input_size, isRounded = isRounded)
-    
+
+  def has_constant(self):
+    return True
+
+
+   
+
   def impute(self, data_expanded, sample_b):
     sample_b = self.round_sample(sample_b)
     sample_b = self.patch_creation(sample_b)
@@ -97,6 +111,11 @@ class MaskConstantImputation(Imputation):
     self.cste = cste
     super().__init__(input_size = input_size, isRounded = isRounded)
 
+
+
+
+  def has_constant(self):
+    return True
   def impute(self, data_expanded, sample_b):
   
     sample_b = self.round_sample(sample_b)
@@ -110,6 +129,9 @@ class LearnImputation(Imputation):
   def __init__(self, input_size = (1,28,28), kernel_patch = (1,1), stride = (1,1), isRounded = False):
     self.learned_cste = torch.rand(1, requires_grad=True)
     super().__init__(input_size = input_size, isRounded = isRounded)
+
+  def has_constant(self):
+    return True
 
   def get_learnable_parameter(self):
     return self.learned_cste

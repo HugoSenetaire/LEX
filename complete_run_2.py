@@ -12,52 +12,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 
 
-def save_interpretation(path, sample, data, target, shape = (1,28,28),suffix = ""):
-  channels = shape[0]
-  for i in range(len(sample)):
-    print(f"Wanted target category : {target[i]}")
-    sample_reshaped = sample[i].reshape(shape)
-    for k in range(channels):
-        fig = plt.figure()
-        plt.subplot(1,2,1)
-        plt.imshow(data[i][k], cmap='gray', interpolation='none')
-        plt.subplot(1,2,2)
-        plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none', vmin=0, vmax=1)
-        plt.savefig(os.path.join(path,f"{target[i].item()}_{suffix}.jpg"))
 
-
-def fill_dic(total_dic, dic):
-    if len(total_dic.keys())==0:
-        for key in dic.keys():
-            if isinstance(dic[key], Iterable):
-                total_dic[key]=dic[key]
-            else :
-                total_dic[key] = [dic[key]]
-
-    else :
-        for key in dic.keys():
-            # print(dic[key])
-            if isinstance(dic[key], Iterable):
-                total_dic[key].extend(dic[key])
-            else :
-                total_dic[key].append(dic[key])
-
-
-    return total_dic
-
-def save_dic(path, dic):
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-    for key in dic.keys():
-        table = dic[key]
-        # print(key)
-        # print(table)
-        # print(np.linspace(0,len(table)-1,len(table)))
-        plt.figure(0)
-        plt.plot(np.linspace(0,len(table)-1,len(table)),table)
-        plt.savefig(os.path.join(path,str(key)+".jpg"))
-        plt.clf()
 
 
 if __name__ == "__main__":
@@ -73,9 +28,9 @@ if __name__ == "__main__":
     # imputationMethod_list = [MaskConstantImputation()]
 
 
-    path_save = "D:\DTU\Results"
+    path_save = "D:\DTU\ResultsAUX"
     if not os.path.exists(path_save):
-        os.make_dirs(path_save)
+        os.makedirs(path_save)
 
 
 
@@ -93,7 +48,7 @@ if __name__ == "__main__":
                             "lr":lr,
                             "lambda_reg":lambda_reg,
                             # "lambda_reg_var": lambda_reg_var,
-                            "imputation": str(type(imputation)),
+                            "imputation": str(imputation),
                         }
                         print(parameter)
                         to_add = ""
