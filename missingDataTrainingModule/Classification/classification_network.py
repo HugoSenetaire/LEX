@@ -21,6 +21,7 @@ class ClassifierModel(nn.Module):
     def __init__(self,input_size = (1,28,28), output = 10):
         super().__init__()
         self.input_size = input_size
+       
         self.fc1 = nn.Linear(np.prod(input_size), 400)
         self.fc2 = nn.Linear(400, 400)
         self.fc3 = nn.Linear(400,output)

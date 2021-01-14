@@ -7,7 +7,7 @@ from utils_missing import *
 import torch
 
 class Imputation():
-  def __init__(self,input_size = (1,28,28), kernel_patch = (1,1), stride = (1,1), isRounded = False):
+  def __init__(self,input_size = (1,28,28), isRounded = False):
     self.isRounded = isRounded
     self.input_size = input_size
     self.kernel_updated = False
@@ -32,6 +32,8 @@ class Imputation():
   
   def patch_creation(self,sample_b):
     assert(self.kernel_updated)
+
+
     sample_b = sample_b.reshape((-1, self.input_size[0],self.nb_patch_x,self.nb_patch_y))
     if self.kernel_patch == (1,1):
       return sample_b
@@ -71,18 +73,21 @@ class Imputation():
   def is_learnable(self):
     return False
 
+  def add_channels(self):
+    return False
+
 
 
 
 class ConstantImputation(Imputation):
   def __init__(self, cste = 0, input_size = (1,28,28), kernel_patch = (1,1), stride = (1,1), isRounded = False):
     self.cste = cste
-    super().__init__(input_size =input_size, kernel_patch = kernel_patch, stride = stride, isRounded = isRounded)
+    super().__init__(input_size =input_size, isRounded = isRounded)
     
   def impute(self, data_expanded, sample_b):
-  
     sample_b = self.round_sample(sample_b)
     sample_b = self.patch_creation(sample_b)
+
     return data_expanded * ((1-sample_b) * self.cste + sample_b)
 
 
@@ -90,7 +95,7 @@ class ConstantImputation(Imputation):
 class MaskConstantImputation(Imputation):
   def __init__(self, cste = 0, input_size = (1,28,28), kernel_patch = (1,1), stride = (1,1), isRounded = False):
     self.cste = cste
-    super().__init__(input_size = input_size, kernel_patch = kernel_patch, stride = stride, isRounded = isRounded)
+    super().__init__(input_size = input_size, isRounded = isRounded)
 
   def impute(self, data_expanded, sample_b):
   
@@ -98,17 +103,19 @@ class MaskConstantImputation(Imputation):
     sample_b = self.patch_creation(sample_b)
     return torch.cat([data_expanded * ((1-sample_b) * self.cste + sample_b), sample_b], axis = 2)
 
+  def add_channels(self):
+    return True
 
 class LearnImputation(Imputation):
   def __init__(self, input_size = (1,28,28), kernel_patch = (1,1), stride = (1,1), isRounded = False):
-    self.learned_cste = torch.zeros((1), requires_grad=True)
-    super().__init__(input_size = input_size, kernel_patch = kernel_patch, stride = stride, isRounded = isRounded)
+    self.learned_cste = torch.rand(1, requires_grad=True)
+    super().__init__(input_size = input_size, isRounded = isRounded)
 
   def get_learnable_parameter(self):
     return self.learned_cste
 
-  def set_learnable_parameter(self, value):
-    self.learned_cste = self.value
+  def cuda(self):
+    self.learned_cste = torch.rand(1, requires_grad=True, device = "cuda")
 
   def zero_grad(self):
     if self.learned_cste.grad is not None :

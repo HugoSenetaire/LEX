@@ -38,7 +38,7 @@ class ClassificationModule():
     def cuda(self):
         self.classifier = self.classifier.cuda()
         if self.need_imputation and self.imputation.is_learnable() :
-            self.imputation.set_learnable_parameter(self.imputation.get_learnable_parameter().cuda())
+            self.imputation.cuda()
 
     def zero_grad(self):
         self.classifier.zero_grad()

@@ -37,6 +37,15 @@ def print_dic(epoch, batch_idx, dic, dataset):
         to_print += "{}: {:.5f} \t".format(key, dic[key])
     print(to_print)
 
+def save_dic_helper(total_dic, dic):
+    if len(total_dic.keys())==0:
+        for element in dic.keys():
+            total_dic[element] = [dic[element]]
+    else:
+        for element in dic.keys():
+            total_dic[element].append(dic[element])
+
+    return total_dic
 
 class ordinaryTraining():
     def __init__(self, classification_module, use_cuda = True, kernel_patch = (1,1), stride_patch=(1,1)):
@@ -76,11 +85,18 @@ class ordinaryTraining():
         dic["total_loss"] = loss.item()
         return dic
 
+    def _create_dic_test(self, correct, neg_likelihood, mse_loss):
+        dic = {}
+        dic["correct"] = correct
+        dic["likelihood"] = -neg_likelihood
+        dic["mse"] = mse_loss
+
+        return dic
 
 
-
-    def train(self,epoch, dataset, optim_classifier):
-
+    def train(self,epoch, dataset, optim_classifier, save_dic = False):
+        
+        total_dic = {}
         self.classification_module.train()
         for batch_idx, (data, target) in enumerate(dataset.train_loader):
             dic = self._train_step(data,target,dataset)
@@ -88,6 +104,10 @@ class ordinaryTraining():
 
             if batch_idx % 100 == 0:
                 print_dic(epoch, batch_idx, dic, dataset)
+                if save_dic :
+                    total_dic = save_dic_helper(total_dic, dic)
+
+        return total_dic
 
 
 
@@ -97,12 +117,17 @@ class ordinaryTraining():
         self.classification_module.eval()
         test_loss = 0
         correct = 0
+
+        
         with torch.no_grad():
             for data, target in dataset.test_loader:
                 data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
 
                 y_hat = self.classification_module(data).squeeze()
-                
+
+
+                neg_likelihood = F.nll_loss(y_hat, target)
+
                 test_loss += torch.mean(torch.sum((y_hat-one_hot_target)**2,1))
                 pred = y_hat.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.data.view_as(pred)).sum()
@@ -110,6 +135,10 @@ class ordinaryTraining():
         print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(dataset.test_loader.dataset),
         100. * correct / len(dataset.test_loader.dataset)))
+
+        total_dic = self._create_dic_test(correct/len(dataset.test_loader.dataset), neg_likelihood, test_loss)
+
+        return total_dic
 
 
     
@@ -130,7 +159,6 @@ class noVariationalTraining(ordinaryTraining):
         self.classification_module.zero_grad()
         self.destruction_module.zero_grad()
         data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
-
         pi_list, loss_reg, _, _ = self.destruction_module(data) 
         loss_reg = lambda_reg * loss_reg
 
@@ -159,9 +187,9 @@ class noVariationalTraining(ordinaryTraining):
 
     def _create_dic(self, loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list):
         dic = super()._create_dic(loss_total, neg_likelihood, mse_loss)
-        dic["loss_rec"] = loss_rec
-        dic["loss_reg"] = loss_reg
-        dic["mean_pi"] = torch.mean(torch.mean(pi_list.flatten(1),1))
+        dic["loss_rec"] = loss_rec.item()
+        dic["loss_reg"] = loss_reg.item()
+        dic["mean_pi"] = torch.mean(torch.mean(pi_list.flatten(1),1)).item()
         # dic["median_pi"] = torch.mean(torch.median(pi_list.flatten(1),dim=1))
         # print(pi_list.flatten(1).shape)
         # print(torch.quantile(pi_list.flatten(1),torch.tensor([0.5]),dim=1).shape)
@@ -169,26 +197,48 @@ class noVariationalTraining(ordinaryTraining):
         if self.use_cuda: 
             quantiles = quantiles.cuda()
         q = torch.quantile(pi_list.flatten(1),quantiles,dim=1,keepdim = True)
-        dic["median_pi"] = torch.mean(q[1])
-        dic["q1_pi"] = torch.mean(q[0])
-        dic["q2_pi"] = torch.mean(q[2])
+        dic["median_pi"] = torch.mean(q[1]).item()
+        dic["q1_pi"] = torch.mean(q[0]).item()
+        dic["q2_pi"] = torch.mean(q[2]).item()
+        if self.classification_module.imputation.is_learnable():
+            dic["constantLeanarble"]= self.classification_module.imputation.get_learnable_parameter().item()
         return dic
 
 
 
-    def train(self,epoch, dataset, optim_classifier, optim_destruction, sampling_distribution, lambda_reg = 0.0, Nexpectation=10):
+    def train(self,epoch, dataset, optim_classifier, optim_destruction, sampling_distribution, lambda_reg = 0.0, Nexpectation=10, save_dic = False):
         self.classification_module.train()
         self.destruction_module.train()
+        
+        total_dic = {}
+
         for batch_idx, (data, target) in enumerate(dataset.train_loader):
             
             dic = self._train_step(data, target,dataset, sampling_distribution, lambda_reg = lambda_reg, Nexpectation = Nexpectation)
 
             optim_classifier.step()
             optim_destruction.step()
-      
             if batch_idx % 100 == 0:
                 print_dic(epoch, batch_idx, dic, dataset)
+                if save_dic :
+                    total_dic = save_dic_helper(total_dic, dic)
             
+            # if batch_idx ==200 :
+                # break
+    
+        return total_dic
+        
+    def _create_dic_test(self, correct, neg_likelihood, test_loss, pi_list_total):
+        total_dic = super()._create_dic_test(correct, neg_likelihood, test_loss)
+        treated_pi_list_total = np.concatenate(pi_list_total)
+        total_dic["mean_pi_list"] = np.mean(treated_pi_list_total).item()
+        q = np.quantile(treated_pi_list_total, [0.25,0.5,0.75])
+        total_dic["pi_list_q1"] = q[0].item()
+        total_dic["pi_list_median"] = q[1].item()
+        total_dic["pi_list_q2"] = q[2].item()
+
+        return total_dic
+
 
     def test_no_var(self, dataset, sampling_distribution):
         test_loss_mse = 0
@@ -197,12 +247,16 @@ class noVariationalTraining(ordinaryTraining):
         self.classification_module.eval()
         self.destruction_module.eval()
 
+
+        pi_list_total = []
         with torch.no_grad():
+            
             for data, target in dataset.test_loader:
                 batch_size = data.shape[0]
                 data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten  = prepare_data_augmented(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
                 
                 pi_list, _, _, _ = self.destruction_module(data, test=True)
+                pi_list_total.append(pi_list.cpu().numpy())
                 p_z = sampling_distribution(pi_list)
 
 
@@ -210,7 +264,7 @@ class noVariationalTraining(ordinaryTraining):
                 # z_reshaped = z.reshape(wanted_shape_flatten)
                 y_hat = self.classification_module(data_expanded_flatten, z)
 
-                test_loss_likelihood -= F.nll_loss(y_hat.squeeze(),target)
+                test_loss_likelihood += F.nll_loss(y_hat.squeeze(),target)
                 test_loss_mse += torch.mean(torch.sum((torch.exp(y_hat)-one_hot_target)**2,1))
                 pred = y_hat.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.unsqueeze(0).data.view_as(pred)).sum()
@@ -220,6 +274,12 @@ class noVariationalTraining(ordinaryTraining):
                 -test_loss_likelihood, test_loss_mse, correct, len(dataset.test_loader.dataset),
                 100. * correct / len(dataset.test_loader.dataset)))
             print("\n")
+            total_dic = self._create_dic_test(correct.item()/len(dataset.test_loader.dataset),
+                test_loss_likelihood.item(),
+                test_loss_mse.item(),
+                pi_list_total)
+
+        return total_dic
 
 
 
@@ -291,8 +351,12 @@ class variationalTraining(noVariationalTraining):
     def _prob_calc(self, y_hat, one_hot_target_expanded, z , pz, qz):
         Nexpectation = one_hot_target_expanded.shape[0]
         log_prob_y = torch.masked_select(y_hat,one_hot_target_expanded>0.5).reshape(Nexpectation,-1)
+        # print(pz.log_prob(z).shape)
         log_prob_pz = torch.sum(pz.log_prob(z),-1)
         log_prob_qz = torch.sum(qz.log_prob(z),-1)
+        # print(log_prob_y)
+        # print(log_prob_pz)
+        # print(log_prob_qz)
         
         return log_prob_y,log_prob_pz,log_prob_qz
     
@@ -338,22 +402,21 @@ class variationalTraining(noVariationalTraining):
             loss_reg_var, pi_list_var
             )
 
-        
-        
+
         return dic
         
 
     def _create_dic(self,loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_reg_var, pi_list_var):
         dic = super()._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list)
-        dic["loss_reg_var"] = loss_reg_var
+        dic["loss_reg_var"] = loss_reg_var.item()
         dic["mean_pi_var"] = torch.mean((torch.mean(pi_list_var.squeeze(),1))).item()
         quantiles = torch.tensor([0.25,0.5,0.75])
         if self.use_cuda: 
             quantiles = quantiles.cuda()
         q = torch.quantile(pi_list_var.flatten(1),quantiles,dim=1,keepdim = True)
-        dic["median_pi_var"] = torch.mean(q[1])
-        dic["q1_pi_var"] = torch.mean(q[0])
-        dic["q2_pi_var"] = torch.mean(q[2])
+        dic["median_pi_var"] = torch.mean(q[1]).item()
+        dic["q1_pi_var"] = torch.mean(q[0]).item()
+        dic["q2_pi_var"] = torch.mean(q[2]).item()
         dic["mean pi diff"] = torch.mean(
             torch.mean(
                 (pi_list.flatten(1)-pi_list_var.flatten(1))**2,
@@ -362,10 +425,24 @@ class variationalTraining(noVariationalTraining):
             ).item()
         return dic
 
-    def train(self, epoch, dataset, optim_classifier, optim_destruction, sampling_distribution, sampling_distribution_var, lambda_reg = 0.0, lambda_reg_var= 0.0, Nexpectation = 10):
+    def _create_dic_test(self, correct, neg_likelihood, test_loss, pi_list_total, pi_list_var_total=None):
+        total_dic = super()._create_dic_test(correct, neg_likelihood, test_loss, pi_list_total)
+        if pi_list_var_total is None :
+            return total_dic
+        else :
+            treated_pi_list_var_total = np.concatenate(pi_list_var_total)
+            total_dic["mean_pi_list_var"] = np.mean(treated_pi_list_var_total)
+            q = np.quantile(treated_pi_list_var_total, [0.25,0.5,0.75])
+            total_dic["pi_list_var_q1"] = q[0]
+            total_dic["pi_list_var_median"] = q[1]
+            total_dic["pi_list_var_q2"] = q[2]
+            
+            return total_dic
+
+    def train(self, epoch, dataset, optim_classifier, optim_destruction, sampling_distribution, sampling_distribution_var, lambda_reg = 0.0, lambda_reg_var= 0.0, Nexpectation = 10, save_dic = False):
         self.classification_module.train()
         self.destruction_module.train()
-
+        total_dic = {}
         for batch_idx, (data, target) in enumerate(dataset.train_loader):
 
             dic = self._train_step(
@@ -377,12 +454,19 @@ class variationalTraining(noVariationalTraining):
                     
             if batch_idx % 100 == 0:
                 print_dic(epoch, batch_idx, dic, dataset)
+                if save_dic :
+                    total_dic = save_dic_helper(total_dic, dic)
             
             optim_classifier.step()
             optim_destruction.step()
         
-        return dic
+               
+            # if batch_idx ==200 :
+                # break
+        return total_dic
             # break
+
+ 
 
             
     def test_var(self, dataset, sampling_distribution, sampling_distribution_var):
@@ -394,18 +478,22 @@ class variationalTraining(noVariationalTraining):
         test_loss_likelihood = 0
         correct = 0
         
+        
         with torch.no_grad():
+            pi_list_total = []
+            pi_list_var_total = []
             for data, target in dataset.test_loader:
                 batch_size = data.shape[0]
                 data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten  = prepare_data_augmented(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
 
-
                 pi_list, _, pi_list_var, _ = self.destruction_module(data, one_hot_target=one_hot_target, do_variational=True, test=True)
+                pi_list_total.append(pi_list.cpu().numpy())
+                pi_list_var_total.append(pi_list.cpu().numpy())
+
                 pz = sampling_distribution(pi_list)
                 qz = sampling_distribution_var(pi_list_var)
 
                 z = qz.sample()
-                # z_reshaped = z.reshape((wanted_shape_flatten))
 
                 y_hat = self.classification_module(data_expanded_flatten, z)
                 y_hat_squeeze = y_hat.squeeze()
@@ -421,6 +509,15 @@ class variationalTraining(noVariationalTraining):
                 test_loss_likelihood, test_loss_mse, correct, len(dataset.test_loader.dataset),
                 100. * correct / len(dataset.test_loader.dataset)))
             print("\n")
+            total_dic = self._create_dic_test(correct.item()/len(dataset.test_loader.dataset),
+                test_loss_likelihood.item(),
+                test_loss_mse.item(),
+                pi_list_total,
+                pi_list_var_total)
+
+            return total_dic
+
+
 
 
     def MCMC_var(self, dataset, data, target, sampling_distribution, sampling_distribution_var, Niter, eps = 1e-6, burn = 1000, jump = 50):

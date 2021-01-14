@@ -127,7 +127,7 @@ class ConvDestructor(nn.Module):
         self.maxpool1 = nn.MaxPool2d(kernel_size=(2,2),stride=1, padding = 1)
         self.conv2 = nn.Conv2d(input_channel, 1, 3, stride=1, padding=1)
         self.maxpool2 = nn.MaxPool2d(kernel_size=(2,2),stride=1)
-        self.fc = nn.Linear(np.prod(input_size),np.prod(input_size))
+        self.fc = nn.Linear(np.prod(input_size),np.prod(input_size)) #TODO : No Fully connected layer at the end.
     
     def __call__(self, x):
         x = self.maxpool1(self.conv1(x))
@@ -150,4 +150,4 @@ class ConvDestructorVar(nn.Module):
     x = torch.flatten(x,1)
     y = y.float()
     x = torch.cat([x,y],1)
-    return F.sigmoid(self.fc(x)) #N_expectation, Batch_size, Category
+    return F.sigmoid(self.fc(x)) #TODO : No Fully connected layer at the end.

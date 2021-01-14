@@ -17,3 +17,8 @@ Add dataset for simple destruction : OK
 When using variational, should round when calculating the probability ? Should round anyway ?
 
 Optimization of patch destruction
+
+Utiliser un modèle D'ising ?
+
+
+Use Unet architecvture or just convo (no linear)
