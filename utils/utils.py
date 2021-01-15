@@ -1,6 +1,17 @@
 import torch
 import matplotlib.pyplot as plt
 
+from collections.abc import Iterable
+from functools import partial
+import matplotlib.pyplot as plt
+
+import os
+from datetime import datetime
+from collections.abc import Iterable
+from functools import partial
+import matplotlib.pyplot as plt
+import numpy as np
+
 def show_interpretation(sample, data, target, shape = (1,28,28)):
   channels = shape[0]
   for i in range(len(sample)):
@@ -53,9 +64,6 @@ def save_dic(path, dic):
 
     for key in dic.keys():
         table = dic[key]
-        # print(key)
-        # print(table)
-        # print(np.linspace(0,len(table)-1,len(table)))
         plt.figure(0)
         plt.plot(np.linspace(0,len(table)-1,len(table)),table)
         plt.savefig(os.path.join(path,str(key)+".jpg"))

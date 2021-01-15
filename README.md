@@ -25,3 +25,6 @@ VAE with imputation multiple
 Try post Hoc method ?
 
 Other Regularization method on the z not on pis
+
+
+Problems with imputation, learnable parameter and cuda, find a better solve for the problem

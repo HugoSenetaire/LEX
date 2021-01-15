@@ -18,13 +18,13 @@ from torchvision.utils import save_image
 
 
 class ClassifierModel(nn.Module):
-    def __init__(self,input_size = (1,28,28), output = 10):
+    def __init__(self,input_size = (1,28,28), output = 10, middle_size = 400):
         super().__init__()
         self.input_size = input_size
        
-        self.fc1 = nn.Linear(np.prod(input_size), 400)
-        self.fc2 = nn.Linear(400, 400)
-        self.fc3 = nn.Linear(400,output)
+        self.fc1 = nn.Linear(np.prod(input_size), middle_size)
+        self.fc2 = nn.Linear(middle_size, middle_size)
+        self.fc3 = nn.Linear(middle_size,output)
         self.logsoftmax = nn.LogSoftmax(-1)
     
     def __call__(self, x):
@@ -58,3 +58,13 @@ class ConvClassifier(nn.Module):
         x = torch.flatten(x,1)
         result = self.logsoftmax(self.fc(x)).reshape(Nexpectation, batch_size, -1)
         return result #N_expectation, Batch_size, Category
+
+
+class imputationInvariantNetwork(nn.Module):
+    def __init__(self, input_size = (50), output_size = 20):
+        super().__init__()
+        self.fc =  nn.Linear(np.prod(input_size), output_size)
+
+    def __call__(self, x):
+        return F.elu(self.fc(x))
+    

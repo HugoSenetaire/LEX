@@ -27,16 +27,23 @@ class ClassificationModule():
 
     def train(self):
         if self.need_imputation and self.imputation.is_learnable() :
-            self.imputation.get_learnable_parameter().requires_grad_(True)
+            if self.imputation.has_constant():
+                self.imputation.get_learnable_parameter().requires_grad_(True)
+            else :
+                self.imputation.train()
         self.classifier.train()
 
     def eval(self):
         if self.need_imputation and self.imputation.is_learnable() :
-            self.imputation.get_learnable_parameter().requires_grad_(False)
+            if self.imputation.has_constant():
+                self.imputation.get_learnable_parameter().requires_grad_(True)
+            else :
+                self.imputation.eval()
         self.classifier.eval()
 
     def cuda(self):
         self.classifier = self.classifier.cuda()
+      
         if self.need_imputation and self.imputation.is_learnable() :
             self.imputation.cuda()
 
@@ -51,10 +58,16 @@ class ClassificationModule():
         
 
         if self.need_imputation and self.imputation.is_learnable() :
-            return [
-                {"params" : self.classifier.parameters()},
-                {"params" : self.imputation.get_learnable_parameter()},
-            ]
+            if self.imputation.has_constant():
+                return [
+                    {"params" : self.classifier.parameters()},
+                    {"params" : self.imputation.get_learnable_parameter()},
+                ]
+            else :
+                list_param = [{"params" : self.classifier.parameters()}]
+                for element in self.imputation.get_learnable_parameter():
+                    list_param.append(element)
+                return list_param
         else :
             return self.classifier.parameters()
 

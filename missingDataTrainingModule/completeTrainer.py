@@ -200,7 +200,8 @@ class noVariationalTraining(ordinaryTraining):
         dic["median_pi"] = torch.mean(q[1]).item()
         dic["q1_pi"] = torch.mean(q[0]).item()
         dic["q2_pi"] = torch.mean(q[2]).item()
-        if self.classification_module.imputation.is_learnable():
+        if self.classification_module.imputation.is_learnable() and \
+            self.classification_module.imputation.has_constant():
             dic["constantLeanarble"]= self.classification_module.imputation.get_learnable_parameter().item()
         return dic
 
@@ -351,12 +352,8 @@ class variationalTraining(noVariationalTraining):
     def _prob_calc(self, y_hat, one_hot_target_expanded, z , pz, qz):
         Nexpectation = one_hot_target_expanded.shape[0]
         log_prob_y = torch.masked_select(y_hat,one_hot_target_expanded>0.5).reshape(Nexpectation,-1)
-        # print(pz.log_prob(z).shape)
         log_prob_pz = torch.sum(pz.log_prob(z),-1)
         log_prob_qz = torch.sum(qz.log_prob(z),-1)
-        # print(log_prob_y)
-        # print(log_prob_pz)
-        # print(log_prob_qz)
         
         return log_prob_y,log_prob_pz,log_prob_qz
     
@@ -460,11 +457,9 @@ class variationalTraining(noVariationalTraining):
             optim_classifier.step()
             optim_destruction.step()
         
-               
-            # if batch_idx ==200 :
-                # break
+
         return total_dic
-            # break
+
 
  
 
