@@ -3,6 +3,7 @@ from .Classification import *
 from .utils_missing import *
 import numpy as np
 
+import matplotlib.pyplot as plt
 def prepare_data(data, target, num_classes=10, use_cuda = False):
     if use_cuda:
         data =data.cuda()
@@ -69,7 +70,6 @@ class ordinaryTraining():
         self.classification_module.zero_grad()
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
         y_hat = self.classification_module(data).squeeze()
-
         neg_likelihood = F.nll_loss(y_hat, target)
         mse_loss = torch.mean(torch.sum((torch.exp(y_hat)-one_hot_target)**2,1))
         loss = neg_likelihood
@@ -165,12 +165,12 @@ class noVariationalTraining(ordinaryTraining):
 
         p_z = sampling_distribution(pi_list)
         z = p_z.rsample((Nexpectation,))
-        # z_reshaped = z.reshape(wanted_shape_flatten)
 
         y_hat = self.classification_module(data_expanded_flatten, z)
         y_hat = y_hat.reshape(Nexpectation, -1, dataset.get_category())
 
-        log_prob_y = torch.masked_select(y_hat,one_hot_target_expanded>0.5)
+
+        log_prob_y = torch.masked_select(y_hat,one_hot_target_expanded>0.5).reshape(Nexpectation, -1)
         y_hat_mean = torch.mean(y_hat,0)
 
         neg_likelihood = - torch.mean(torch.logsumexp(log_prob_y,0)) #Size 1
@@ -190,9 +190,6 @@ class noVariationalTraining(ordinaryTraining):
         dic["loss_rec"] = loss_rec.item()
         dic["loss_reg"] = loss_reg.item()
         dic["mean_pi"] = torch.mean(torch.mean(pi_list.flatten(1),1)).item()
-        # dic["median_pi"] = torch.mean(torch.median(pi_list.flatten(1),dim=1))
-        # print(pi_list.flatten(1).shape)
-        # print(torch.quantile(pi_list.flatten(1),torch.tensor([0.5]),dim=1).shape)
         quantiles = torch.tensor([0.25,0.5,0.75])
         if self.use_cuda: 
             quantiles = quantiles.cuda()
@@ -214,7 +211,6 @@ class noVariationalTraining(ordinaryTraining):
         total_dic = {}
 
         for batch_idx, (data, target) in enumerate(dataset.train_loader):
-            
             dic = self._train_step(data, target,dataset, sampling_distribution, lambda_reg = lambda_reg, Nexpectation = Nexpectation)
 
             optim_classifier.step()
@@ -224,8 +220,6 @@ class noVariationalTraining(ordinaryTraining):
                 if save_dic :
                     total_dic = save_dic_helper(total_dic, dic)
             
-            # if batch_idx ==200 :
-                # break
     
         return total_dic
         
@@ -262,15 +256,15 @@ class noVariationalTraining(ordinaryTraining):
 
 
                 z = p_z.sample()
-                # z_reshaped = z.reshape(wanted_shape_flatten)
                 y_hat = self.classification_module(data_expanded_flatten, z)
 
                 test_loss_likelihood += F.nll_loss(y_hat.squeeze(),target)
                 test_loss_mse += torch.mean(torch.sum((torch.exp(y_hat)-one_hot_target)**2,1))
-                pred = y_hat.data.max(1, keepdim=True)[1]
-                correct += pred.eq(target.unsqueeze(0).data.view_as(pred)).sum()
+
+                pred = torch.argmax(y_hat,dim = 1)
+                correct += pred.eq(target).sum()
+
             test_loss_mse /= len(dataset.test_loader.dataset) * batch_size
-            # test_losses.append(test_loss)
             print('\nTest set: MSE: {:.4f}, Likelihood {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
                 -test_loss_likelihood, test_loss_mse, correct, len(dataset.test_loader.dataset),
                 100. * correct / len(dataset.test_loader.dataset)))
@@ -298,15 +292,13 @@ class noVariationalTraining(ordinaryTraining):
             pi_list,_,_,_ = self.destruction_module(data, test = True)
             pz = sampling_distribution(pi_list)
             previous_z = pz.sample()
-            # previous_z_reshaped = previous_z.reshape(wanted_shape_flatten)
-            # previous_z_readable = 
+
             y_hat = self.classification_module(data_expanded_flatten, previous_z)
             y_hat_squeeze = y_hat.squeeze()
             previous_log_py = torch.masked_select(y_hat_squeeze, one_hot_target>0.5)
 
             for k in range(Niter):
                 z = pz.sample()
-                # z_reshaped = z.reshape(wanted_shape_flatten)
 
                 y_hat = self.classification_module(data_expanded_flatten, z)
                 log_py = torch.masked_select(y_hat_squeeze, one_hot_target>0.5)
@@ -321,7 +313,6 @@ class noVariationalTraining(ordinaryTraining):
                 mask_acceptance = mask_acceptance.unsqueeze(1).expand((-1,z.shape[1]))
 
                 previous_z = torch.where(mask_acceptance, z, previous_z)
-                # previous_z_reshaped = previous_z.reshape(wanted_shape_flatten)
                 y_hat = self.classification_module(data_expanded_flatten, previous_z)
                 y_hat_squeeze = y_hat.squeeze()
                 previous_log_py = torch.masked_select(y_hat_squeeze, one_hot_target>0.5)
@@ -332,7 +323,6 @@ class noVariationalTraining(ordinaryTraining):
 
             sample_list_readable = torch.mean(torch.cat(sample_list_readable),0)
             sample_list = torch.mean(torch.cat(sample_list),0)
-            # sample_list = torch.mean(sample_list,0)
 
             return sample_list_readable
 
@@ -359,7 +349,6 @@ class variationalTraining(noVariationalTraining):
     
     def _likelihood_var(self, y_hat, one_hot_target_expanded, z, pz, qz):
         log_prob_y, log_prob_pz, log_prob_qz = self._prob_calc(y_hat, one_hot_target_expanded, z, pz, qz)
-        # print(log_prob_y.shape)
         return torch.mean(torch.logsumexp(log_prob_y+log_prob_pz-log_prob_qz,0))
 
 
@@ -387,7 +376,6 @@ class variationalTraining(noVariationalTraining):
 
         neg_likelihood = - self._likelihood_var(y_hat,one_hot_target_expanded, z, pz, qz)
         mse_loss = torch.mean(torch.sum((torch.exp(y_hat_mean)-one_hot_target)**2,1))
-
         loss_rec = neg_likelihood
         loss_total = loss_rec + loss_reg + loss_reg_var
         loss_total.backward()
@@ -453,10 +441,9 @@ class variationalTraining(noVariationalTraining):
                 print_dic(epoch, batch_idx, dic, dataset)
                 if save_dic :
                     total_dic = save_dic_helper(total_dic, dic)
-            
+
             optim_classifier.step()
             optim_destruction.step()
-        
 
         return total_dic
 
@@ -498,8 +485,7 @@ class variationalTraining(noVariationalTraining):
                 pred = y_hat_squeeze.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.data.view_as(pred)).sum()
 
-            test_loss_mse /= len(dataset.test_loader.dataset) * batch_size
-            # test_losses.append(test_loss)
+            test_loss_mse /= len(dataset.test_loader.dataset) * dataset.batch_size_test
             print('\nTest set: AMSE: {:.4f}, Likelihood {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
                 test_loss_likelihood, test_loss_mse, correct, len(dataset.test_loader.dataset),
                 100. * correct / len(dataset.test_loader.dataset)))

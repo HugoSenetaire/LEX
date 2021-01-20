@@ -222,6 +222,59 @@ class LearnConstantImputation(Imputation):
   def is_learnable(self):
     return True
 
+
+class AutoEncoderImputation(Imputation):
+  def __init__(self, autoencoder, train = True, input_size = (1, 28, 28), kernel_patch = (1,1), stride = (1,1), isRounded = False):
+    super().__init__(input_size=input_size, isRounded=isRounded)
+    self.autoencoder = autoencoder
+    self.cste = 0
+    self.train = train
+    # if self.train :
+    #   self.autoencoder.requires_grad(False)
+    # else :
+    #   self.autoencoder.requires_grad(True)
+    if not self.train:
+      for param in self.autoencoder.parameters():
+        param.requires_grad = False
+
+  def is_learnable(self):
+    if self.train :
+      return True
+    else :
+      return False
+
+  def get_learnable_parameter(self):
+
+    parameter =[]
+    parameter.append({"params":self.autoencoder.parameters()})
+    return parameter
+
+
+  def cuda(self):
+    self.autoencoder = self.autoencoder.cuda()
+
+  def zero_grad(self):
+    if self.train :
+      self.autoencoder.zero_grad()
+
+  def train(self):
+    if self.train :
+      self.autoencoder.train()
+
+  def eval(self):
+    self.autoencoder.eval()
+
+  def impute(self, data_expanded, sample_b):
+    sample_b = self.round_sample(sample_b)
+    sample_b = self.patch_creation(sample_b)
+    new_data = data_expanded  * ((1-sample_b) * self.cste + sample_b)
+    data_imputed = self.autoencoder(new_data)
+
+    return data_imputed
+
+
+
+
 class PermutationInvariance(Imputation):
 
   def __init__(self, h_network, size_D = 10, add_index = True, input_size = (1, 28, 28), kernel_patch = (1,1), stride = (1,1), isRounded = False):

@@ -74,13 +74,18 @@ class ClassificationModule():
 
 
     def __call__(self, data, sample_b = None):
-        if len(sample_b.shape)>2:
+        if sample_b is not None and len(sample_b.shape)>2:
             sample_b = sample_b.flatten(0,1)
+
+
+
         if self.imputation is not None and sample_b is None :
             raise AssertionError("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
         elif self.imputation is not None and sample_b is not None :
             x_imputed = self.imputation.impute(data, sample_b)
             y_hat = self.classifier(x_imputed)
+
+            
         else :
             y_hat = self.classifier(data)
         return y_hat
