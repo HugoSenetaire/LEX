@@ -16,31 +16,11 @@ if __name__ == "__main__":
     stride_patch = (1,1)
     kernel_patch = (1,1)
 
-    # mnist = DatasetFoo(2,10, shape=(3,3), len=10)
-    # classifier_var = ClassifierModel(3, mnist.get_category())
-    # classification_var = ClassificationModule(classifier_var, imputation=ConstantImputation())
-    # destructor = Destructor(3)
-    # # destructor = ConvDestructor(1)
-    # # destructor_var = ConvDestructorVar(1)
-    # destructor_var = DestructorVariational(3, mnist.get_category())
-    # destruction_var = DestructionModule(destructor, destructorVar= destructor_var, regularization=free_regularization, regularization_var= free_regularization)
-    # trainer_var = variationalTraining(classification_var, destruction_var)
-    # temperature = torch.tensor([0.01])
-    # if torch.cuda.is_available():
-    #     temperature = temperature.cuda()
-    # optim_classification = Adam(classification_var.parameters())
-    # optim_destruction = Adam(destruction_var.parameters())
-    # for k in range(1):
-    #     trainer_var.train(0, mnist, optim_classification, optim_destruction,Bernoulli , partial(RelaxedBernoulli,temperature), Nexpectation=4)
+    
 
+    dataset_class = MnistVariation1
+    mnist = LoaderEncapsulation(MnistVariation1, 64, 1000)
 
-
-
-
-
-
-    # mnist = DatasetMnist(64,1000)
-    mnist = DatasetMnistVariation(64,1000)
     classifier_var = ClassifierModel(input_size_classifier, mnist.get_category())
     # classifier_var = ConvClassifier(1)
     classification_var = ClassificationModule(classifier_var, imputation=ConstantImputation(cste = 1000, isRounded=False))

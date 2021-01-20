@@ -10,7 +10,7 @@ from functools import partial
 if __name__ == "__main__":
 
     
-    input_size_classifier = (1,28,28)
+    input_size_classifier = (2,28,28)
     input_size_destructor = (1,28,28)
     # stride_patch = (2,2)
     # kernel_patch = (2,2)
@@ -36,10 +36,14 @@ if __name__ == "__main__":
 
 
     # mnist = DatasetMnist(64,1000)
-    mnist = DatasetMnistVariation(64,1000)
+
+    dataset_class = MnistVariation1
+
+    mnist = LoaderEncapsulation(dataset_class, 64, 1000)
     # mnist = DatasetMnistVariation2(64, 1000)
     classifier_no_var = ClassifierModel(input_size_classifier, mnist.get_category())
-    imputation_method = ConstantImputation(isRounded=False)
+    imputation_method = MaskConstantImputation(isRounded=False)
+    # imputation_method = ConstantImputation(isRounded=False)
     classification_no_var = ClassificationModule(classifier_no_var, imputation=imputation_method)
 
     destructor_no_var = Destructor(input_size_destructor)
@@ -52,7 +56,7 @@ if __name__ == "__main__":
     optim_destruction = Adam(destruction_no_var.parameters())
 
 
-    for k in range(10):
+    for k in range(5):
         trainer_no_var.train(k, mnist, optim_classification, optim_destruction, partial(RelaxedBernoulli,temperature),
                             lambda_reg= 0)
         trainer_no_var.test_no_var(mnist, partial(RelaxedBernoulli,temperature))
