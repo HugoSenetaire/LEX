@@ -224,21 +224,21 @@ class LearnConstantImputation(Imputation):
 
 
 class AutoEncoderImputation(Imputation):
-  def __init__(self, autoencoder, train = True, input_size = (1, 28, 28), kernel_patch = (1,1), stride = (1,1), isRounded = False):
+  def __init__(self, autoencoder, to_train = True, input_size = (1, 28, 28), kernel_patch = (1,1), stride = (1,1), isRounded = False):
     super().__init__(input_size=input_size, isRounded=isRounded)
     self.autoencoder = autoencoder
     self.cste = 0
-    self.train = train
-    # if self.train :
+    self.to_train = to_train
+    # if self.to_train :
     #   self.autoencoder.requires_grad(False)
     # else :
     #   self.autoencoder.requires_grad(True)
-    if not self.train:
+    if not self.to_train:
       for param in self.autoencoder.parameters():
         param.requires_grad = False
 
   def is_learnable(self):
-    if self.train :
+    if self.to_train :
       return True
     else :
       return False
@@ -254,11 +254,11 @@ class AutoEncoderImputation(Imputation):
     self.autoencoder = self.autoencoder.cuda()
 
   def zero_grad(self):
-    if self.train :
+    if self.to_train :
       self.autoencoder.zero_grad()
 
   def train(self):
-    if self.train :
+    if self.to_train :
       self.autoencoder.train()
 
   def eval(self):

@@ -19,13 +19,15 @@ def show_interpretation(sample, data, target, shape = (1,28,28)):
     sample_reshaped = sample[i].reshape(shape)
     for k in range(channels):
         fig = plt.figure()
-        plt.subplot(1,2,1)
+        plt.subplot(1,3,1)
         plt.imshow(data[i][k], cmap='gray', interpolation='none')
-        plt.subplot(1,2,2)
+        plt.subplot(1,3,2)
         plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none', vmin=0, vmax=1)
+        plt.subplot(1,3,3)
+        plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none', vmin=sample_reshaped[k].min().item(), vmax=sample_reshaped[k].max().item())
         plt.show()
 
-def save_interpretation(path, sample, data, target, shape = (1,28,28),suffix = ""):
+def save_interpretation(path, sample, data, target, shape = (1,28,28),suffix = "", prefix= 'sample'):
   channels = shape[0]
   for i in range(len(sample)):
     print(f"Wanted target category : {target[i]}")
@@ -36,7 +38,7 @@ def save_interpretation(path, sample, data, target, shape = (1,28,28),suffix = "
         plt.imshow(data[i][k], cmap='gray', interpolation='none')
         plt.subplot(1,2,2)
         plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none', vmin=0, vmax=1)
-        plt.savefig(os.path.join(path,f"{target[i].item()}_{suffix}.jpg"))
+        plt.savefig(os.path.join(path,f"{prefix}_{target[i]}_{suffix}.jpg"))
 
 
 def fill_dic(total_dic, dic):
@@ -70,11 +72,6 @@ def save_dic(path, dic):
         plt.clf()
 
 
-def noise_gaussian(img, sigma = 1.0):
-    noise = np.random.normal(0, sigma, np.shape(img))
-    # noise = np.zeros(np.shape(img))
-    img_noised = img + noise
-    return img_noised
 
 def train_autoencoder(autoencoder, dataset, optim):
 
