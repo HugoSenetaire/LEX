@@ -24,20 +24,28 @@ class AbstractDestructor(nn.Module):
     super().__init__()
 
     self.input_size = input_size
-    
-    # print(self.nb_patch_x)
-    # print(self.nb_patch_y)
-    
     self.kernel_updated = False
+
+
   def kernel_update(self, kernel_patch, stride_patch):
     self.kernel_updated = True
-    assert(kernel_patch[0]>= stride_patch[0])
-    assert(kernel_patch[1]>= stride_patch[1])
-    assert(stride_patch[0]>0)
-    assert(stride_patch[1]>0)
-    self.kernel_patch = kernel_patch
-    self.stride_patch = stride_patch
-    self.nb_patch_x, self.nb_patch_y = calculate_pi_dimension(self.input_size, self.stride_patch)
+    
+    if self.input_size is int or len(self.input_size)<2:
+      self.kernel_patch = (1,1)
+      self.stride_patch = (1,1)
+      try :
+        self.nb_patch_x, self.nb_patch_y = int(self.input_size), 1
+      except :
+        self.nb_patch_x, self.nb_patch_y = int(self.input_size[0]), 1
+    else :
+      assert(kernel_patch[0]>= stride_patch[0])
+      assert(kernel_patch[1]>= stride_patch[1])
+      assert(stride_patch[0]>0)
+      assert(stride_patch[1]>0)
+      self.kernel_patch = kernel_patch
+      self.stride_patch = stride_patch
+      self.nb_patch_x, self.nb_patch_y = calculate_pi_dimension(self.input_size, self.stride_patch)
+    
 
 
 
@@ -51,6 +59,7 @@ class Destructor(AbstractDestructor):
         
     def kernel_update(self, kernel_patch, stride_patch):
       super().kernel_update( kernel_patch, stride_patch)
+
       self.fc1 = nn.Linear(np.prod(self.input_size),200)
       self.fc2 = nn.Linear(200,100)
       self.pi = nn.Linear(100, self.nb_patch_x*self.nb_patch_y)
@@ -66,14 +75,14 @@ class Destructor(AbstractDestructor):
         return F.sigmoid(self.pi(pi))
 
 
-class PatchDestructorV1(nn.Module):
-    def __init__(self, input_size = (1,28,28), stride = (1,1), kernel_patch = (1,1)):
-      super().__init__()
-      self.nb_patch_x, self.nb_patch_y = calculate_pi_dimension(input_size, stride)
-      self.input_size = input_size
+# class PatchDestructorV1(nn.Module):
+#     def __init__(self, input_size = (1,28,28), stride = (1,1), kernel_patch = (1,1)):
+#       super().__init__()
+#       self.nb_patch_x, self.nb_patch_y = calculate_pi_dimension(input_size, stride)
+#       self.input_size = input_size
     
-    def __call__(self, x):
-      raise NotImplementedError
+#     def __call__(self, x):
+#       raise NotImplementedError
       
       
 

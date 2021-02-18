@@ -28,3 +28,24 @@ Other Regularization method on the z not on pis
 
 
 Problems with imputation, learnable parameter and cuda, find a better solve for the problem
+
+
+Dataset : Mélanger Fashion Mnist et non Mnist avec un Mnist en changeant les places. Utiliser avec un CNN
+
+Concatener z impute(x) 
+
+Analyse adult dataset en utilisant un deep sets, et regarder si les elements proches ont la même interprétation => Comparer à Lime
+
+
+
+Try something close to the UNETs for destruction and conv for classifier
+
+Sentiment Analysis/Lime Comparison/ Find Dataset
+
+Find competitors 
+
+I'll try post Hoc
+
+Saving accuracy, 
+
+CIFAR 10

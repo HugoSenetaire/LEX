@@ -3,6 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # print(sys.path)
 from utils_missing import *
+from collections.abc import Iterable
 
 from .destructive_network import *
 from .regularization import *
@@ -22,6 +23,14 @@ class DestructionModule():
             self.variational = False
         else :
             self.variational = True
+
+
+        if not self.regularization is list and self.regularization is not None:
+           self.regularization = [self.regularization]
+
+        if not self.regularization_var is list and self.regularization_var is not None:
+           self.regularization_var = [self.regularization]
+
 
     def kernel_update(self, kernel_patch, stride_patch):
         self.destructor.kernel_update(kernel_patch, stride_patch)
@@ -69,10 +78,13 @@ class DestructionModule():
 
     def __call__(self, data_expanded, one_hot_target = None, do_variational= False, test=False):
         pi_list_init = self.destructor(data_expanded)
+
+        loss_reg = torch.zeros((1)).cuda()
         if not test and self.regularization is not None :
-            loss_reg = self.regularization(pi_list_init)
-        else :
-            loss_reg = torch.zeros((1))
+            for reg in self.regularization :
+                loss_reg += reg(pi_list_init)
+
+            
         
         if do_variational and not self.variational :
             raise Exception("Should have a variational network for variational training")
@@ -82,10 +94,10 @@ class DestructionModule():
 
         if do_variational and one_hot_target is not None :
             pi_list_var = self.destructor_var(data_expanded, one_hot_target)
+            loss_reg = torch.zeros((1)).cuda()
             if not test and self.regularization_var is not None :
-                loss_reg_var = self.regularization_var(pi_list_var)
-            else :
-                loss_reg_var = torch.zeros((1))
+                for reg in self.regularization_var :
+                    loss_reg += reg(pi_list_init)
 
             return pi_list_init, loss_reg, pi_list_var, loss_reg_var
 

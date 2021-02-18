@@ -1,8 +1,8 @@
 import numpy as np
 
 def calculate_pi_dimension(input_size, stride):
-    if len(input_size)==1:
-        input_size = (1, input_size, input_size)
+    # if len(input_size)==1:
+    #     input_size = (1, input_size, input_size)
     
     
     nb_patch_x = int(np.ceil(input_size[1]/stride[0]))
