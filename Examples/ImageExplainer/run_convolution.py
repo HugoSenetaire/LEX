@@ -1,6 +1,8 @@
-from datasets import *
+import sys
+sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
 from missingDataTrainingModule import *
-from utils import *
+from datasets import *
+
 
 from torch.distributions import *
 from torch.optim import *
@@ -32,12 +34,12 @@ if __name__ == "__main__":
 
     train_or_not_reconstruction = [False]
     train_or_not_postprocess = [False]
-    reconstruction_regularization_list = [AutoEncoderReconstructionRegularization] 
+    # reconstruction_regularization_list = [AutoEncoderReconstructionRegularization] 
     # post_process_regularization_list = [None]
 
     # reconstruction_regularization_list = [None] 
     # post_process_regularization_list = [NetworkTransform]
-    post_process_regularization_list = [None]
+    # post_process_regularization_list = [None]
 
 
     path_save = "D:\DTU\ConvolutionEvaluation"

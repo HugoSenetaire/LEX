@@ -1,6 +1,10 @@
-from datasets import *
+import sys
+sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
 from missingDataTrainingModule import *
-from utils import *
+from datasets import *
+
+
+
 
 from torch.distributions import *
 from torch.optim import *

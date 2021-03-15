@@ -12,7 +12,7 @@ from .regularization import *
 
 class DestructionModule():
 
-    def __init__(self, destructor, regularization = None, destructor_var = None, regularization_var = None):
+    def __init__(self, destructor, regularization = None, destructor_var = None, regularization_var = None, feature_extractor = None):
         self.destructor = destructor
         self.destructor_var = destructor_var
         self.regularization = regularization
@@ -23,6 +23,13 @@ class DestructionModule():
             self.variational = False
         else :
             self.variational = True
+
+
+        self.feature_extractor = feature_extractor
+        if self.feature_extractor is None :
+            self.need_extraction = False
+        else :
+            self.need_extraction = True
 
 
         if not self.regularization is list and self.regularization is not None:
@@ -77,12 +84,10 @@ class DestructionModule():
 
 
     def __call__(self, data_expanded, one_hot_target = None, do_variational= False, test=False):
-        pi_list_init = self.destructor(data_expanded)
+        if self.need_extraction :
+            data_expanded = self.feature_extractor(data_expanded)
 
-        loss_reg = torch.zeros((1)).cuda()
-        if not test and self.regularization is not None :
-            for reg in self.regularization :
-                loss_reg += reg(pi_list_init)
+
 
             
         
@@ -92,14 +97,20 @@ class DestructionModule():
             raise Exception("Should give one hot target expanded when using variational training")
 
 
-        if do_variational and one_hot_target is not None :
-            pi_list_var = self.destructor_var(data_expanded, one_hot_target)
+        if one_hot_target is not None :
+            pi_list_init = self.destructor(data_expanded, one_hot_target)
             loss_reg = torch.zeros((1)).cuda()
-            if not test and self.regularization_var is not None :
-                for reg in self.regularization_var :
+            if not test and self.regularization is not None :
+                for reg in self.regularization :
                     loss_reg += reg(pi_list_init)
 
-            return pi_list_init, loss_reg, pi_list_var, loss_reg_var
+            return pi_list_init, loss_reg, None, None
 
         else :
+            pi_list_init = self.destructor(data_expanded)
+            loss_reg = torch.zeros((1)).cuda()
+            if not test and self.regularization is not None :
+                for reg in self.regularization :
+                    loss_reg += reg(pi_list_init)
+
             return pi_list_init, loss_reg, None, None

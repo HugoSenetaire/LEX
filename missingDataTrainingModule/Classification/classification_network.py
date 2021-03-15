@@ -21,18 +21,62 @@ class ClassifierModel(nn.Module):
         super().__init__()
         self.input_size = input_size
         self.fc1 = nn.Linear(np.prod(input_size), middle_size)
-        self.fc2 = nn.Linear(middle_size, middle_size)
-        self.fc3 = nn.Linear(middle_size,output)
+        self.fc2 = nn.Linear(middle_size, int(middle_size/2))
+        self.fc3 = nn.Linear(int(middle_size/2),output)
         self.logsoftmax = nn.LogSoftmax(-1)
     
     def __call__(self, x):
-        
+
         x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
         return self.logsoftmax(self.fc3(x)) #N_expectation * Batch_size, Category
 
+class FeatureExtraction(nn.Module):
+    def __init__(self, input_size = (1,28,28), middle_size = [400,200]):
+        super().__init__()
+        self.middle_size = middle_size
+        self.input_size = input_size
+        self.layers = []
+        previous_size = np.prod(self.input_size)
+        for layer in middle_size :
+            self.layers.append(nn.Linear(previous_size, layer))
+            previous_size = layer
+        self.modules = torch.nn.ModuleList(self.layers)
+    
 
+    def __call__(self, x):
+        x = x.flatten(1)
+        for layer in self.layers:
+            x = F.elu(layer(x))
+        return x
+
+
+class StupidClassifier(nn.Module):
+    def __init__(self, input_size = (1,28,28),output = 10, bias = False):
+        super().__init__()
+        self.bias = bias
+        self.input_size = input_size
+        self.fc1 = nn.Linear(np.prod(input_size), output, bias = bias)
+        self.logsoftmax = nn.LogSoftmax(-1)
+
+        print("bias stupid classifier",bias)
+
+
+    def __call__(self, x):
+        x = x.flatten(1)
+        return self.logsoftmax(self.fc1(x))
+
+class ClassifierFromFeature(nn.Module):
+    
+    def __init__(self, input_size = 200, output_size = 10 ):
+        super().__init__()
+        self.input_size = input_size
+        self.output_size = output_size
+        self.fc = nn.Linear(input_size, output_size)
+        self.logsoftmax = nn.LogSoftmax(-1)
+    def __call__(self, x):
+        return self.logsoftmax(self.fc(x))
 
 class ConvClassifier(nn.Module):
     def __init__(self, input_size = (1,28,28),output_size = 10):

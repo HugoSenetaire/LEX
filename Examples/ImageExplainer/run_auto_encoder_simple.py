@@ -1,6 +1,8 @@
-from datasets import *
+import sys
+sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
 from missingDataTrainingModule import *
-from utils import *
+from datasets import *
+
 
 from torch.distributions import *
 from torch.optim import *
@@ -16,38 +18,35 @@ import matplotlib.pyplot as plt
 
 
 if __name__ == "__main__":
-    list_dataset = [MnistVariationFashion]
+
+    list_dataset = [MnistVariation1]
     lambda_reg_list = [0.1]
 
     lr = 1e-4
-    nb_epoch=5
+    nb_epoch=1
     nb_epoch_pretrain = [1]
 
     list_noiseFunction = [
-        GaussianNoise(sigma=1.0, regularize = True),
-        # DropOutNoise(0.1)
+        GaussianNoise(1.0, True),
+        DropOutNoise(pi = 0.3),
         ]
     imputationMethod_list = [ConstantImputation]
 
 
-    train_or_not_reconstruction = [False]
-    train_or_not_postprocess = [False]
-    # reconstruction_regularization_list = [AutoEncoderReconstructionRegularization] 
-    # post_process_regularization_list = [None]
-
-    reconstruction_regularization_list = [None] 
-    # post_process_regularization_list = [NetworkTransform]
-    post_process_regularization_list = [NetworkAdd]
+    train_or_not_reconstruction = [True, False]
+    train_or_not_postprocess = [True, False]
+    reconstruction_regularization_list = [AutoEncoderReconstructionRegularization, None] 
+    post_process_regularization_list = [NetworkAdd, NetworkTransform,  None]
 
 
-    path_save = "D:\DTU\SimpleTestRun"
+    path_save = "D:\DTU\TestDenoisingV3"
     if not os.path.exists(path_save):
         os.makedirs(path_save)
 
 
 
    #============ No Variationnal ===============
-    i = 2
+    i = 0
     for dataset in list_dataset:
         folder = os.path.join(path_save,os.path.join("Linear no variationnal Autoencoder", dataset.__name__))
         for train_reconstruction in train_or_not_reconstruction :
@@ -76,8 +75,8 @@ if __name__ == "__main__":
                             mnist_noise = LoaderEncapsulation(dataset, noisy=True, noise_function=noise_function)
                             optim_autoencoder = Adam(autoencoder_network.parameters())
                             data_autoencoder, target_autoencoder = next(iter(mnist_noise.test_loader))
-                            data_autoencoder = data_autoencoder[:4]
-                            target_autoencoder = target_autoencoder[:4]
+                            data_autoencoder = data_autoencoder[:2]
+                            target_autoencoder = target_autoencoder[:2]
                             
                            
                                 
@@ -98,8 +97,6 @@ if __name__ == "__main__":
                                         "epoch_pretrain": epoch_pretrain,
                                         "noise_function":noise_function,
                                         "lambda_reg":lambda_reg,
-                                        "post_process_regularization":post_process_regularization,
-                                        "reconstruction_regularization":reconstruction_regularization
                                     }
                                     print(parameter)
                                     i+=1
@@ -132,12 +129,9 @@ if __name__ == "__main__":
                                     )
                                     if post_process_regularization is not None :
                                         post_proc_regul = post_process_regularization(autoencoder_network_missing, to_train = train_postprocess)
-                                    else :
-                                        post_proc_regul = None
                                     
                                     if reconstruction_regularization is not None :
                                         recons_regul = reconstruction_regularization(autoencoder_network_missing, to_train = train_reconstruction)
-                                    else : recons_regul = None
                                     if post_process_regularization is NetworkAdd :
                                         input_size_classifier = (2,28,28)
                                     else :
@@ -195,18 +189,13 @@ if __name__ == "__main__":
                                     data, target= next(iter(mnist.test_loader))
                                     data = data[:2]
                                     target = target[:2]
-                                    sample_list, pred = trainer_var.MCMC(mnist,data, target, Bernoulli,5000, return_pred=True)
-
-                                    save_interpretation(final_path,sample_list, data, target, suffix = "no_var",
-                                         y_hat = torch.exp(pred).detach().cpu().numpy(),
-                                         class_names=[str(i) for i in range(10)])
+                                    sample_list = trainer_var.MCMC(mnist,data, target, Bernoulli,5000)
+                                    save_interpretation(final_path,sample_list, data, target, suffix = "no_var")
 
                                     output = autoencoder_network_missing(data_autoencoder.cuda()).reshape(data_autoencoder.shape)
                                     save_interpretation(final_path,
                                         output.detach().cpu().numpy(), 
-                                        target_autoencoder.detach().cpu().numpy(), [0,1,2,3],
-                                         prefix = "output_autoencoder_after_training",
-                                         )
+                                        target_autoencoder.detach().cpu().numpy(), [0,1,2,3], prefix = "output_autoencoder_after_training")
 
 
 

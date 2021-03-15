@@ -25,7 +25,9 @@ class Imputation():
     
 
     if sample_b_reg is not list and sample_b_reg is not None :
+      print(sample_b_reg)
       sample_b_reg = [sample_b_reg]
+    print(sample_b_reg)
     self.sample_b_reg = sample_b_reg
 
     if self.add_mask :
@@ -123,15 +125,14 @@ class Imputation():
   def kernel_update(self, kernel_patch, stride_patch):
     
     self.kernel_updated = True
-
-    if self.input_size is int or len(self.input_size)<2:
+    if self.input_size is int or len(self.input_size)<=2:
       self.image = False
       self.kernel_patch = (1,1)
       self.stride_patch = (1,1)
       try :
         self.nb_patch_x, self.nb_patch_y = int(self.input_size), 1
       except :
-        self.nb_patch_x, self.nb_patch_y = int(self.input_size[0]), 1
+        self.nb_patch_x, self.nb_patch_y = int(self.input_size[0]), int(self.input_size[1])
     else :
       self.image = True
       assert(kernel_patch[0]>= stride_patch[0])
@@ -196,6 +197,7 @@ class Imputation():
     if self.reconstruction_reg is not None :
       data_imputed = self.imputation_function(data_expanded, sample_b)
       for process in self.reconstruction_reg :
+          print(process)
           loss_reconstruction += process(data_expanded, data_imputed, sample_b)
 
       
@@ -210,7 +212,7 @@ class Imputation():
     if self.sample_b_reg is None :
       return sample_b
     else :
-      for process in self.reconstruction_reg :
+      for process in self.sample_b_reg :
         sample_b = process(data_expanded, sample_b)
       
 
@@ -308,18 +310,8 @@ class ConstantImputation(Imputation):
     # print(data_expanded.shape)
     # print(sample_b.shape)
     return data_expanded * ((1-sample_b) * self.cste + sample_b)
-   
 
-  # def impute(self, data_expanded, sample_b):
-  #   sample_b = self.round_sample(sample_b)
-  #   sample_b = self.patch_creation(sample_b)
-
-  #   data_imputed = data_expanded * ((1-sample_b) * self.cste + sample_b)
-  #   loss_reg_imputation = self.imputation_regularization(data_imputed, data_expanded)
-  #   return data_imputed, loss_reg_imputation
-
-
-class ConstantImputationRateReg(Imputation):
+class ConstantImputationRateReg(ConstantImputation):
   def __init__(self, rate = 0.5, cste = 0, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
                add_mask = False, post_process_regularization = None):
@@ -339,20 +331,8 @@ class ConstantImputationRateReg(Imputation):
   def imputation_function(self, data_expanded, sample_b):
     return data_expanded * ((1-sample_b) * self.cste + sample_b)
 
-  # def impute(self, data_expanded, sample_b):
-  #   sample_b = self.round_sample(sample_b)
-  #   sample_b = self.patch_creation(sample_b)
-  #   data_imputed = data_expanded * ((1-sample_b) * self.cste + sample_b)
-  #   loss_reg_imputation = self.imputation_regularization(data_imputed, data_expanded)
 
-
-  #   if self.rate > np.random.random():
-  #     return data_expanded, loss_reg_imputation
-
-
-  #   return data_imputed, loss_reg_imputation
-
-class ConstantImputationInsideReg(Imputation):
+class ConstantImputationInsideReg(ConstantImputation):
   def __init__(self, rate = 0.5, cste = 0, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
                add_mask = False, post_process_regularization = None):
@@ -373,22 +353,7 @@ class ConstantImputationInsideReg(Imputation):
   def has_rate(self):
     return True
 
-  # def impute(self, data_expanded, sample_b):
-  #   sample_b = self.round_sample(sample_b)
-  #   sample_b = self.patch_creation(sample_b)
-
-
-  #   data_imputed = data_expanded * ((1-sample_b) * self.cste + sample_b)
-  #   loss_reg_imputation = self.imputation_regularization(data_imputed, data_expanded)
-    
-  #   sample_b = torch.where(
-  #     ((sample_b<0.5) * torch.rand(sample_b.shape, device = "cuda")>self.rate),
-  #     torch.zeros(sample_b.shape,device = "cuda"),
-  #     sample_b
-  #   )
-  #   return data_expanded * ((1-sample_b) * self.cste + sample_b), loss_reg_imputation
-
-class ConstantImputationInsideReverseReg(Imputation):
+class ConstantImputationInsideReverseReg(ConstantImputation):
   def __init__(self,cste = 0, rate = 0.5, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
                add_mask = False, post_process_regularization = None):
@@ -409,21 +374,8 @@ class ConstantImputationInsideReverseReg(Imputation):
   def has_rate(self):
     return True
 
-  # def impute(self, data_expanded, sample_b):
-  #   sample_b = self.round_sample(sample_b)
-  #   sample_b = self.patch_creation(sample_b)
 
-  #   data_imputed = data_expanded * ((1-sample_b) * self.cste + sample_b)
-  #   loss_reg_imputation = self.imputation_regularization(data_imputed, data_expanded)
-
-  #   sample_b = torch.where(
-  #     (torch.rand(sample_b.shape, device = "cuda")>self.rate),
-  #     1-sample_b,
-  #     sample_b
-  #   )
-  #   return data_expanded * ((1-sample_b) * self.cste + sample_b), loss_reg_imputation
-
-class MaskConstantImputation(Imputation):
+class MaskConstantImputation(ConstantImputation):
   def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
                add_mask = True, post_process_regularization = None):
@@ -439,13 +391,6 @@ class MaskConstantImputation(Imputation):
 
   def has_constant(self):
     return True
-  # def impute(self, data_expanded, sample_b):
-  
-  #   sample_b = self.round_sample(sample_b)
-  #   sample_b = self.patch_creation(sample_b)
-  #   data_imputed = data_expanded * ((1-sample_b) * self.cste + sample_b)
-  #   loss_reg_imputation = self.imputation_regularization(data_imputed, data_expanded)
-  #   return torch.cat([data_imputed, sample_b], axis = 2), loss_reg_imputation
 
 
 
@@ -463,7 +408,6 @@ class LearnConstantImputation(Imputation):
 
   def has_constant(self):
     return True
-
   
   def get_constant(self):
     return self.cste
@@ -667,9 +611,6 @@ class PermutationInvariance(Imputation):
     for i in range(batch_size):
       new_data = torch.masked_select(data_expanded_flatten[i], sample_b[i]<0.5)
 
-      # e_m = torch.masked_select(self.e_m.unsqueeze(0).expand((batch_size,-1,-1)),
-                                # sample_b.unsqueeze(1).expand((-1,self.size_D,-1))<0.5)
-      # print(self.e_m.shape)
       e_m = torch.masked_select(self.e_m,
                               sample_b[i].unsqueeze(0).expand((self.size_D,-1))<0.5).reshape(self.size_D,-1)
                                                           

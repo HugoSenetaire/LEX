@@ -1,6 +1,6 @@
 from datasets import *
-from missingDataTrainingModule import *
-from utils import *
+from ..missingDataTrainingModule import *
+from ..utils import *
 
 from torch.distributions import *
 from torch.optim import *

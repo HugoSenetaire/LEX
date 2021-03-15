@@ -126,3 +126,23 @@ class NetworkAdd(NetworkBasedRegularization):
     data_imputed = torch.cat([data_imputed,data_reconstructed],axis = 1)
     return data_imputed
   
+
+
+class NetworkTransformMask(NetworkBasedRegularization):
+  def __init__(self, network, to_train = False, use_cuda=False, deepcopy = False):
+    super().__init__(network = network, to_train = to_train, use_cuda= use_cuda, deepcopy = deepcopy)
+
+  def __call__(self, data_expanded, data_imputed, sample_b):
+    data_reconstructed = data_imputed * (1-sample_b) + self.network(data_imputed) * sample_b 
+    return data_reconstructed
+
+    
+
+# class NetworkAddMask(NetworkBasedRegularization):
+#   def __init__(self, network, to_train = False, use_cuda=False, deepcopy = False):
+#     super().__init__(network = network, to_train = to_train, use_cuda= use_cuda, deepcopy = deepcopy)
+
+#   def __call__(self, data_expanded, data_imputed, sample_b):
+#     data_reconstructed = self.network(data_imputed)
+#     data_imputed = torch.cat([data_imputed,data_reconstructed],axis = 1)
+#     return data_reconstructed

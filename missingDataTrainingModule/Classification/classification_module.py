@@ -11,7 +11,7 @@ from .imputation import *
 
 class ClassificationModule():
 
-    def __init__(self, classifier, imputation = None, imputation_reg = None):
+    def __init__(self, classifier, imputation = None, imputation_reg = None, feature_extractor = None):
         self.classifier = classifier
         self.classifier_fixed = False
         self.imputation = imputation
@@ -19,6 +19,13 @@ class ClassificationModule():
             self.need_imputation = False
         else :
             self.need_imputation = True
+
+        self.feature_extractor = feature_extractor
+        if self.feature_extractor is None :
+            self.need_extraction = False
+        
+        else :
+            self.need_extraction = True
 
     
         self.kernel_updated = False
@@ -85,12 +92,16 @@ class ClassificationModule():
         elif self.imputation is not None and sample_b is not None :
             # print(data.shape)
             x_imputed, loss_reconstruction = self.imputation.impute(data, sample_b)
-            # print(x_imputed.shape)
+            if self.need_extraction :
+                x_imputed = self.feature_extractor(x_imputed)
             y_hat = self.classifier(x_imputed)
 
             
         else :
+            if self.need_extraction :
+                data = self.feature_extractor(data)
             y_hat = self.classifier(data)
+
             loss_reconstruction = torch.zeros((1)).cuda()
         return y_hat, loss_reconstruction
 
