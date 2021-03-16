@@ -82,8 +82,9 @@ class ClassificationModule():
 
 
     def __call__(self, data, sample_b = None):
-        if sample_b is not None and len(sample_b.shape)>2:
-            sample_b = sample_b.flatten(0,1)
+
+        if sample_b is not None :
+            sample_b = sample_b.reshape(data.shape)
 
 
 

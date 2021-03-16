@@ -53,7 +53,7 @@ class FeatureExtraction(nn.Module):
 
 
 class StupidClassifier(nn.Module):
-    def __init__(self, input_size = (1,28,28),output = 10, bias = False):
+    def __init__(self, input_size = (1,28,28),output = 10, bias = True):
         super().__init__()
         self.bias = bias
         self.input_size = input_size
@@ -133,7 +133,7 @@ class ConvClassifierV2(nn.Module):
 
         x = torch.flatten(x,1)
         # print(x.shape)
-        x=F.elu(self.fc1(x))
+        x=F.elu(self.fc1(x), inplace = False)
         # print(x.shape)
         result = self.logsoftmax(self.fc2(x)).reshape(batch_size, -1)
         return result #N_expectation, Batch_size, Category

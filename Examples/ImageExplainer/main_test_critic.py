@@ -20,16 +20,16 @@ if __name__ == "__main__":
     # dataset =  MnistVariation1quadrant
     dataset = FashionMNISTDataset
     # dataset = MnistVariationFashion2
-    lambda_reg = 10
+    lambda_reg = 1.0
     lr = 1e-4
     lambda_reconstruction = 1.0
-    nb_epoch=1
+    nb_epoch=10
     epoch_pretrain = 5
 
     Nexpectation_train = 10
     Nexpectation_test = 1
 
-    imputationMethod = partial(ConstantImputation, add_mask=True )   
+    imputationMethod = partial(ConstantImputation, add_mask=False )   
     # imputationMethod = ConstantImputation
 
     noise_function = DropOutNoise(pi = 0.3)
@@ -37,6 +37,12 @@ if __name__ == "__main__":
     train_postprocess = False
     reconstruction_regularization = None
     post_process_regularization =  None
+
+
+    
+    completeTrainer = noVariationalTraining_REINFORCE
+    sampling_distribution = Bernoulli
+    sampling_distribution_test = Bernoulli
 
     if reconstruction_regularization is None and post_process_regularization is None :
         need_autoencoder = False
@@ -52,7 +58,7 @@ if __name__ == "__main__":
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    experiment_name = "JUSTMOREIMAGE_mask_ZeroImputation_lambda_real_10"
+    experiment_name = "Reinforce_ZeroImputation_lambda_1"
     final_path = os.path.join(folder, experiment_name)
     if not os.path.exists(final_path):
         os.makedirs(final_path)
@@ -61,11 +67,21 @@ if __name__ == "__main__":
 
     input_size_destructor = (1,28,28)
     input_size_autoencoder = (1,28,28)
-    input_size_classifier = (2,28,28)
+    input_size_classifier = (1,28,28)
+    input_size_classifier_critic = (1,28,28)
     input_size_classification_module = (1, 28, 28)
 
     # feature_extractor = FeatureExtraction().cuda()
     feature_extractor = None
+
+
+    # classifier_critic = StupidClassifier(input_size=input_size_classifier_critic, output=10, bias = True)
+    critic = None
+    # optim_critic = Adam(classifier_critic.parameters())
+    optim_critic = None
+    # feature_extractor = FeatureExtraction().cuda()
+    feature_extractor = None
+
 
     mnist = LoaderEncapsulation(dataset)
     data, target= next(iter(mnist.test_loader))
@@ -170,15 +186,17 @@ if __name__ == "__main__":
                     reconstruction_reg= recons_regul)
     classification_var = ClassificationModule(classifier, imputation=imputation, feature_extractor=feature_extractor)
 
-    trainer_var = noVariationalTraining(
+    trainer_var = completeTrainer(
         classification_var,
         destruction_var,
+        critic=critic,
         feature_extractor=feature_extractor,
     )
 
 
     optim_classification = Adam(classification_var.parameters(), lr=lr)
     optim_destruction = Adam(destruction_var.parameters(), lr=lr)
+    trainer_var.set_optim_critic(optim_critic)
     
 
     temperature = torch.tensor([1.0])
@@ -189,18 +207,27 @@ if __name__ == "__main__":
     total_dic_train = {}
     total_dic_test_no_var = {}
     for epoch in range(nb_epoch):
+        if sampling_distribution is RelaxedBernoulli :
+            current_sampling = partial(RelaxedBernoulli,temperature)
+        else :
+            current_sampling = copy.deepcopy(sampling_distribution)
+
+        if sampling_distribution_test is RelaxedBernoulli:
+            current_sampling_test = partial(RelaxedBernoulli,temperature)
+        else :
+            current_sampling_test = copy.deepcopy(sampling_distribution_test)
         
         dic_train = trainer_var.train(
             epoch, mnist,
             optim_classification, optim_destruction,
-            partial(RelaxedBernoulli,temperature),
+            current_sampling,
             optim_feature_extractor= optim_feature_extractor,
             lambda_reg=lambda_reg,
             lambda_reconstruction = lambda_reconstruction,
             save_dic = True,
             Nexpectation=Nexpectation_train
         )
-        dic_test_no_var = trainer_var.test_no_var(mnist, partial(RelaxedBernoulli,temperature), Nexpectation=Nexpectation_test)
+        dic_test_no_var = trainer_var.test_no_var(mnist, current_sampling_test, Nexpectation=Nexpectation_test)
         temperature *= 0.5
 
         total_dic_train = fill_dic(total_dic_train, dic_train)
@@ -213,25 +240,25 @@ if __name__ == "__main__":
     save_dic(os.path.join(final_path,"test_no_var"), total_dic_test_no_var)
 
     print(target)
-    sample_list, pred = trainer_var.MCMC(mnist,data, target, partial(RelaxedBernoulli,temperature),5000, return_pred=True)
+    sample_list, pred = trainer_var.MCMC(mnist,data, target, current_sampling_test,5000, return_pred=True)
     save_interpretation(final_path,sample_list, data, target, suffix = "no_var",
                         y_hat = torch.exp(pred).detach().cpu().numpy(),
                         class_names=[str(i) for i in range(10)])
 
     target = torch.tensor(np.ones((target.shape)),dtype = torch.int64) 
     print(target)
-    sample_list, pred = trainer_var.MCMC(mnist,data, target, partial(RelaxedBernoulli,temperature),5000, return_pred=True)
+    sample_list, pred = trainer_var.MCMC(mnist,data, target, current_sampling_test,5000, return_pred=True)
     save_interpretation(final_path,sample_list, data, target, suffix = "falsetarget1",
                         y_hat = torch.exp(pred).detach().cpu().numpy(),
                         class_names=[str(i) for i in range(10)])
 
     target = torch.tensor(np.ones((target.shape)),dtype = torch.int64) 
-    sample_list, pred = trainer_var.MCMC(mnist,data, target, partial(RelaxedBernoulli,temperature),5000, return_pred=True)
+    sample_list, pred = trainer_var.MCMC(mnist,data, target, current_sampling_test,5000, return_pred=True)
     save_interpretation(final_path,sample_list, data, target, suffix = "falsetarget5",
                         y_hat = torch.exp(pred).detach().cpu().numpy(),
                         class_names=[str(i) for i in range(10)])
 
-    pred = trainer_var._predict(data.cuda(), partial(RelaxedBernoulli,temperature), dataset = mnist)
+    pred = trainer_var._predict(data.cuda(), current_sampling_test, dataset = mnist)
     image_output = destructor_no_var(data.cuda()).detach().cpu().numpy()
     save_interpretation(final_path, image_output, data, target, suffix = "direct_destruction",
                         y_hat= torch.exp(pred).detach().cpu().numpy(),

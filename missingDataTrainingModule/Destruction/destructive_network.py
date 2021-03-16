@@ -70,7 +70,7 @@ class Destructor(AbstractDestructor):
         return F.sigmoid(self.pi(pi))
 
 class DestructorSimilar(AbstractDestructor):
-    def __init__(self,input_size = (1,28,28), bias = False):
+    def __init__(self,input_size = (1,28,28), bias = True):
       super().__init__(input_size = input_size)
       self.bias = bias
         
@@ -117,10 +117,10 @@ class DestructorSimilarVar(AbstractDestructor):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         y = y.flatten(1)
         x = torch.cat([x,y],1)
-        x = F.elu(self.fc1(x))
-        x = F.elu(self.fc2(x))
-        pi = F.elu(self.fc3(x))
-        return F.sigmoid(self.pi(pi))
+        x = F.elu(self.fc1(x), inplace= False)
+        x = F.elu(self.fc2(x), inplace = False)
+        pi = F.elu(self.fc3(x), inplace = False)
+        return F.sigmoid(self.pi(pi), inplace = False)
 
 
 

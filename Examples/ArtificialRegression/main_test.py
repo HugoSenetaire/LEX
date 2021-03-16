@@ -13,8 +13,8 @@ from skimage.segmentation import mark_boundaries
 
 if __name__ == "__main__":
 
-    dataset = CircleDatasetNotCentered
-    lambda_reg = 1.0
+    dataset = CircleDataset
+    lambda_reg = 0.1
     lr = 1e-4
     lambda_reconstruction = 1.0
     nb_epoch=10
@@ -25,8 +25,11 @@ if __name__ == "__main__":
     bias_classifier = True
     bias_destructor = True
 
+    completeTrainer = noVariationalTraining_REINFORCE
+    sampling_distribution = Bernoulli
+    sampling_distribution_test = Bernoulli
 
-    imputationMethod = partial(ConstantImputation, cste = 0, add_mask = False)   
+    imputationMethod = partial(ConstantImputation, cste = -1, add_mask = False)   
     # imputationMethod = ConstantImputation
 
     noise_function = DropOutNoise(pi = 0.3)
@@ -49,7 +52,7 @@ if __name__ == "__main__":
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    experiment_name = "0_Imputation_lambda_0_1"
+    experiment_name = "REINFORCE_Critic_m1_Imputation_lambda_0_1"
     final_path = os.path.join(folder, experiment_name)
     if not os.path.exists(final_path):
         os.makedirs(final_path)
@@ -167,7 +170,7 @@ if __name__ == "__main__":
                     reconstruction_reg= recons_regul)
     classification_var = ClassificationModule(classifier, imputation=imputation, feature_extractor=feature_extractor)
 
-    trainer_var = noVariationalTraining(
+    trainer_var = completeTrainer(
         classification_var,
         destruction_var,
         feature_extractor=feature_extractor,
@@ -186,18 +189,27 @@ if __name__ == "__main__":
     total_dic_train = {}
     total_dic_test_no_var = {}
     for epoch in range(nb_epoch):
+        if sampling_distribution is RelaxedBernoulli :
+            current_sampling = partial(RelaxedBernoulli,temperature)
+        else :
+            current_sampling = copy.deepcopy(sampling_distribution)
+
+        if sampling_distribution_test is RelaxedBernoulli:
+            current_sampling_test = partial(RelaxedBernoulli,temperature)
+        else :
+            current_sampling_test = copy.deepcopy(sampling_distribution_test)
         
         dic_train = trainer_var.train(
             epoch, mnist,
             optim_classification, optim_destruction,
-            partial(RelaxedBernoulli,temperature),
+            current_sampling,
             optim_feature_extractor= optim_feature_extractor,
             lambda_reg=lambda_reg,
             lambda_reconstruction = lambda_reconstruction,
             save_dic = True,
             Nexpectation=Nexpectation_train
         )
-        dic_test_no_var = trainer_var.test_no_var(mnist, partial(RelaxedBernoulli,temperature), Nexpectation=Nexpectation_test)
+        dic_test_no_var = trainer_var.test_no_var(mnist, current_sampling_test, Nexpectation=Nexpectation_test)
         temperature *= 0.5
 
         total_dic_train = fill_dic(total_dic_train, dic_train)
@@ -212,7 +224,7 @@ if __name__ == "__main__":
     save_dic(os.path.join(final_path,"train"), total_dic_train)
     save_dic(os.path.join(final_path,"test_no_var"), total_dic_test_no_var)
     
-    pred = trainer_var._predict(data.cuda(), partial(RelaxedBernoulli,temperature), dataset = mnist).detach().cpu().numpy()
+    pred = trainer_var._predict(data.cuda(), current_sampling_test, dataset = mnist).detach().cpu().numpy()
     pred = np.argmax(pred, axis = 1)
     z_s = destructor_no_var(data.cuda())
     z_s = z_s.reshape(data.shape)
@@ -222,8 +234,8 @@ if __name__ == "__main__":
     w = classification_var.classifier.fc1.weight.detach().cpu().numpy()
     b = classification_var.classifier.fc1.bias.detach().cpu().numpy()
     z_s = z_s.detach().cpu().numpy()
+
     save_interpretation_artificial(final_path, data_destructed, target, pred, w, b)
-    print(z_s.shape)
     save_interpretation_artificial_bar(final_path, z_s, target, pred)
 
    

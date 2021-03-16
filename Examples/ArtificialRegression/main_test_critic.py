@@ -7,30 +7,30 @@ from datasets import *
 
 from torch.distributions import *
 from torch.optim import *
-
 from functools import partial
-
 from lime import lime_image
 from skimage.segmentation import mark_boundaries
 
 if __name__ == "__main__":
-    # A relancer
-    # dataset = MnistVariationFashion
-    # dataset = MnistVariation1
-    # dataset =  MnistVariation1quadrant
-    dataset = FashionMNISTDataset
-    # dataset = MnistVariationFashion2
-    lambda_reg = 10
+
+    dataset = CircleDataset
+    lambda_reg = 0.1
     lr = 1e-4
     lambda_reconstruction = 1.0
-    nb_epoch=1
+    nb_epoch=10
     epoch_pretrain = 5
 
     Nexpectation_train = 10
     Nexpectation_test = 1
+    bias_classifier = True
+    bias_destructor = True
 
-    imputationMethod = partial(ConstantImputation, add_mask=True )   
-    # imputationMethod = ConstantImputation
+    completeTrainer = noVariationalTraining_REINFORCE
+    sampling_distribution = Bernoulli
+    sampling_distribution_test = Bernoulli
+
+
+    imputationMethod = partial(ConstantImputation, cste = -1, add_mask = True)   
 
     noise_function = DropOutNoise(pi = 0.3)
     train_reconstruction = False
@@ -52,31 +52,36 @@ if __name__ == "__main__":
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    experiment_name = "JUSTMOREIMAGE_mask_ZeroImputation_lambda_real_10"
+    experiment_name = "REINFORCE_critic_mask_m1_Imputation_lambda_0_1"
     final_path = os.path.join(folder, experiment_name)
     if not os.path.exists(final_path):
         os.makedirs(final_path)
 
     print(f"Save at {final_path}")
 
-    input_size_destructor = (1,28,28)
-    input_size_autoencoder = (1,28,28)
-    input_size_classifier = (2,28,28)
-    input_size_classification_module = (1, 28, 28)
+    input_size_destructor = (1,2)
+    input_size_autoencoder = (1,2)
+    input_size_classifier = (2,2)
+    input_size_classifier_critic = (1, 2)
+    input_size_classification_module = (1,2)
 
+    classifier_critic = StupidClassifier(input_size=input_size_classifier_critic, output=2, bias = True)
+    critic = classifier_critic
+    optim_critic = Adam(classifier_critic.parameters())
+    # optim_critic = None
     # feature_extractor = FeatureExtraction().cuda()
     feature_extractor = None
 
-    mnist = LoaderEncapsulation(dataset)
+    mnist = LoaderArtificial(dataset)
     data, target= next(iter(mnist.test_loader))
-    data = data[:20]
-    target = target[:20]
+    data = data[:300]
+    target = target[:300]
    #============ Autoencoder ===================
 
     if need_autoencoder :
         autoencoder_network = AutoEncoder(input_size=input_size_autoencoder).cuda()
 
-        mnist_noise = LoaderEncapsulation(dataset, noisy=True, noise_function=noise_function)
+        mnist_noise = LoaderArtificial(dataset, noisy=True, noise_function=noise_function)
         optim_autoencoder = Adam(autoencoder_network.parameters())
         data_autoencoder, target_autoencoder = next(iter(mnist_noise.test_loader))
         data_autoencoder = data_autoencoder[:4]
@@ -134,7 +139,7 @@ if __name__ == "__main__":
     if feature_extractor is not None :
         classifier = ClassifierFromFeature()
     else :
-        classifier = StupidClassifier(input_size_classifier, mnist.get_category())
+        classifier = StupidClassifier(input_size_classifier, mnist.get_category(), bias=bias_classifier)
     classification_vanilla = ClassificationModule(classifier, feature_extractor=feature_extractor)
 
 
@@ -152,7 +157,7 @@ if __name__ == "__main__":
     if feature_extractor is not None :
         destructor_no_var = DestructorFromFeature()
     else :
-        destructor_no_var = DestructorSimilar(input_size_destructor)
+        destructor_no_var = DestructorSimilar(input_size_destructor, bias = bias_destructor)
     destruction_var = DestructionModule(destructor_no_var, feature_extractor=feature_extractor,
         regularization=free_regularization,
     )
@@ -170,16 +175,17 @@ if __name__ == "__main__":
                     reconstruction_reg= recons_regul)
     classification_var = ClassificationModule(classifier, imputation=imputation, feature_extractor=feature_extractor)
 
-    trainer_var = noVariationalTraining(
+    trainer_var = completeTrainer(
         classification_var,
         destruction_var,
+        critic=critic,
         feature_extractor=feature_extractor,
     )
 
 
     optim_classification = Adam(classification_var.parameters(), lr=lr)
     optim_destruction = Adam(destruction_var.parameters(), lr=lr)
-    
+    trainer_var.set_optim_critic(optim_critic)
 
     temperature = torch.tensor([1.0])
 
@@ -189,18 +195,27 @@ if __name__ == "__main__":
     total_dic_train = {}
     total_dic_test_no_var = {}
     for epoch in range(nb_epoch):
+        if sampling_distribution is RelaxedBernoulli :
+            current_sampling = partial(RelaxedBernoulli,temperature)
+        else :
+            current_sampling = copy.deepcopy(sampling_distribution)
+
+        if sampling_distribution_test is RelaxedBernoulli:
+            current_sampling_test = partial(RelaxedBernoulli,temperature)
+        else :
+            current_sampling_test = copy.deepcopy(sampling_distribution_test)
         
         dic_train = trainer_var.train(
             epoch, mnist,
             optim_classification, optim_destruction,
-            partial(RelaxedBernoulli,temperature),
+            current_sampling,
             optim_feature_extractor= optim_feature_extractor,
             lambda_reg=lambda_reg,
             lambda_reconstruction = lambda_reconstruction,
             save_dic = True,
             Nexpectation=Nexpectation_train
         )
-        dic_test_no_var = trainer_var.test_no_var(mnist, partial(RelaxedBernoulli,temperature), Nexpectation=Nexpectation_test)
+        dic_test_no_var = trainer_var.test_no_var(mnist, current_sampling_test, Nexpectation=Nexpectation_test)
         temperature *= 0.5
 
         total_dic_train = fill_dic(total_dic_train, dic_train)
@@ -209,51 +224,24 @@ if __name__ == "__main__":
     
 
     ####### Sample and save results :
+
+    
+
     save_dic(os.path.join(final_path,"train"), total_dic_train)
     save_dic(os.path.join(final_path,"test_no_var"), total_dic_test_no_var)
-
-    print(target)
-    sample_list, pred = trainer_var.MCMC(mnist,data, target, partial(RelaxedBernoulli,temperature),5000, return_pred=True)
-    save_interpretation(final_path,sample_list, data, target, suffix = "no_var",
-                        y_hat = torch.exp(pred).detach().cpu().numpy(),
-                        class_names=[str(i) for i in range(10)])
-
-    target = torch.tensor(np.ones((target.shape)),dtype = torch.int64) 
-    print(target)
-    sample_list, pred = trainer_var.MCMC(mnist,data, target, partial(RelaxedBernoulli,temperature),5000, return_pred=True)
-    save_interpretation(final_path,sample_list, data, target, suffix = "falsetarget1",
-                        y_hat = torch.exp(pred).detach().cpu().numpy(),
-                        class_names=[str(i) for i in range(10)])
-
-    target = torch.tensor(np.ones((target.shape)),dtype = torch.int64) 
-    sample_list, pred = trainer_var.MCMC(mnist,data, target, partial(RelaxedBernoulli,temperature),5000, return_pred=True)
-    save_interpretation(final_path,sample_list, data, target, suffix = "falsetarget5",
-                        y_hat = torch.exp(pred).detach().cpu().numpy(),
-                        class_names=[str(i) for i in range(10)])
-
-    pred = trainer_var._predict(data.cuda(), partial(RelaxedBernoulli,temperature), dataset = mnist)
-    image_output = destructor_no_var(data.cuda()).detach().cpu().numpy()
-    save_interpretation(final_path, image_output, data, target, suffix = "direct_destruction",
-                        y_hat= torch.exp(pred).detach().cpu().numpy(),
-                        class_names= [str(i) for i in range(10)])
-
-    if need_autoencoder :
-        output = autoencoder_network_missing(data_autoencoder.cuda()).reshape(data_autoencoder.shape)
-        save_interpretation(final_path,
-            output.detach().cpu().numpy(), 
-            target_autoencoder.detach().cpu().numpy(), [0,1,2,3], prefix = "output_autoencoder_after_training")
     
+    pred = trainer_var._predict(data.cuda(), current_sampling_test, dataset = mnist).detach().cpu().numpy()
+    pred = np.argmax(pred, axis = 1)
+    z_s = destructor_no_var(data.cuda())
+    z_s = z_s.reshape(data.shape)
+    data_destructed, _ = classification_var.imputation.impute(data.cuda(), z_s)
+    data_destructed = data_destructed.detach().cpu().numpy()
+    save_result_artificial(final_path, data, target, pred)
+    w = classification_var.classifier.fc1.weight.detach().cpu().numpy()
+    b = classification_var.classifier.fc1.bias.detach().cpu().numpy()
+    z_s = z_s.detach().cpu().numpy()
 
-    # pipeline_predict = partial(batch_predict_gray, model = classifier, feature_extractor= feature_extractor)
-    # lime_image_interpretation(final_path, "lime_explained", data, target, pipeline_predict)
+    save_interpretation_artificial(final_path, data_destructed, target, pred, w, b)
+    save_interpretation_artificial_bar(final_path, z_s, target, pred)
 
-
-    # segmenter = SegmentationAlgorithm('quickshift', kernel_size=1, max_dist=20, ratio=0.2)
-    # lime_image_interpretation(final_path, "more_granularity", data, target, pipeline_predict,segmenter=segmenter)
-
-
-
-    
-    # prediction_function = partial(trainer_var._predict, sampling_distribution = partial(RelaxedBernoulli,temperature), dataset = mnist)
-    # pipeline_predict = partial(batch_predict_gray_with_destruction, model_function=prediction_function)
-    # lime_image_interpretation(final_path, "lime_with_destuctor", data, target, pipeline_predict,segmenter=segmenter)
+   
