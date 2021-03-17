@@ -1,2 +1,2 @@
 from datasets import *
-from interpretation import *
+from interpretation_image import *

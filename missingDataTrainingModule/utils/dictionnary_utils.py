@@ -36,9 +36,14 @@ def save_dic(path, dic):
     if not os.path.exists(path):
         os.makedirs(path)
 
+    with open(os.path.join(path,"results_dic.txt"), "w") as f:
+        f.write(str(dic))
+
     for key in dic.keys():
         table = dic[key]
         plt.figure(0)
         plt.plot(np.linspace(0,len(table)-1,len(table)),table)
         plt.savefig(os.path.join(path,str(key)+".jpg"))
         plt.clf()
+
+    

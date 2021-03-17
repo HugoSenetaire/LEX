@@ -81,16 +81,12 @@ class DestructorSimilar(AbstractDestructor):
       self.fc2 = nn.Linear(400,200, bias= self.bias)
       self.fc3 = nn.Linear(200,500, bias= self.bias)
       self.pi = nn.Linear(500, self.nb_patch_x*self.nb_patch_y, bias = self.bias)
-      print(self.nb_patch_x)
-      print(self.nb_patch_y)
-      print(self.fc1)
-      print("bias destructor similar",self.bias)
-
 
     def __call__(self, x):
         # print(x.shape)
         assert(self.kernel_updated)
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
+        
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
         pi = F.elu(self.fc3(x))
@@ -117,10 +113,10 @@ class DestructorSimilarVar(AbstractDestructor):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         y = y.flatten(1)
         x = torch.cat([x,y],1)
-        x = F.elu(self.fc1(x), inplace= False)
-        x = F.elu(self.fc2(x), inplace = False)
-        pi = F.elu(self.fc3(x), inplace = False)
-        return F.sigmoid(self.pi(pi), inplace = False)
+        x = F.elu(self.fc1(x))
+        x = F.elu(self.fc2(x))
+        pi = F.elu(self.fc3(x))
+        return F.sigmoid(self.pi(pi))
 
 
 
