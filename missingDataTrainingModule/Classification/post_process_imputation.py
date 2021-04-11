@@ -200,11 +200,11 @@ class NetworkTransformMask(NetworkBasedPostProcess):
 
 def expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation):
     wanted_transform = tuple(np.insert(-np.ones(len(data_expanded.shape),dtype = int),1, nb_imputation))
-    data_imputed_expanded = data_imputed.unsqueeze(1).expand(wanted_transform)
-    data_expanded_imputation = data_expanded.unsqueeze(1).expand(wanted_transform) # N_expectation, batch_size, channels, size:...
-    mask_expanded = sample_b.unsqueeze(1).expand(wanted_transform)
+    data_imputed_expanded = data_imputed.unsqueeze(1).expand(wanted_transform).flatten(0,1)
+    data_expanded_imputation = data_expanded.unsqueeze(1).expand(wanted_transform).flatten(0,1) # N_expectation, batch_size, channels, size:...
+    mask_expanded = sample_b.unsqueeze(1).expand(wanted_transform).flatten(0,1)
     
-    return data_imputed_expanded, data_expanded_imputation,mask_expanded
+    return data_imputed_expanded, data_expanded_imputation, mask_expanded
 
 
 
@@ -242,7 +242,6 @@ def load_VAEAC(path_model):
   # import the module with the model networks definitions,
   # optimization settings, and a mask generator
   model_module = import_module(path_model + '.model')
-
   # build VAEAC on top of the imported networks
   model = VAEAC(
       model_module.reconstruction_log_prob,
@@ -253,14 +252,15 @@ def load_VAEAC(path_model):
   mask_generator = model_module.mask_generator
   sampler = model_module.sampler
 
-  if os.path.exists(os.path.join(path_model, 'last_checkpoint.tar')):
-    location = 'cuda'
-    checkpoint = torch.load(os.path.join(path_model, 'last_checkpoint.tar'),
-                            map_location=location)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    # validation_iwae = checkpoint['validation_iwae']
-    # train_vlb = checkpoint['train_vlb']
+  if  not os.path.exists(os.path.join(path_model, 'last_checkpoint.tar')):
+    print("model has not been trained")
+  location = 'cuda'
+  checkpoint = torch.load(os.path.join(path_model, 'last_checkpoint.tar'),
+                          map_location=location)
+  model.load_state_dict(checkpoint['model_state_dict'])
+  # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+  # validation_iwae = checkpoint['validation_iwae']
+  # train_vlb = checkpoint['train_vlb']
   return model, sampler
 
 
@@ -333,11 +333,10 @@ class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
                                                     nb_imputation)
       
 
-      img_samples = self.sampler(samples_params, multiple = True)
+      img_samples = self.sampler(samples_params, multiple = True).flatten(0,1)
 
     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
     new_data = img_samples *  (1-sample_b) + data_expanded * sample_b 
-    new_data = new_data.flatten(0,1)
     return new_data, data_expanded, sample_b
 
 
