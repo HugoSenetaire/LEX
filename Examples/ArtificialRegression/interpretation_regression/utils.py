@@ -23,28 +23,36 @@ def save_result_artificial(path, data, target, predicted):
   if not os.path.exists(path_result):
     os.makedirs(path_result)
 
-  fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (12, 4))
-  ax1.scatter(data[:,0],data[:, 1], s=10, color = colors[target])
-  ax1.set_title('Input Data')
-  ax2.scatter(data[:,0],data[:, 1], s=10, color = colors[predicted])
-  ax2.set_title('Prediction')
-  plt.savefig(os.path.join(path_result, f"Prediction output.jpg"))
-  plt.close(fig)
+  nb_dim = data.shape[1]
+
+  for dim1 in range(nb_dim-1):
+    for dim2 in range(dim1+1, nb_dim):
+      fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (12, 4))
+      ax1.scatter(data[:,dim1],data[:, dim2], s=10, color = colors[target])
+      ax1.set_title('Input Data')
+      ax2.scatter(data[:,dim1],data[:, dim2], s=10, color = colors[predicted])
+      ax2.set_title('Prediction')
+      plt.savefig(os.path.join(path_result, f"Prediction_output_dim_{dim1}_{dim2}.jpg"))
+      plt.close(fig)
 
 def save_interpretation_artificial(path, data_destructed, target, predicted, prefix = ""):
   path_result = os.path.join(path, "result")
   if not os.path.exists(path_result):
     os.makedirs(path_result)
 
+  nb_dim = data_destructed.shape[1]
 
-  fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (12, 4))
-  ax1.scatter(data_destructed[:,0], data_destructed[:,1], s=10, color = colors[target])
+  for dim1 in range(nb_dim):
+    for dim2 in range(dim1+1, nb_dim):
 
-  ax1.set_title('Destructed data with target')
-  ax2.scatter(data_destructed[:,0], data_destructed[:,1], s=10, color = colors[predicted])
-  ax2.set_title('Destructed data with prediction')
-  plt.savefig(os.path.join(path_result, f"{prefix}_Destructed_output.jpg"))
-  plt.close(fig)
+
+      fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (12, 4))
+      ax1.scatter(data_destructed[:,dim1], data_destructed[:,dim2], s=10, color = colors[target])
+      ax1.set_title('Destructed data with target')
+      ax2.scatter(data_destructed[:,dim1], data_destructed[:,dim2], s=10, color = colors[predicted])
+      ax2.set_title('Destructed data with prediction')
+      plt.savefig(os.path.join(path_result, f"{prefix}_Destructed_output_dim_{dim1}_{dim2}.jpg"))
+      plt.close(fig)
 
 
 
@@ -53,34 +61,38 @@ def save_interpretation_artificial_bar(path, sample, target, pred):
   if not os.path.exists(path_result):
     os.makedirs(path_result)
 
-  sample_0_real_1 = sample[np.where(target==1),0][0]
-  # print(np.shape(sample_0_real_1))
-  sample_0_real_0 = sample[np.where(target==0),0][0]
+  nb_dim = sample.shape[1]
 
-  sample_1_real_1 = sample[np.where(target==1),1][0]
-  sample_1_real_0 = sample[np.where(target==0),1][0]
 
+  sample_list = []
+  label_list = []
+  for dim in range(nb_dim):
+    sample_list.append(sample[np.where(target==0),dim][0])
+    label_list.append(f"Coord {dim} Y 0")
+    sample_list.append(sample[np.where(target==1),dim][0])
+    label_list.append(f"Coord {dim} Y 1")
+    
 
 
   fig = plt.figure(1)
-  plt.boxplot([sample_0_real_0, sample_0_real_1, sample_1_real_0, sample_1_real_1],
-     labels = ["Coord 0 Y 0", "Coord 0 Y 1", "Coord 1 Y 0" , "Coord 1 Y 1"])
-  
+  plt.boxplot(sample_list,
+     labels = label_list)
+
   plt.savefig(os.path.join(path_result, f"box_plot_real_target.jpg"))
   plt.close(fig)
 
-
-  sample_0_real_1 = sample[np.where(pred==1),0][0]
-  sample_0_real_0 = sample[np.where(pred==0),0][0]
-
-  sample_1_real_1 = sample[np.where(pred==1),1][0]
-  sample_1_real_0 = sample[np.where(pred==0),1][0]
-
-
+  sample_list = []
+  label_list = []
+  for dim in range(nb_dim):
+    sample_list.append(sample[np.where(pred==0),dim][0])
+    label_list.append(f"Coord {dim} Y 0")
+    sample_list.append(sample[np.where(pred==1),dim][0])
+    label_list.append(f"Coord {dim} Y 1")
+    
 
   fig = plt.figure(1)
-  plt.boxplot([sample_0_real_0, sample_0_real_1, sample_1_real_0, sample_1_real_1],
-     labels = ["Coord 0 y 0", "Coord 0 y 1", "Coord 1 y 0" , "Coord 1 y 1"])
+  plt.boxplot(sample_list,
+     labels = label_list)
   
   plt.savefig(os.path.join(path_result, f"box_plot_real_pred.jpg"))
   plt.close(fig)

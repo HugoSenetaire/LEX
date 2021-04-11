@@ -96,7 +96,6 @@ class MnistDataset(torchvision.datasets.MNIST):
             img, target = self.data[idx], int(self.targets[idx])
 
             img = img.numpy()
-            # target = target.numpy()
             if self.transform is not None:
                 img = self.transform(img)
 
@@ -317,18 +316,18 @@ class FashionMNISTDataset(torchvision.datasets.FashionMNIST):
 ##### ENCAPSULATION :
 
 class LoaderEncapsulation():
-    def __init__(self, dataset_class = MnistDataset, batch_size_train = 64, batch_size_test=1000, transform = default_MNIST_transform, noisy = False, noise_function = None ):
+    def __init__(self, dataset_class = MnistDataset, batch_size_train = 16, batch_size_test=500, transform = default_MNIST_transform, noisy = False, noise_function = None ):
         self.dataset_class = dataset_class
         self.batch_size_test = batch_size_test
         self.batch_size_train = batch_size_train
      
-        self.train_loader = torch.utils.data.DataLoader( dataset_class('/files/', train=True, download=True,
+        self.train_loader = torch.utils.data.DataLoader( dataset_class("/scratch/hhjs/dataset", train=True, download=True,
                                 transform=transform, noisy=noisy, noise_function=noise_function),
                             batch_size=batch_size_train, shuffle=True
                             )
 
         self.test_loader = torch.utils.data.DataLoader(
-                                dataset_class('/files/', train=False, download=True,
+                                dataset_class("/scratch/hhjs/dataset", train=False, download=True,
                                     transform=transform, noisy=noisy, noise_function=noise_function
                                                             ),
                             batch_size=batch_size_test, shuffle=False

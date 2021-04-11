@@ -60,7 +60,6 @@ class StupidClassifier(nn.Module):
         self.fc1 = nn.Linear(np.prod(input_size), output, bias = bias)
         self.logsoftmax = nn.LogSoftmax(-1)
 
-        print("bias stupid classifier",bias)
 
 
     def __call__(self, x):

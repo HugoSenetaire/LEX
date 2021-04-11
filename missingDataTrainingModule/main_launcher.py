@@ -10,6 +10,9 @@ from torch.distributions import *
 from torch.optim import *
 from functools import partial
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 def save_parameters(path, args_dataset, args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output):
     complete_path = os.path.join(path, "parameters")
     if not os.path.exists(complete_path):
@@ -43,7 +46,9 @@ def get_imputation_method(args_class):
     
     if args_class["imputation"] is ConstantImputation:
         return partial(args_class["imputation"], cste = args_class["cste_imputation"], add_mask = args_class["add_mask"])
-    elif args_class["imputation"] is LearnConstantImputation:
+    elif args_class["imputation"] is  LearnConstantImputation:
+        return partial(args_class["imputation"], add_mask = args_class["add_mask"])
+    elif args_class["imputation"] is NoiseImputation :
         return partial(args_class["imputation"], add_mask = args_class["add_mask"])
 
 
@@ -82,7 +87,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     input_size_destructor = args_destruction["input_size_destructor"]
     input_size_autoencoder = args_destruction["input_size_autoencoder"]
     input_size_classifier = args_classification["input_size_classifier"]
-    input_size_classifier_critic = args_classification["input_size_classifier_critic"]
+    input_size_classifier_baseline = args_classification["input_size_classifier_baseline"]
     input_size_classification_module = args_classification["input_size_classification_module"]
     
 
@@ -99,35 +104,60 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
     ### Autoencoder :
 
-    noise_function = args_destruction["noise_function"]
-    train_reconstruction = args_destruction["train_reconstruction_regularization"]
-    train_postprocess = args_destruction["train_postprocess"]
-    reconstruction_regularization = args_destruction["reconstruction_regularization"]
-    post_process_regularization =  args_destruction["post_process_regularization"]
+    noise_function = args_classification["noise_function"]
+    train_reconstruction = args_classification["train_reconstruction_regularization"]
+    train_postprocess = args_classification["train_postprocess"]
+    reconstruction_regularization = args_classification["reconstruction_regularization"]
+    post_process_regularization =  args_classification["post_process_regularization"]
 
-    if reconstruction_regularization is None and post_process_regularization is None :
-        need_autoencoder = False
+    if args_classification["post_process_regularization"] is VAEAC_Imputation or args_classification["post_process_regularization"] is VAEAC_Imputation_DetachVersion :
+        model, sampler = load_VAEAC(args_classification["VAEAC_dir"])
+        post_proc_regul = post_process_regularization(model, sampler, args_classification["nb_imputation"])
+    elif post_process_regularization is DatasetBasedImputation :
+        post_proc_regul = post_process_regularization(loader.dataset, args_classification["nb_imputation"])
+    elif args_classification["post_process_regularization"] is MICE_imputation :
+        post_proc_regul = post_process_regularization(args_classification["nb_imputation"])
+    elif args_classification["post_process_regularization"] is MICE_imputation_pretrained:
+        import miceforest as mf
+        import pandas as pd
+        import numpy as np
+        from sklearn.experimental import enable_iterative_imputer
+        from sklearn.impute import IterativeImputer
+        Xtest, Ytest = next(iter(loader.test_loader))
+        Xtest = Xtest.detach().numpy()
+        df = pd.DataFrame(Xtest)
+        df_amp = mf.ampute_data(df,perc=0.5,random_state=1991)
+        imp = IterativeImputer(max_iter=10, random_state=0)
+        X_test = df_amp.to_numpy()
+        imp.fit(Xtest)
+        post_proc_regul = post_process_regularization(network = imp, nb_imputation= args_classification["nb_imputation"])
     else :
-        need_autoencoder = True
+        post_proc_regul = None
 
-    if need_autoencoder :
-        autoencoder_network = args_destruction["autoencoder"](input_size=input_size_autoencoder).cuda()
 
-        loader_noise = args_dataset["loader"](dataset, noisy=True, noise_function=args_destruction["noise_function"])
-        optim_autoencoder = args_train["optim_autoencoder"](autoencoder_network.parameters())
-        data_autoencoder, target_autoencoder = next(iter(loader_noise.test_loader))
-        data_autoencoder = data_autoencoder[:4]
-        target_autoencoder = target_autoencoder[:4]
+    # if reconstruction_regularization is None and post_process_regularization is None :
+    #     need_autoencoder = False
+    # else :
+    #     need_autoencoder = True
+
+    # if need_autoencoder :
+    #     autoencoder_network = args_classification["autoencoder"](input_size=input_size_autoencoder).cuda()
+
+    #     loader_noise = args_dataset["loader"](dataset, noisy=True, noise_function=args_classification["noise_function"])
+    #     optim_autoencoder = args_train["optim_autoencoder"](autoencoder_network.parameters())
+    #     data_autoencoder, target_autoencoder = next(iter(loader_noise.test_loader))
+    #     data_autoencoder = data_autoencoder[:4]
+    #     target_autoencoder = target_autoencoder[:4]
         
         
             
-        for epoch in range(args_train["nb_epoch_pretrain_autoencoder"]):
-            train_autoencoder(autoencoder_network, loader_noise, optim_autoencoder)
-            test_autoencoder(autoencoder_network, loader_noise)
+    #     for epoch in range(args_train["nb_epoch_pretrain_autoencoder"]):
+    #         train_autoencoder(autoencoder_network, loader_noise, optim_autoencoder)
+    #         test_autoencoder(autoencoder_network, loader_noise)
 
-        final_path_autoencoder = os.path.join(final_path, "Autoencoder")
-        if not os.path.exists(final_path_autoencoder):
-            os.makedirs(final_path_autoencoder)
+    #     final_path_autoencoder = os.path.join(final_path, "Autoencoder")
+    #     if not os.path.exists(final_path_autoencoder):
+    #         os.makedirs(final_path_autoencoder)
 
         # save_interpretation(final_path_autoencoder,
         # data_autoencoder.detach().cpu().numpy(), 
@@ -153,10 +183,10 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         destructor_var = None
 
     
-    if args_classification["classifier_critic"] is not None :
-        classifier_critic = args_classification["classifier_critic"](input_size=input_size_classifier_critic, output=loader.get_category())
+    if args_classification["classifier_baseline"] is not None :
+        classifier_baseline = args_classification["classifier_baseline"](input_size=input_size_classifier_baseline, output=loader.get_category())
     else :
-        classifier_critic = None
+        classifier_baseline = None
  
 
     if args_complete_trainer["feature_extractor"] is not None :
@@ -183,10 +213,6 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
     ##### ============  Modules initialisation for complete training ===========:
     if args_complete_trainer["complete_trainer"] is not ordinaryTraining :
-        if post_process_regularization is not None :
-            post_proc_regul = post_process_regularization(autoencoder_network, to_train = train_postprocess)
-        else :
-            post_proc_regul = None
         
         if reconstruction_regularization is not None :
             recons_regul = reconstruction_regularization(autoencoder_network, to_train = train_reconstruction)
@@ -214,7 +240,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                 classification_module,
                 destruction_module,
                 destruction_module_var,
-                critic=classifier_critic,
+                baseline=classifier_baseline,
                 feature_extractor=feature_extractor,
             )
         
@@ -222,7 +248,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
             trainer_var = args_complete_trainer["complete_trainer"](
                 classification_module,
                 destruction_module,
-                critic=classifier_critic,
+                baseline=classifier_baseline,
                 feature_extractor=feature_extractor,
             )
 
@@ -237,10 +263,10 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
             optim_destruction_var = None
 
         
-        if args_classification["classifier_critic"] is not None :
-            optim_critic = args_train["optim_critic"](classifier_critic.parameters())
+        if args_classification["classifier_baseline"] is not None :
+            optim_baseline = args_train["optim_baseline"](classifier_baseline.parameters())
         else :
-            optim_critic = None
+            optim_baseline = None
     
 
         if args_complete_trainer["feature_extractor"] is not None :
@@ -260,9 +286,11 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
         total_dic_train = {}
         total_dic_test_no_var = {}
+        total_dic_test_no_var_2 = {}
         total_dic_test_var = {}
         for epoch in range(args_train["nb_epoch"]):
             current_sampling = get_distribution(sampling_distribution_train, temperature)
+            print("Temperature", temperature)
             current_sampling_test = get_distribution(sampling_distribution_test, temperature)
 
 
@@ -273,40 +301,40 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                     optim_classification, optim_destruction, optim_destruction_var,
                     current_sampling,
                     current_sampling_var,
-                    optim_critic=optim_critic,
+                    optim_baseline=optim_baseline,
                     optim_feature_extractor= optim_feature_extractor,
                     lambda_reg = args_destruction["lambda_regularisation"],
                     lambda_reg_var = args_destruction["lambda_regularisation_var"],
-                    lambda_reconstruction = args_destruction["lambda_reconstruction"],
+                    lambda_reconstruction = args_classification["lambda_reconstruction"],
                     save_dic = True,
                     Nexpectation=args_train["Nexpectation_train"]
                 )
                 dic_test_no_var = trainer_var.test_no_var(loader, current_sampling_test, Nexpectation=args_test["Nexpectation_test"])
                 dic_test_var = trainer_var.test_var(loader, current_sampling_test, current_sampling_test, Nexpectation = args_test["Nexpectation_test"])
-                
-                
                 total_dic_test_var = fill_dic(total_dic_test_var, dic_test_var)
             else :   
                 dic_train = trainer_var.train_epoch(
                     epoch, loader,
                     optim_classification, optim_destruction,
                     current_sampling,
-                    optim_critic=optim_critic,
+                    optim_baseline=optim_baseline,
                     optim_feature_extractor= optim_feature_extractor,
                     lambda_reg = args_destruction["lambda_regularisation"],
-                    lambda_reconstruction = args_destruction["lambda_reconstruction"],
+                    lambda_reconstruction = args_classification["lambda_reconstruction"],
                     save_dic = True,
                     Nexpectation=args_train["Nexpectation_train"]
                 )
                 dic_test_no_var = trainer_var.test_no_var(loader, current_sampling_test, Nexpectation=args_test["Nexpectation_test"])
-            
+                dic_test_no_var_v2 = trainer_var.test_no_var(loader,Bernoulli, Nexpectation = args_test["Nexpectation_test"])
 
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test_no_var = fill_dic(total_dic_test_no_var, dic_test_no_var)
+            total_dic_test_no_var_2 = fill_dic(total_dic_test_no_var_2, dic_test_no_var_v2)
             
             temperature *= args_train["temperature_decay"]
         save_dic(os.path.join(final_path,"train"), total_dic_train)
         save_dic(os.path.join(final_path,"test_no_var"), total_dic_test_no_var)
+        save_dic(os.path.join(final_path, "test_no_var_with_bernoulli"), total_dic_test_no_var_2)
         if args_complete_trainer["complete_trainer"] is variationalTraining :
             save_dic(os.path.join(final_path, "test_var"), total_dic_test_var)
 

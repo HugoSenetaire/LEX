@@ -1,0 +1,3 @@
+[submodule "missingDataTrainingModule/Classification/vaeac"]
+	path = missingDataTrainingModule/Classification/vaeac
+	url = https://github.com/HugoSenetaire/vaeac.git

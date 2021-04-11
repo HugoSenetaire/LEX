@@ -54,10 +54,12 @@ class DropOutNoise(NoiseFunction):
     def __str__(self):
         return f"DropOutNoise_Pi{self.pi}"
 
-    def __call__(self, img):
+    def __call__(self, img, get_mask = False):
         noise = np.random.binomial(1,self.pi, size = np.shape(img))
         noise = torch.tensor(noise)
         img_noised = torch.where(noise>=0.5, torch.zeros(img.shape), img)
+        if get_mask :
+            return img_noised, noise
         return img_noised
     
 

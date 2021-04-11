@@ -33,7 +33,7 @@ def show_interpretation(sample, data, target, shape = (1,28,28)):
         plt.show()
 
 
-def save_interpretation(path, sample, data, target, shape = (1,28,28),suffix = "", prefix= 'sample', y_hat = None, class_names = None):
+def save_interpretation(path, sample, data, target, shape = (1,28,28), suffix = "", prefix= 'sample', y_hat = None, class_names = None):
   if not os.path.exists(path):
       os.makedirs(path)
   channels = shape[0]

@@ -67,7 +67,7 @@ class Destructor(AbstractDestructor):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         x = F.elu(self.fc1(x))
         pi = F.elu(self.fc2(x))
-        return F.sigmoid(self.pi(pi))
+        return torch.sigmoid(self.pi(pi))
 
 class DestructorSimilar(AbstractDestructor):
     def __init__(self,input_size = (1,28,28), bias = True):
@@ -90,7 +90,7 @@ class DestructorSimilar(AbstractDestructor):
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
         pi = F.elu(self.fc3(x))
-        return F.sigmoid(self.pi(pi))
+        return torch.sigmoid(self.pi(pi))
 
 class DestructorSimilarVar(AbstractDestructor):
     def __init__(self,input_size = (1,28,28), nb_category = 10):
@@ -116,7 +116,7 @@ class DestructorSimilarVar(AbstractDestructor):
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
         pi = F.elu(self.fc3(x))
-        return F.sigmoid(self.pi(pi))
+        return torch.sigmoid(self.pi(pi))
 
 
 
@@ -141,7 +141,7 @@ class DestructorFromFeature(AbstractDestructor):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         for layer in self.layers :
           x = F.elu(layer(x))
-        return F.sigmoid(self.pi(x))
+        return torch.sigmoid(self.pi(x))
 
 class DestructorFromFeatureVar(AbstractDestructor):
     def __init__(self,feature_size = [200, 500], input_size = (1,28,28), nb_category = 10):
@@ -167,17 +167,9 @@ class DestructorFromFeatureVar(AbstractDestructor):
         x = torch.cat([x,y], 1)
         for layer in self.layers :
           x = F.elu(layer(x))
-        return F.sigmoid(self.pi(x))
+        return torch.sigmoid(self.pi(x))
 
-# class PatchDestructorV1(nn.Module):
-#     def __init__(self, input_size = (1,28,28), stride = (1,1), kernel_patch = (1,1)):
-#       super().__init__()
-#       self.nb_patch_x, self.nb_patch_y = calculate_pi_dimension(input_size, stride)
-#       self.input_size = input_size
-    
-#     def __call__(self, x):
-#       raise NotImplementedError
-      
+
       
 
 class DestructorVariational(AbstractDestructor):
@@ -199,7 +191,7 @@ class DestructorVariational(AbstractDestructor):
     x = torch.cat([x,y],1)
     x = F.elu(self.fc1(x))
     pi = F.elu(self.fc2(x))
-    return F.sigmoid(self.pi(pi))
+    return torch.sigmoid(self.pi(pi))
 
 
 class DestructorVariationalNoY(AbstractDestructor):
@@ -218,10 +210,9 @@ class DestructorVariationalNoY(AbstractDestructor):
     assert(self.kernel_updated)
     x = x.flatten(1)  #Batch_size, Channels* SizeProduct
     y = y.float()
-    # x = torch.cat([x,y],1)
     x = F.elu(self.fc1(x))
     pi = F.elu(self.fc2(x))
-    return F.sigmoid(self.pi(pi))
+    return torch.sigmoid(self.pi(pi))
 
 class ConvDestructor(nn.Module):
     def __init__(self, input_channel, input_size = (1,28,28), output_size= 10):
@@ -236,7 +227,7 @@ class ConvDestructor(nn.Module):
         x = self.maxpool1(self.conv1(x))
         x = self.maxpool2(self.conv2(x))
         x = torch.flatten(x,1)
-        return F.sigmoid(self.fc(x)) #N_expectation, Batch_size, Category
+        return torch.sigmoid(self.fc(x)) #N_expectation, Batch_size, Category
 
 class ConvDestructorVar(nn.Module):
   def __init__(self, input_channel, input_size = (1,28,28), output_size= 10):
@@ -253,4 +244,4 @@ class ConvDestructorVar(nn.Module):
     x = torch.flatten(x,1)
     y = y.float()
     x = torch.cat([x,y],1)
-    return F.sigmoid(self.fc(x)) #TODO : No Fully connected layer at the end.
+    return torch.sigmoid(self.fc(x)) #TODO : No Fully connected layer at the end.
