@@ -254,10 +254,12 @@ def load_VAEAC(path_model):
 
   if  not os.path.exists(os.path.join(path_model, 'last_checkpoint.tar')):
     print("model has not been trained")
+    raise NotImplementedError
   location = 'cuda'
   checkpoint = torch.load(os.path.join(path_model, 'last_checkpoint.tar'),
                           map_location=location)
   model.load_state_dict(checkpoint['model_state_dict'])
+  model.eval()
   # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
   # validation_iwae = checkpoint['validation_iwae']
   # train_vlb = checkpoint['train_vlb']
@@ -291,10 +293,13 @@ class VAEAC_Imputation(NetworkBasedPostProcess):
     samples_params = self.network.generate_samples_params(batch,
                                                   masks,
                                                   nb_imputation)
+
+    
     img_samples = self.sampler(samples_params, multiple = True)
 
 
 
+    
     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
 
     new_data = img_samples *  (1-mask_expanded) + data_expanded * mask_expanded 
@@ -307,6 +312,7 @@ class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
     self.nb_imputation = nb_imputation
     self.sampler = sampler
     self.multiple_imputation = True
+    
 
 
   def __call__(self, data_expanded, data_imputed, sample_b, show_output = False):
@@ -326,15 +332,19 @@ class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
       nb_imputation = 1
     
 
+  
     with torch.no_grad():
+
       # compute imputation distributions parameters
       samples_params = self.network.generate_samples_params(batch.detach(),
                                                     masks.detach(),
-                                                    nb_imputation)
-      
-
+                                                    nb_imputation,
+                                                    need_observed = False)
+      # img_samples = []
+      # for element in samples_params :
       img_samples = self.sampler(samples_params, multiple = True).flatten(0,1)
 
+    
     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
     new_data = img_samples *  (1-sample_b) + data_expanded * sample_b 
     return new_data, data_expanded, sample_b
