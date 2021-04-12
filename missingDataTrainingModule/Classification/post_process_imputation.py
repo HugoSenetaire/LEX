@@ -224,14 +224,19 @@ class DatasetBasedImputation(MultipleImputation):
 
   def __call__(self, data_expanded, data_imputed, sample_b):
     if self.exist :
-      if self.eval_mode :
+      if not self.eval_mode :
         imputation_number = self.nb_imputation
       else :
         imputation_number = 1
+
+
       data_imputed, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, imputation_number)
       data_expanded = data_expanded.flatten(0,1)
-      data_imputed = data_imputed.flatten(0,1)
-      sample_b = sample_b.flatten(0,1)
+      if len(data_expanded.shape)>2:
+        data_imputed = data_imputed.flatten(0,1)
+      if len(sample_b.shape)>2:
+        sample_b = sample_b.flatten(0,1)
+
       imputed_output = self.dataset.impute_result(mask = sample_b.clone().detach(),value =  data_imputed.clone().detach())
       return imputed_output, data_expanded, sample_b
     else :
@@ -344,9 +349,14 @@ class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
       # for element in samples_params :
       img_samples = self.sampler(samples_params, multiple = True).flatten(0,1)
 
+
+      # plt.imshow(img_samples[0].reshape(28,28).detach().cpu().numpy(), cmap='gray')
+      # plt.show()
+      # plt.imshow(batch[0].reshape(28,28).detach().cpu().numpy(), cmap = 'gray')
+      # plt.show()
     
     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
-    new_data = img_samples *  (1-sample_b) + data_expanded * sample_b 
+    new_data = img_samples.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
     return new_data, data_expanded, sample_b
 
 
@@ -378,12 +388,12 @@ class MICE_imputation(MultipleImputation):
     for k in range(nb_imputation):
       data_imputed_output.append(torch.tensor(imp.transform(data_expanded_numpy)).unsqueeze(1))
 
-    data_imputed_output = torch.cat(data_imputed_output, axis=1)
+    data_imputed_output = torch.cat(data_imputed_output, axis=1).flatten(0,1)
 
     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
     
     new_data = data_imputed_output.cuda() *  (1-sample_b) + data_expanded * sample_b 
-    new_data = new_data.flatten(0,1)
+    new_data = new_data
 
     return new_data, data_expanded, sample_b
 
@@ -411,12 +421,12 @@ class MICE_imputation_pretrained(MultipleImputation):
     for k in range(nb_imputation):
       data_imputed_output.append(torch.tensor(self.network.transform(data_expanded_numpy)).unsqueeze(1))
 
-    data_imputed_output = torch.cat(data_imputed_output, axis=1)
+    data_imputed_output = torch.cat(data_imputed_output, axis=1).flatten(0,1)
 
     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
-    
+
     new_data = data_imputed_output.cuda() *  (1-sample_b) + data_expanded * sample_b 
-    new_data = new_data.flatten(0,1)
+    new_data = new_data
 
     return new_data, data_expanded, sample_b
 

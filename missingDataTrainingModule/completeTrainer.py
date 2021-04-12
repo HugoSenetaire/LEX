@@ -436,13 +436,21 @@ class AllZTraining(noVariationalTraining):
         self.z = None
 
     def _sample_z_train(self, pi_list, sampling_distribution, Nexpectation):
+        # print(pi_list[0])
+        # pi_list = torch.ones(pi_list.shape).cuda()
+        # pi_list -= 1e-5
+
         p_z = sampling_distribution(pi_list)
         z = p_z.sample((Nexpectation,))
         return z, p_z
 
     def _train_step(self, data, target, dataset, optim_classifier, optim_destruction, sampling_distribution, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
+        
         dim_total = np.prod(data.shape[1:])
         batch_size = data.shape[0]
+        data_output = data.detach().cpu().numpy()
+        # plt.scatter(data[:,0], data[:,1], c = target.detach().cpu().numpy())
+        # plt.show()
         Nexpectation = 2**dim_total
         nb_imputation = self.classification_module.imputation.nb_imputation
 
@@ -455,23 +463,23 @@ class AllZTraining(noVariationalTraining):
         data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
         # Destructive module :
         pi_list, loss_reg, aux_z, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
-        
-        # print(aux_z.shape)
-        z = z.reshape(aux_z.shape) # Nexpectation,batch_size, Channel*W*H
+
         log_prob_pz = torch.sum(p_z.log_prob(z).flatten(2), axis = -1) 
         log_prob_pz = log_prob_pz.unsqueeze(-1).unsqueeze(-1).expand((-1,-1,nb_imputation, dataset.get_category())) # Batch_size*Nexpectation, nb_imputation, nbcategory
         log_prob_pz = log_prob_pz.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
-
+        # print(log_prob_pz[:,0,:])
         # Classification module :
+        # z = torch.ones(z.shape).cuda()
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z)
         
         
         Nexpectation_multiple_imputation = Nexpectation * nb_imputation
         _, _, _, one_hot_target_expanded_multiple_imputation, _, _ = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation = Nexpectation_multiple_imputation)
-        log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category()) + log_prob_pz
-        log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) 
 
-        # Loss for regularization :
+        log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category()) + log_prob_pz
+        log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(1./torch.tensor(nb_imputation)) + torch.log(1./torch.tensor(Nexpectation))
+
+
         loss_reconstruction = lambda_reconstruction * loss_reconstruction
         loss_reg = lambda_reg * loss_reg
         
@@ -479,7 +487,6 @@ class AllZTraining(noVariationalTraining):
 
         # Loss for classification
         neg_likelihood = F.nll_loss(log_y_hat_iwae, target, reduction = 'mean')
-        # print(neg_likelihood)
         mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat_iwae)-one_hot_target.float())**2,1)) 
 
 
@@ -493,7 +500,7 @@ class AllZTraining(noVariationalTraining):
         if self.need_feature :
             optim_feature_extractor.step()
 
-        dic = self._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list)
+        dic = self._create_dic(loss_total, neg_likelihood, mse_loss, loss_reconstruction, loss_reg, pi_list)
 
         return dic
 
@@ -545,7 +552,7 @@ class REINFORCE(noVariationalTraining):
 
         log_prob_sampled_z = p_z.log_prob(z.detach()).reshape(Nexpectation, batch_size, -1)
         log_prob_sampled_z = torch.sum(torch.sum(log_prob_sampled_z,axis=0), axis=-1)
-        loss_destructor = torch.mean(log_prob_sampled_z * reward)
+        loss_destructor = -torch.mean(log_prob_sampled_z * reward)
 
         loss_destructor = loss_destructor 
         if self.baseline is not None :
