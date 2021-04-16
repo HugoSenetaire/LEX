@@ -220,6 +220,7 @@ class Imputation():
     loss_reconstruction = self.imputation_reconstruction(data_expanded, None, sample_b)
     sample_b = self.sample_b_regularization(data_expanded, sample_b)
     data_imputed = self.imputation_function(data_expanded, sample_b)
+
     data_imputed = self.post_process(data_expanded, data_imputed, sample_b)
 
     return data_imputed, loss_reconstruction

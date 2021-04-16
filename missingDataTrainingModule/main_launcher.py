@@ -81,7 +81,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
 
 
-    loader = args_dataset["loader"](dataset)
+    loader = args_dataset["loader"](dataset, root_dir = args_dataset["root_dir"], batch_size_test=args["batch_size_test"], batch_size_train=args["batch_size_train"])
 
 
     input_size_destructor = args_destruction["input_size_destructor"]

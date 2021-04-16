@@ -7,6 +7,7 @@ import copy
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -17,6 +18,13 @@ default_MNIST_transform = torchvision.transforms.Compose([
                                     torchvision.transforms.Normalize(
                                         (0.1307,), (0.3081,))
                                     ])
+
+
+default_cat_dogs_transform = torchvision.transforms.Compose([
+    torchvision.transforms.Resize((224,224)),
+    torchvision.transforms.ToTensor(),
+    torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
 
 def create_noisy(data, noise_function):
     data_noised = []
@@ -64,6 +72,58 @@ class DatasetFoo():
 
     def get_shape(self):
         return (1,self.dataset.size_x,self.dataset.size_y) 
+
+
+catsanddogstreated = False
+catsanddogstest = None
+catsanddogstrain = None
+
+def get_cats_and_dogs(path, test_ratio = 0.2):
+    global catsanddogstest
+    global catsanddogstrain
+    train_files = os.listdir(path)
+    catsanddogstrain, catsanddogstest = train_test_split(train_files, test_size = test_ratio)
+
+# ("/files/", train=True, download=True,
+#                                 transform=transform, noisy=noisy, noise_function=noise_function),
+class CatDogDataset(Dataset):
+    def __init__(self,  root_dir = '/files/', train='train', download = False, transform = None, noisy = False, noise_function = None):
+        self.dir = os.path.join(root_dir, "dogsvscats/train")
+
+        global catsanddogstreated
+        global catsanddogstrain
+        global catsanddogstest
+
+        if not catsanddogstreated :
+            get_cats_and_dogs(self.dir)
+            catsanddogstreated = True
+
+        
+        self.mode= train
+        self.transform = transform
+        if self.mode == "train": 
+            self.file_list = catsanddogstrain
+        else :
+            self.file_list = catsanddogstest
+            
+    def __len__(self):
+        return len(self.file_list)
+    
+    def __getitem__(self, idx):
+        img = Image.open(os.path.join(self.dir, self.file_list[idx]))
+        if self.file_list[idx].startswith("cat"):
+            label = 0
+        else :
+            label = 1
+
+        label = torch.tensor(label, dtype=torch.int64)
+        
+
+        if self.transform:
+            img = self.transform(img)
+            
+
+        return img.type(torch.float32), label
 
 
 ## ======================= MNIST ======================================
@@ -316,18 +376,19 @@ class FashionMNISTDataset(torchvision.datasets.FashionMNIST):
 ##### ENCAPSULATION :
 
 class LoaderEncapsulation():
-    def __init__(self, dataset_class = MnistDataset, batch_size_train = 16, batch_size_test=500, transform = default_MNIST_transform, noisy = False, noise_function = None ):
+    def __init__(self, dataset_class = MnistDataset, batch_size_train = 16, batch_size_test=500, transform = default_cat_dogs_transform, noisy = False, noise_function = None, shape = (1,28,28), root_dir = '/files/'):
         self.dataset_class = dataset_class
         self.batch_size_test = batch_size_test
         self.batch_size_train = batch_size_train
+        self.shape = shape
      
-        self.train_loader = torch.utils.data.DataLoader( dataset_class("/scratch/hhjs/dataset", train=True, download=True,
+        self.train_loader = torch.utils.data.DataLoader( dataset_class(root_dir, train=True, download=True,
                                 transform=transform, noisy=noisy, noise_function=noise_function),
                             batch_size=batch_size_train, shuffle=True
                             )
 
         self.test_loader = torch.utils.data.DataLoader(
-                                dataset_class("/scratch/hhjs/dataset", train=False, download=True,
+                                dataset_class(root_dir, train=False, download=True,
                                     transform=transform, noisy=noisy, noise_function=noise_function
                                                             ),
                             batch_size=batch_size_test, shuffle=False
@@ -337,5 +398,5 @@ class LoaderEncapsulation():
         return 10
 
     def get_shape(self):
-        return (1,28,28)
+        return self.train_loader.dataset[0][0].shape
 

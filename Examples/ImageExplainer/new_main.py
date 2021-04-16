@@ -14,21 +14,25 @@ if __name__ == '__main__' :
 
 
     args_output = {}
-    args_output["path"] = "D:\\DTU\\firstProject\\MissingDataResults_Tests\\TestDiscrete" # Path to results
+    args_output["path"] = "D:\\DTU\\firstProject\\MissingDataResults_Tests\\TestVAEACIMPUTATION" # Path to results
+    args_output["experiment_name"] = "stupid"
     
 
     args_dataset = {}
-    args_dataset["dataset"] = MnistDataset
+    args_dataset["dataset"] = CatDogDataset
     args_dataset["loader"] = LoaderEncapsulation
+    args_dataset["root_dir"] = "/scratch/hhjs/"
+    args_dataset["batch_size_classification"] = 64
+    args_dataset["batch_size_test"] = 1000
 
     args_classification = {}
 
-    args_classification["input_size_classification_module"] = (1, 28, 28) # Size before imputation
-    args_classification["input_size_classifier"] = (1, 28, 28) # Size after imputation
-    args_classification["input_size_classifier_baseline"] = (1, 28, 28) # Size before imputation (should be size of data)
+    args_classification["input_size_classification_module"] = (3, 224, 224) # Size before imputation
+    args_classification["input_size_classifier"] =(3,224,224) # Size after imputation
+    args_classification["input_size_classifier_baseline"] =(3,224,224) # Size before imputation (should be size of data)
 
 
-    args_classification["classifier"] = ClassifierModel
+    args_classification["classifier"] = VGGSimilar
     args_classification["classifier_baseline"] = None
 
 
@@ -38,14 +42,14 @@ if __name__ == '__main__' :
 
     args_destruct = {}
 
-    args_destruct["input_size_destructor"] = (1, 28, 28)
-    args_destruct["input_size_autoencoder"] = (1, 28, 28)
+    args_destruct["input_size_destructor"] =(3,224,224)
+    args_destruct["input_size_autoencoder"] =(3,224,224)
 
 
   
     args_destruct["regularization"] = free_regularization
     args_destruct["lambda_regularisation"] = 100.0
-    args_destruct["destructor"] = DestructorSimilar
+    args_destruct["destructor"] = DestructorUNET
     args_destruct["regularization_var"] = free_regularization
     args_destruct["lambda_regularisation_var"] = 0.1
     args_destruct["destructor_var"] = None #DestructorSimilarVar
@@ -60,16 +64,16 @@ if __name__ == '__main__' :
     
     args_complete_trainer = {}
     # args_complete_trainer["complete_trainer"] = noVariationalTraining_REINFORCE # Ordinary training, Variational Traininig, No Variational Training, post hoc...
-    args_complete_trainer["complete_trainer"] = REINFORCE # Ordinary training, Variational Traininig, No Variational Training, post hoc...
+    args_complete_trainer["complete_trainer"] = noVariationalTraining # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args_complete_trainer["feature_extractor"] = None
 
     args_train = {}
     args_train["nb_epoch"] = 1 # Training the complete model
     args_train["nb_epoch_pretrain_autoencoder"] = 1 # Training the complete model
     args_train["nb_epoch_pretrain"] = 0 # Training auto encoder
-    args_train["Nexpectation_train"] = 10 # Number K in the IWAE-similar loss 
+    args_train["Nexpectation_train"] = 1 # Number K in the IWAE-similar loss 
 
-    args_train["sampling_distribution_train"] = Bernoulli # If using reparametrization (ie noVariationalTraining), need rsample
+    args_train["sampling_distribution_train"] = RelaxedBernoulli # If using reparametrization (ie noVariationalTraining), need rsample
     args_train["sampling_distribution_train_var"] = RelaxedBernoulli
     args_train["temperature_train_init"] = 1.0
     args_train["temperature_decay"] = 0.5
@@ -87,79 +91,46 @@ if __name__ == '__main__' :
     args_test["temperature_test"] = 0.0
     args_test["Nexpectation_test"] = 10
 
-    for dataset in [MnistDataset, FashionMNISTDataset, MnistVariationFashion]:
-        args_dataset["dataset"] = dataset
-        for mask in [True, False]:
-            args_classification["add_mask"] = mask
-            if mask :
-                args_classification["input_size_classifier"] = (2, 28, 28)
-            else :
-                args_classification["input_size_classifier"] = (1, 28, 28)
+    final_path, trainer_var, loader = experiment(args_dataset,
+                                        args_classification,
+                                        args_destruct,
+                                        args_complete_trainer,
+                                        args_train, 
+                                        args_test, 
+                                        args_output)
 
-            for cste in [0, -1, 10]:
-                
-                args_classification["cste_imputation"] = cste
-                
-                for lambda_reg in [0, 0.1, 1.0, 10.0]:
-                    args_destruct["lambda_regularisation"] = lambda_reg
-                   
-                    args_output["experiment_name"] = f"Constant_{cste}_mask_{mask}_lambda_{lambda_reg}"
+    ## Interpretation
+    trainer_var.eval()
 
-                    print("Start Experiment")
-                    final_path, trainer_var, loader = experiment(args_dataset,
-                                                        args_classification,
-                                                        args_destruct,
-                                                        args_complete_trainer,
-                                                        args_train, 
-                                                        args_test, 
-                                                        args_output)
+    data, target= next(iter(loader.test_loader))
+    data = data[:20]
+    target = target[:20]
 
-                    ## Interpretation
-                    trainer_var.eval()
-
-                    data, target= next(iter(loader.test_loader))
-                    data = data[:20]
-                    target = target[:20]
-
-                    sampling_distribution_test = args_test["sampling_distribution_test"]
-                    if sampling_distribution_test is RelaxedBernoulli:
-                        current_sampling_test = partial(RelaxedBernoulli,args_test["temperature_test"])
-                    else :
-                        current_sampling_test = copy.deepcopy(sampling_distribution_test)
-                        
-                    sample_list, pred = trainer_var.MCMC(loader,data, target, current_sampling_test,5000, return_pred=True)
-                    save_interpretation(final_path,sample_list, data, target, suffix = "no_var",
-                                        y_hat = torch.exp(pred).detach().cpu().numpy(),
-                                        class_names=[str(i) for i in range(10)])
-
-                    # target = torch.tensor(np.ones((target.shape)),dtype = torch.int64) 
-                    # print(target)
-                    # sample_list, pred = trainer_var.MCMC(loader,data, target, current_sampling_test,5000, return_pred=True)
-                    # save_interpretation(final_path,sample_list, data, target, suffix = "falsetarget1",
-                    #                     y_hat = torch.exp(pred).detach().cpu().numpy(),
-                    #                     class_names=[str(i) for i in range(10)])
-
-                    # target = torch.tensor(np.ones((target.shape)),dtype = torch.int64) 
-                    # sample_list, pred = trainer_var.MCMC(loader,data, target, current_sampling_test,5000, return_pred=True)
-                    # save_interpretation(final_path,sample_list, data, target, suffix = "falsetarget5",
-                    #                     y_hat = torch.exp(pred).detach().cpu().numpy(),
-                    #                     class_names=[str(i) for i in range(10)])
-
-                    pred = trainer_var._predict(data.cuda(), current_sampling_test, dataset = loader)
-                    image_output, _ = trainer_var._get_pi(data.cuda())
-                    image_output = image_output.detach().cpu().numpy()
-                    save_interpretation(final_path, image_output, data, target, suffix = "direct_destruction",
-                                        y_hat= torch.exp(pred).detach().cpu().numpy(),
-                                        class_names= [str(i) for i in range(10)])
+    sampling_distribution_test = args_test["sampling_distribution_test"]
+    if sampling_distribution_test is RelaxedBernoulli:
+        current_sampling_test = partial(RelaxedBernoulli,args_test["temperature_test"])
+    else :
+        current_sampling_test = copy.deepcopy(sampling_distribution_test)
+        
+    sample_list, pred = trainer_var.MCMC(loader,data, target, current_sampling_test,5000, return_pred=True)
+    save_interpretation(final_path,sample_list, data, target, suffix = "no_var",
+                        y_hat = torch.exp(pred).detach().cpu().numpy(),
+                        class_names=[str(i) for i in range(10)])
+    pred = trainer_var._predict(data.cuda(), current_sampling_test, dataset = loader)
+    image_output, _ = trainer_var._get_pi(data.cuda())
+    image_output = image_output.detach().cpu().numpy()
+    save_interpretation(final_path, image_output, data, target, suffix = "direct_destruction",
+                        y_hat= torch.exp(pred).detach().cpu().numpy(),
+                        class_names= [str(i) for i in range(10)])
 
 
-                    pred = trainer_var._predict(data.cuda(), current_sampling_test, dataset = loader)
-                    pi_list, loss_reg, z, p_z = trainer_var._destructive_test(data.cuda(), sampling_distribution_test, 1)
-                    destructed_image, _ = trainer_var.classification_module.imputation.impute(data.cuda(), z)
-                    if mask :
-                        mask_index = destructed_image.shape[1]//2
-                        destructed_image = destructed_image[:,:mask_index,:,:]
-                    destructed_image = destructed_image.detach().cpu().numpy()
-                    save_interpretation(final_path, destructed_image, data, target, suffix = "destructed_image", 
-                                        y_hat= torch.exp(pred).detach().cpu().numpy(),
-                                        class_names= [str(i) for i in range(10)])
+    pred = trainer_var._predict(data.cuda(), current_sampling_test, dataset = loader)
+    pi_list, loss_reg, z, p_z = trainer_var._destructive_test(data.cuda(), sampling_distribution_test, 1)
+    destructed_image, _ = trainer_var.classification_module.imputation.impute(data.cuda(), z)
+    if mask :
+        mask_index = destructed_image.shape[1]//2
+        destructed_image = destructed_image[:,:mask_index,:,:]
+    destructed_image = destructed_image.detach().cpu().numpy()
+    save_interpretation(final_path, destructed_image, data, target, suffix = "destructed_image", 
+                        y_hat= torch.exp(pred).detach().cpu().numpy(),
+                        class_names= [str(i) for i in range(10)])

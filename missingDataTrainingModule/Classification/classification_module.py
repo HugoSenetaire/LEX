@@ -76,6 +76,8 @@ class ClassificationModule():
     def __call__(self, data, sample_b = None):
 
         if sample_b is not None :
+            if data.shape[1]>1 :
+                sample_b = sample_b.unsqueeze(0).expand(data.shape[1],sample_b.shape[0], sample_b.shape[1], sample_b.shape[2]) 
             sample_b = sample_b.reshape(data.shape)
 
 

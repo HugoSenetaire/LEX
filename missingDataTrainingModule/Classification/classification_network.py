@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils_missing import *
 
-
+import math
 import torch
 import torchvision
 import torch.nn as nn
@@ -61,10 +61,79 @@ class StupidClassifier(nn.Module):
         self.logsoftmax = nn.LogSoftmax(-1)
 
 
-
     def __call__(self, x):
         x = x.flatten(1)
         return self.logsoftmax(self.fc1(x))
+
+
+class PretrainedVGGPytorch(nn.Module):
+    def __init__(self, input_size = (3, 224, 224), output_size = 2, model_type = "vgg11", pretrained= True):
+        assert(name.startswith("vgg"))
+        self.model = torch.hub.load('pytorch/vision:v0.9.0', model_type, pretrained=True)
+        self.new_classifier = nn.Sequential(
+                                nn.Linear(512*7*7, 4096),
+                                nn.ReLU(True),
+                                nn.Dropout(),
+                                nn.Linear(4096,4096),
+                                nn.ReLU(True),
+                                nn.Dropout(),
+                                nn.Linear(4096, output_size)
+                            )
+        self.logsoftmax = nn.LogSoftmax(-1)
+
+    def __call__(self, x):
+        x = self.model.features(x)
+        x = self.model.avgpool(x)
+        x = self.new_classifier(x)
+        x = self.logsoftmax(x)
+        return x
+
+
+
+class VGGSimilar(nn.Module):
+    def __init__(self, input_size = (3,224, 224), output_size = 2):
+        super().__init__()
+        self.input_size = input_size
+        assert(len(input_size)==3)
+        self.output_size = output_size
+        w = input_size[1]
+        self.nb_block = min(int(math.log(w/7., 2)),5)
+        if self.nb_block<1 :
+            raise EnvironmentError("Size of the image should be higher than 7")
+
+
+        list_feature = []
+        in_channels = input_size[0]
+        for k in range(self.nb_block):
+            out_channels = 64 + 2**k
+            list_feature.append(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1))
+            list_feature.append(nn.ReLU(inplace=True))
+            in_channels = out_channels
+            list_feature.append(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1))
+            list_feature.append(nn.ReLU(inplace=True))
+            list_feature.append(nn.MaxPool2d(kernel_size=2, stride=2))
+        self.features = nn.Sequential(*list_feature)
+
+        self.avg_pool = nn.AdaptiveAvgPool2d((7,7))
+        self.new_classifier = nn.Sequential(
+                                nn.Linear(512*7*7, 4096),
+                                nn.ReLU(True),
+                                nn.Dropout(),
+                                nn.Linear(4096,4096),
+                                nn.ReLU(True),
+                                nn.Dropout(),
+                                nn.Linear(4096, output_size)
+                            )
+        self.logsoftmax = nn.LogSoftmax(-1)
+
+        
+
+    def __call__(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = self.new_classifier(x)
+        x = self.logsoftmax(x)
+        return x
 
 class ClassifierFromFeature(nn.Module):
     

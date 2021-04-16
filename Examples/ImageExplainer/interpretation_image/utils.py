@@ -81,7 +81,6 @@ def batch_predict_gray(images, model, feature_extractor = None):
       batch = torch.stack(tuple(torch.tensor(image, dtype= torch.float32) for image in images),dim = 0).unsqueeze(1)
     else :
       batch = torch.mean(torch.stack(tuple(torch.tensor(image, dtype= torch.float32) for image in images),dim = 0),dim=-1)
-    # print(batch.shape)
 
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -104,7 +103,6 @@ def batch_predict_gray_with_destruction(images, model_function):
     batch = batch.to(device)
     probs = model_function(batch)
     probs = torch.exp(probs)
-    # print(probs)
     return probs.detach().cpu().numpy()
 
 defaultSegmenter = SegmentationAlgorithm('quickshift', kernel_size=1, max_dist=200, ratio=0.2)

@@ -3,8 +3,9 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # print(sys.path)
 from utils_missing import *
+from .utils_UNET import *
 
-
+import math
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
@@ -91,6 +92,79 @@ class DestructorSimilar(AbstractDestructor):
         x = F.elu(self.fc2(x))
         pi = F.elu(self.fc3(x))
         return torch.sigmoid(self.pi(pi))
+
+class DestructorSimple(AbstractDestructor):
+    def __init__(self,input_size = (1,28,28), bias = True):
+      super().__init__(input_size = input_size)
+      self.bias = bias
+        
+    def kernel_update(self, kernel_patch, stride_patch):
+      super().kernel_update( kernel_patch, stride_patch)
+
+      self.fc1 = nn.Linear(np.prod(self.input_size),20, bias= self.bias)
+      # self.fc2 = nn.Linear(10, 10, bias= self.bias)
+      self.pi = nn.Linear(20, self.nb_patch_x*self.nb_patch_y, bias = self.bias)
+
+    def __call__(self, x):
+        # print(x.shape)
+        assert(self.kernel_updated)
+        x = x.flatten(1) # Batch_size, Channels* SizeProduct
+        x = F.elu(self.fc1(x))
+        # x = F.elu(self.fc2(x))
+        return torch.sigmoid(self.pi(x))
+
+
+
+class DestructorSimpleV2(AbstractDestructor):
+    def __init__(self,input_size = (1,28,28), bias = True):
+      super().__init__(input_size = input_size)
+      self.bias = bias
+        
+    def kernel_update(self, kernel_patch, stride_patch):
+      super().kernel_update( kernel_patch, stride_patch)
+
+      self.fc1 = nn.Linear(np.prod(self.input_size),20, bias= self.bias)
+      self.fc2 = nn.Linear(20, 20, bias= self.bias)
+      self.pi = nn.Linear(20, self.nb_patch_x*self.nb_patch_y, bias = self.bias)
+
+    def __call__(self, x):
+        # print(x.shape)
+        assert(self.kernel_updated)
+        x = x.flatten(1) # Batch_size, Channels* SizeProduct
+        x = F.elu(self.fc1(x))
+        x = F.elu(self.fc2(x))
+        return torch.sigmoid(self.pi(x))
+
+
+class DestructorUNET(AbstractDestructor):
+    def __init__(self,input_size = (1,28,28), bilinear = True):
+      super().__init__(input_size = input_size)
+      self.channels = self.input_size[0]
+      self.w = self.input_size[1]
+      self.h = self.input_size[2]
+      self.bilinear = bilinear
+
+
+    def kernel_update(self, kernel_patch, stride_patch):
+      super().kernel_update(kernel_patch, stride_patch)
+
+      self.nb_block = math.log(min(self.h, self.w), 2)//2
+      self.getconfiguration = nn.Sequential(*[
+        nn.Conv2d(self.channels, 64, kernel_size = kernel_patch, stride = stride_patch),
+        nn.ReLU(inplace = False),
+        nn.Conv2d(64, 64, kernel_size = 3, padding=1),
+        nn.BatchNorm2d(64),
+        nn.ReLU(inplace = False),
+      ])
+
+      self.UNET = UNet(1, bilinear= self.bilinear)
+
+    def __call__(self, x):
+      x = self.getconfiguration(x)
+      x = self.UNET(x)
+      pi = torch.sigmoid(x)
+      return pi
+
 
 class DestructorSimilarVar(AbstractDestructor):
     def __init__(self,input_size = (1,28,28), nb_category = 10):

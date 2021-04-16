@@ -296,7 +296,8 @@ class noVariationalTraining(ordinaryTraining):
         total_dic = {}
 
         for batch_idx, (data, target) in enumerate(dataset.train_loader):
-
+            
+            
             dic = self._train_step(data, target,dataset, optim_classifier, optim_destruction, sampling_distribution, optim_baseline =optim_baseline, optim_feature_extractor = optim_feature_extractor, lambda_reg = lambda_reg, Nexpectation = Nexpectation, lambda_reconstruction= lambda_reconstruction)
 
 
