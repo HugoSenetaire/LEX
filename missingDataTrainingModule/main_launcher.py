@@ -89,6 +89,10 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     input_size_classifier = args_classification["input_size_classifier"]
     input_size_classifier_baseline = args_classification["input_size_classifier_baseline"]
     input_size_classification_module = args_classification["input_size_classification_module"]
+
+
+    kernel_patch = args_destruction["kernel_patch"]
+    stride_patch = args_destruction["stride_patch"]
     
 
     ## Sampling :
@@ -176,7 +180,8 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
     classifier =  args_classification["classifier"](input_size_classifier, loader.get_category())
     destructor = args_destruction["destructor"](input_size_destructor)
-    print(args_destruction["destructor_var"])
+    
+
     if args_destruction["destructor_var"] is not None :
         destructor_var = args_destruction["destructor_var"](input_size_destructor)
     else :
@@ -221,15 +226,18 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
 
         destruction_module = DestructionModule(destructor, feature_extractor=feature_extractor, regularization=free_regularization)
+        destruction_module.kernel_update(kernel_patch, stride_patch)
         if args_destruction["destructor_var"] is not None :
-            
             destruction_module_var = DestructionModule(destructor_var, feature_extractor=feature_extractor, regularization= free_regularization)
+            destruction_module_var.kernel_update(kernel_patch, stride_patch)
         else :
             destruction_module_var = None
 
         imputation = imputationMethod(input_size= input_size_classification_module,post_process_regularization = post_proc_regul,
                         reconstruction_reg= recons_regul)
         classification_module = ClassificationModule(classifier, imputation=imputation, feature_extractor=feature_extractor)
+        classification_module.kernel_update(kernel_patch, stride_patch)
+        
 
     
 

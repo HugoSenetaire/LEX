@@ -376,7 +376,7 @@ class FashionMNISTDataset(torchvision.datasets.FashionMNIST):
 ##### ENCAPSULATION :
 
 class LoaderEncapsulation():
-    def __init__(self, dataset_class = MnistDataset, batch_size_train = 16, batch_size_test=500, transform = default_cat_dogs_transform, noisy = False, noise_function = None, shape = (1,28,28), root_dir = '/files/'):
+    def __init__(self, dataset_class = MnistDataset, batch_size_train = 16, batch_size_test=500, transform = default_MNIST_transform, noisy = False, noise_function = None, shape = (1,28,28), root_dir = '/files/'):
         self.dataset_class = dataset_class
         self.batch_size_test = batch_size_test
         self.batch_size_train = batch_size_train

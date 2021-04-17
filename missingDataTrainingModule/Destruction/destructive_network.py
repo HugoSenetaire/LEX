@@ -147,8 +147,7 @@ class DestructorUNET(AbstractDestructor):
 
     def kernel_update(self, kernel_patch, stride_patch):
       super().kernel_update(kernel_patch, stride_patch)
-
-      self.nb_block = math.log(min(self.h, self.w), 2)//2
+      self.nb_block = int(math.log(min(self.nb_patch_x, self.nb_patch_y), 2)//2)
       self.getconfiguration = nn.Sequential(*[
         nn.Conv2d(self.channels, 64, kernel_size = kernel_patch, stride = stride_patch),
         nn.ReLU(inplace = False),
@@ -157,7 +156,7 @@ class DestructorUNET(AbstractDestructor):
         nn.ReLU(inplace = False),
       ])
 
-      self.UNET = UNet(1, bilinear= self.bilinear)
+      self.UNET = UNet(1, bilinear= self.bilinear, nb_block=self.nb_block)
 
     def __call__(self, x):
       x = self.getconfiguration(x)

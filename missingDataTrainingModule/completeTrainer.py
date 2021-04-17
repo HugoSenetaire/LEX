@@ -25,7 +25,6 @@ class ordinaryTraining():
 
     
         self.classification_module = classification_module
-        self.classification_module.kernel_update(self.kernel_patch, self.stride_patch)
         if self.use_cuda :
             self.classification_module.cuda()
             if self.need_feature :
@@ -144,7 +143,6 @@ class noVariationalTraining(ordinaryTraining):
     def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, use_cuda = True, kernel_patch = (1,1), stride_patch = (1,1)):
         super().__init__(classification_module, use_cuda = use_cuda, feature_extractor=feature_extractor, kernel_patch= kernel_patch, stride_patch = stride_patch)
         self.destruction_module = destruction_module
-        self.destruction_module.kernel_update(kernel_patch, stride_patch)
         self.baseline = baseline
         if self.use_cuda and self.baseline is not None :
             self.baseline = self.baseline.cuda()
@@ -578,7 +576,6 @@ class variationalTraining(noVariationalTraining):
     def __init__(self, classification_module, destruction_module, destruction_module_var,baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1)):
         super().__init__(classification_module, destruction_module,baseline = baseline, feature_extractor = feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch)
         self.destruction_module_var = destruction_module_var
-        self.destruction_module_var.kernel_update(kernel_patch, stride_patch)
         if self.use_cuda :
             self.destruction_module_var.cuda()
 

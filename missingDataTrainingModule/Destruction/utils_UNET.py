@@ -110,7 +110,6 @@ class UNet(nn.Module):
         list_x = [x]
         for k in range(self.nb_block-1):
           list_x.append(self.down_first[k](list_x[-1]))
-        
         list_x.append(self.down_last(list_x[-1]))
         x = self.up[0](list_x[-1],list_x[-2])
         for k in range(1,self.nb_block):
