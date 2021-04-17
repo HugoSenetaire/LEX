@@ -102,25 +102,6 @@ class Imputation():
 
 
     
-  def kernel_update(self, kernel_patch, stride_patch):
-    self.kernel_updated = True
-    if self.input_size is int or len(self.input_size)<=2:
-      self.image = False
-      self.kernel_patch = (1,1)
-      self.stride_patch = (1,1)
-      try :
-        self.nb_patch_x, self.nb_patch_y = int(self.input_size), 1
-      except :
-        self.nb_patch_x, self.nb_patch_y = int(self.input_size[0]), int(self.input_size[1])
-    else :
-      self.image = True
-      assert(kernel_patch[0]>= stride_patch[0])
-      assert(kernel_patch[1]>= stride_patch[1])
-      assert(stride_patch[0]>0)
-      assert(stride_patch[1]>0)
-      self.kernel_patch = kernel_patch
-      self.stride_patch = stride_patch
-      self.nb_patch_x, self.nb_patch_y = calculate_pi_dimension(self.input_size, self.stride_patch)
 
   def round_sample(self, sample_b):
     """ Round sample so that we only have a discrete mask. Unadvised as the training becomes very unstable"""
@@ -131,37 +112,6 @@ class Imputation():
       return sample_b
 
   
-  def patch_creation(self,sample_b):
-    """ Recreating the heat-map of selection being given the original selection mask
-    TODO : This is very slow, check how a convolution is done in Pytorch. Might need to use some tricks to accelerate here """
-    assert(self.kernel_updated)
-    
-    if self.image :
-      sample_b = sample_b.reshape((-1, self.input_size[0],self.nb_patch_x,self.nb_patch_y))
-      if self.kernel_patch == (1,1):
-        return sample_b
-      else :
-        batch_size = sample_b.shape[0]
-        new_sample_b = torch.zeros((batch_size, self.input_size[0],self.input_size[1],self.input_size[2]))
-        if sample_b.is_cuda :
-          new_sample_b = new_sample_b.cuda()
-        for channel in range(self.input_size[0]):
-
-          for stride_idx in range(self.nb_patch_x):
-            stride_x_location = stride_idx*self.stride_patch[0]
-            remaining_size_x = min(self.input_size[1]-stride_x_location,self.kernel_patch[0])
-
-            for stride_idy in range(self.nb_patch_y):
-              stride_y_location = stride_idy*self.stride_patch[0]
-              remaining_size_y = min(self.input_size[2]-stride_y_location,self.kernel_patch[1])
-              
-         
-              new_sample_b[:, channel, stride_x_location:stride_x_location+remaining_size_x, stride_y_location:stride_y_location+remaining_size_y] += \
-                sample_b[:,channel, stride_idx, stride_idy].unsqueeze(1).unsqueeze(1).expand(-1, remaining_size_x, remaining_size_y)
-      
-    else :
-      new_sample_b = sample_b
-    return new_sample_b
             
   def __str__(self):
     """ Make sure of what is printed when everything is in it """
@@ -205,9 +155,6 @@ class Imputation():
 
 
 
-  def readable_sample(self, sample_b):
-    """ Use during test or analysis to make sure we have a mask dimension similar to the input dimension """
-    return self.patch_creation(sample_b)
 
   def imputation_function(self, data_expanded, sample_b):
     raise NotImplementedError
@@ -215,7 +162,6 @@ class Imputation():
   def impute(self,data_expanded, sample_b):
 
     sample_b = self.round_sample(sample_b)
-    sample_b = self.patch_creation(sample_b)
 
     loss_reconstruction = self.imputation_reconstruction(data_expanded, None, sample_b)
     sample_b = self.sample_b_regularization(data_expanded, sample_b)

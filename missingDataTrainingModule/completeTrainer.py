@@ -405,7 +405,7 @@ class noVariationalTraining(ordinaryTraining):
 
                 if k > burn and k%jump == 0 :
                     sample_list.append(previous_z.cpu()[None,:,:])
-                    sample_list_readable.append(self.classification_module.imputation.readable_sample(previous_z).cpu()[None, :, :])
+                    sample_list_readable.append(self.classification_module.readable_sample(previous_z).cpu()[None, :, :])
 
             sample_list_readable = torch.mean(torch.cat(sample_list_readable),0)
             sample_list = torch.mean(torch.cat(sample_list),0)
@@ -803,7 +803,7 @@ class variationalTraining(noVariationalTraining):
 
                 if k > burn and k%jump == 0 :
                     sample_list.append(previous_z.cpu()[None,:,:])
-                    sample_list_readable.append(self.classification_module.imputation.readable_sample(previous_z).cpu()[None, :, :])
+                    sample_list_readable.append(self.classification_module.readable_sample(previous_z).cpu()[None, :, :])
 
             sample_list_readable = torch.mean(torch.cat(sample_list_readable),0)
             sample_list = torch.mean(torch.cat(sample_list),0)
