@@ -97,8 +97,10 @@ class UNet(nn.Module):
         self.down_last = Down(2**(6+nb_block-1), 2**(6+nb_block)//factor)
 
         self.up = []
-        for k in range(nb_block):
-          self.up.append(Up(2**(6+nb_block-k), 2**(6+nb_block-k+1)//factor, bilinear))
+        for k in range(nb_block-1):
+          self.up.append(Up(2**(6+nb_block-k), 2**(6+nb_block-k-1)//factor, bilinear))
+
+        self.up.append(Up(2**7, 2**6, bilinear))
         self.up = nn.ModuleList(self.up)
         self.outc = OutConv(64, n_classes)
 
@@ -110,10 +112,9 @@ class UNet(nn.Module):
           list_x.append(self.down_first[k](list_x[-1]))
         
         list_x.append(self.down_last(list_x[-1]))
-
-        x = self.up[k](list_x[-1],list_x[-2])
+        x = self.up[0](list_x[-1],list_x[-2])
         for k in range(1,self.nb_block):
-          x = self.up(x, list_x[self.nb_block-k-1])
+          x = self.up[k](x, list_x[self.nb_block-k-1])
           
         logits = self.outc(x)
         return logits

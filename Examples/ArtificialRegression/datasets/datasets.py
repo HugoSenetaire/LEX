@@ -123,7 +123,6 @@ class CircleDataset():
     def impute_result(self, mask, value):
         mask_aux = mask.detach()
         value_aux = value.detach()
-        
         ratio = torch.tensor(self.factor)
         batch_size = value.shape[0]
 
@@ -336,10 +335,35 @@ class CircleDatasetNotCenteredAndNoise():
         self.dataset_train = TensorDatasetAugmented(self.data_train, self.targets_train, noisy = noisy)
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
 
+class LinearSeparableDataset():
+    def __init__(self, n_samples_train = 40000, n_samples_test=10000, noise = False, shift = [2,2], factor =.1, noisy = False, noise_function = None):
+        self.n_samples_train = n_samples_train
+        self.n_samples_test = n_samples_test
+        self.noise = noise
+     
+        total_samples = self.n_samples_train + self.n_samples_test
+        test_size = self.n_samples_test/float(total_samples)
+
+        self.data, self.targets = datasets.make_blobs(n_samples=total_samples,centers=2, cluster_std=.1)
+        self.data -= np.mean(self.data)
+        # self.data /= np.linalg.norm(self.data)
+
+        self.data_train, self.data_test, self.targets_train, self.targets_test = train_test_split(
+            self.data, self.targets, test_size=test_size, random_state=0)
+
+        self.data_train = torch.tensor(self.data_train + np.array(shift))
+        self.data_test = torch.tensor(self.data_test + np.array(shift))
+        self.targets_train = torch.tensor(self.targets_train, dtype = torch.int64)
+        self.targets_test = torch.tensor(self.targets_test, dtype = torch.int64)
+
+        self.dataset_train = TensorDatasetAugmented(self.data_train, self.targets_train, noisy = noisy)
+        self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
+
+
 ##### ENCAPSULATION :
 
 class LoaderArtificial():
-    def __init__(self,dataset, batch_size_train = 1024, batch_size_test=1000, n_samples_train = 100000, n_samples_test=10000, noisy = False):
+    def __init__(self,dataset, batch_size_train = 64, batch_size_test = 1024, n_samples_train = 100000, n_samples_test=10000, noisy = False, root_dir = None):
 
         self.dataset = dataset(n_samples_train = n_samples_train, n_samples_test = n_samples_test, noisy = noisy)
         self.dataset_train = self.dataset.dataset_train

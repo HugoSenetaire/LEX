@@ -67,11 +67,12 @@ class StupidClassifier(nn.Module):
 
 
 class PretrainedVGGPytorch(nn.Module):
-    def __init__(self, input_size = (3, 224, 224), output_size = 2, model_type = "vgg11", pretrained= True):
+    def __init__(self, input_size = (3, 224, 224), output_size = 2, model_type = "vgg11", pretrained= True, retrain = False):
         assert(name.startswith("vgg"))
         self.model = torch.hub.load('pytorch/vision:v0.9.0', model_type, pretrained=True)
+        self.model.requires_grad_(False)
         self.new_classifier = nn.Sequential(
-                                nn.Linear(512*7*7, 4096),
+                                nn.Linear(2**(5+k) *7*7, 4096),
                                 nn.ReLU(True),
                                 nn.Dropout(),
                                 nn.Linear(4096,4096),
@@ -105,7 +106,7 @@ class VGGSimilar(nn.Module):
         list_feature = []
         in_channels = input_size[0]
         for k in range(self.nb_block):
-            out_channels = 64 + 2**k
+            out_channels = 2**(5+k)
             list_feature.append(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1))
             list_feature.append(nn.ReLU(inplace=True))
             in_channels = out_channels
@@ -116,7 +117,8 @@ class VGGSimilar(nn.Module):
 
         self.avg_pool = nn.AdaptiveAvgPool2d((7,7))
         self.new_classifier = nn.Sequential(
-                                nn.Linear(512*7*7, 4096),
+                                nn.Flatten(),
+                                nn.Linear(out_channels*7*7, 4096),
                                 nn.ReLU(True),
                                 nn.Dropout(),
                                 nn.Linear(4096,4096),
@@ -130,7 +132,7 @@ class VGGSimilar(nn.Module):
 
     def __call__(self, x):
         x = self.features(x)
-        x = self.avgpool(x)
+        x = self.avg_pool(x)
         x = self.new_classifier(x)
         x = self.logsoftmax(x)
         return x

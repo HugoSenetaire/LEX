@@ -8,7 +8,6 @@ import copy
 from importlib import import_module
 import matplotlib.pyplot as plt
 import pandas as pd
-import miceforest as mf
 from .vaeac import *
 import inspect
 from sklearn.experimental import enable_iterative_imputer
