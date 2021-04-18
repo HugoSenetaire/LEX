@@ -464,9 +464,9 @@ class AllZTraining(noVariationalTraining):
         log_prob_pz = torch.sum(p_z.log_prob(z).flatten(2), axis = -1) 
         log_prob_pz = log_prob_pz.unsqueeze(-1).unsqueeze(-1).expand((-1,-1,nb_imputation, dataset.get_category())) # Batch_size*Nexpectation, nb_imputation, nbcategory
         log_prob_pz = log_prob_pz.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
-        # print(log_prob_pz[:,0,:])
+
+
         # Classification module :
-        # z = torch.ones(z.shape).cuda()
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z)
         
         

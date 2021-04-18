@@ -36,7 +36,20 @@ def show_interpretation(sample, data, target, shape = (1,28,28)):
 def save_interpretation(path, sample, data, target, shape_sample = (1,28,28), shape_data = (1,28,28), suffix = "", prefix= 'sample', y_hat = None, class_names = None):
   if not os.path.exists(path):
       os.makedirs(path)
-  channels = shape[0]
+
+  if shape_sample[0] == 1:
+      cmap_sample = 'gray'
+  else :
+      cmap_sample = None
+
+  if shape_data[0] == 1:
+      cmap_data = 'gray'
+  else :
+      cmap_data = None
+
+  sample = np.transpose(sample,(0,2,3,1))
+  data = np.transpose(data,(0,2,3,1))
+
   if y_hat is None :
       show_pred = False
       subplot_number = 2
@@ -59,31 +72,23 @@ def save_interpretation(path, sample, data, target, shape_sample = (1,28,28), sh
     else :
       path_sample = path_target
     print(f"Wanted target category : {target[i]}")
-    sample_reshaped = sample[i].reshape(shape_sample)
+    # sample_reshaped = sample[i].reshape(shape_sample)
 
-    if shape_sample[0] == 1:
-      cmap_sample = 'gray'
-    else :
-      cmap_sample = None
 
-    if shape_data[0] == 1:
-      cmap_data = 'gray'
-    else :
-      cmap_data = None
+
     
-    for k in range(channels):
-        fig = plt.figure()
-        plt.subplot(1,subplot_number,1)
-        plt.imshow(data[i][k], cmap=cmap_data, interpolation='none')
-        plt.subplot(1,subplot_number,2)
-        plt.imshow(sample_reshaped[k], cmap=cmap_sample, interpolation='none', vmin=0, vmax=1)
-        if show_pred :
-            plt.subplot(1, subplot_number, 3)
-            x_pos = np.arange(0, len(y_hat[i]))
-            plt.bar(x_pos,y_hat[i])
-            plt.xticks(ticks = x_pos, labels=class_names)
+    fig = plt.figure()
+    plt.subplot(1,subplot_number,1)
+    plt.imshow(data[i], cmap=cmap_data, interpolation='none')
+    plt.subplot(1,subplot_number,2)
+    plt.imshow(sample[i], cmap=cmap_sample, interpolation='none', vmin=0, vmax=1)
+    if show_pred :
+        plt.subplot(1, subplot_number, 3)
+        x_pos = np.arange(0, len(y_hat[i]))
+        plt.bar(x_pos,y_hat[i])
+        plt.xticks(ticks = x_pos, labels=class_names)
 
-        plt.savefig(os.path.join(path_sample,f"{prefix}_{i}_target_{target[i]}_{suffix}.jpg"))
+    plt.savefig(os.path.join(path_sample,f"{prefix}_{i}_target_{target[i]}_{suffix}.jpg"))
 
 
 def batch_predict_gray(images, model, feature_extractor = None):

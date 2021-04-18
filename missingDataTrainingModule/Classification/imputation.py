@@ -132,7 +132,10 @@ class Imputation():
 
   
   def add_mask_method(self, data_imputed, sample_b):
-    sample_b_aux = sample_b[:,0].unsqueeze(1)
+    if len(sample_b.shape)>2:
+      sample_b_aux = sample_b[:,0].unsqueeze(1)
+    else :
+      sample_b_aux = sample_b
     return torch.cat([data_imputed, sample_b_aux], axis =1)
 
 

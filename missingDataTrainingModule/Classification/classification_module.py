@@ -134,7 +134,7 @@ class ClassificationModule():
          param.requires_grad = False
 
     def multiple_channel(self, data, sample_b):
-        if data.shape[1]>1 : # If multiple channels
+        if len(data.shape)>2 and data.shape[1]>1 : # If multiple channels
             wanted_transform = tuple(np.insert(-np.ones(len(sample_b.shape),dtype = int),1,data.shape[1]))
             sample_b = sample_b.unsqueeze(1).expand(wanted_transform)
             sample_b = sample_b.flatten(1,2)
