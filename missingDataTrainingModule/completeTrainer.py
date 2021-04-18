@@ -298,7 +298,6 @@ class noVariationalTraining(ordinaryTraining):
             
             dic = self._train_step(data, target,dataset, optim_classifier, optim_destruction, sampling_distribution, optim_baseline =optim_baseline, optim_feature_extractor = optim_feature_extractor, lambda_reg = lambda_reg, Nexpectation = Nexpectation, lambda_reconstruction= lambda_reconstruction)
 
-
             if batch_idx % 100 == 0:
                 print_dic(epoch, batch_idx, dic, dataset)
                 if save_dic :
@@ -349,7 +348,6 @@ class noVariationalTraining(ordinaryTraining):
                     log_y_hat_baseline = self.baseline(data)
                     pred = torch.argmax(log_y_hat_baseline,dim = 1)
                     correct_baseline += pred.eq(target).sum().item()
-
 
             test_loss_mse /= len(dataset.test_loader.dataset) * batch_size
             print('\nTest set: MSE: {:.4f}, Likelihood {:.4f}, Accuracy: {}/{} ({:.0f}%), Accuracy_baseline {}/{}\n'.format(

@@ -135,13 +135,16 @@ class ClassificationModule():
         for param in self.classifier.parameters():
          param.requires_grad = False
 
+    def multiple_channel(self, data, sample_b):
+        if data.shape[1]>1 : # If multiple channels
+            wanted_transform = tuple(np.insert(-np.ones(len(sample_b.shape),dtype = int),0,data.shape[1]))
+            sample_b = sample_b.unsqueeze(0).expand(wanted_transform)
+        return sample_b
 
     def __call__(self, data, sample_b = None):
 
         if sample_b is not None :
-            if data.shape[1]>1 : # If multiple channels
-                wanted_transform = tuple(np.insert(-np.ones(len(sample_b.shape),dtype = int),0,data.shape[1]))
-                sample_b = sample_b.unsqueeze(0).expand(wanted_transform)
+            sample_b = self.multiple_channel(data, sample_b)
             sample_b = self.patch_creation(sample_b)
             sample_b = sample_b.reshape(data.shape)
 

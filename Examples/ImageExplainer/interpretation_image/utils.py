@@ -33,7 +33,7 @@ def show_interpretation(sample, data, target, shape = (1,28,28)):
         plt.show()
 
 
-def save_interpretation(path, sample, data, target, shape = (1,28,28), suffix = "", prefix= 'sample', y_hat = None, class_names = None):
+def save_interpretation(path, sample, data, target, shape_sample = (1,28,28), shape_data = (1,28,28), suffix = "", prefix= 'sample', y_hat = None, class_names = None):
   if not os.path.exists(path):
       os.makedirs(path)
   channels = shape[0]
@@ -59,13 +59,24 @@ def save_interpretation(path, sample, data, target, shape = (1,28,28), suffix = 
     else :
       path_sample = path_target
     print(f"Wanted target category : {target[i]}")
-    sample_reshaped = sample[i].reshape(shape)
+    sample_reshaped = sample[i].reshape(shape_sample)
+
+    if shape_sample[0] == 1:
+      cmap_sample = 'gray'
+    else :
+      cmap_sample = None
+
+    if shape_data[0] == 1:
+      cmap_data = 'gray'
+    else :
+      cmap_data = None
+    
     for k in range(channels):
         fig = plt.figure()
         plt.subplot(1,subplot_number,1)
-        plt.imshow(data[i][k], cmap='gray', interpolation='none')
+        plt.imshow(data[i][k], cmap=cmap_data, interpolation='none')
         plt.subplot(1,subplot_number,2)
-        plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none', vmin=0, vmax=1)
+        plt.imshow(sample_reshaped[k], cmap=cmap_sample, interpolation='none', vmin=0, vmax=1)
         if show_pred :
             plt.subplot(1, subplot_number, 3)
             x_pos = np.arange(0, len(y_hat[i]))
