@@ -26,8 +26,10 @@ class ClassificationModule():
         
         else :
             self.need_extraction = True
-
-        self.input_size = self.classifier.input_size
+        if imputation is not None :
+            self.input_size = self.imputation.input_size
+        else :
+            self.input_size = self.classifier.input_size
         self.kernel_updated = False
 
     def kernel_update(self, kernel_patch, stride_patch):
@@ -137,7 +139,6 @@ class ClassificationModule():
     def __call__(self, data, sample_b = None):
 
         if sample_b is not None :
-            
             if data.shape[1]>1 : # If multiple channels
                 wanted_transform = tuple(np.insert(-np.ones(len(sample_b.shape),dtype = int),0,data.shape[1]))
                 sample_b = sample_b.unsqueeze(0).expand(wanted_transform)
