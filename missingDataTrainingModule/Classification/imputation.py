@@ -162,7 +162,6 @@ class Imputation():
   def impute(self,data_expanded, sample_b):
 
     sample_b = self.round_sample(sample_b)
-
     loss_reconstruction = self.imputation_reconstruction(data_expanded, None, sample_b)
     sample_b = self.sample_b_regularization(data_expanded, sample_b)
     data_imputed = self.imputation_function(data_expanded, sample_b)

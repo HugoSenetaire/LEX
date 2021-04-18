@@ -1,5 +1,6 @@
 import sys
 sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
+sys.path.append("/home/hhjs/MissingDataTraining/")
 from missingDataTrainingModule import *
 from datasets import *
 from interpretation_image import *
@@ -19,17 +20,17 @@ if __name__ == '__main__' :
     
 
     args_dataset = {}
-    args_dataset["dataset"] = CatDogDataset
+    args_dataset["dataset"] = MnistDataset
     args_dataset["loader"] = LoaderEncapsulation
     args_dataset["root_dir"] = "/scratch/hhjs/"
-    args_dataset["batch_size_classification"] = 64
+    args_dataset["batch_size_train"] = 8
     args_dataset["batch_size_test"] = 1000
 
     args_classification = {}
 
-    args_classification["input_size_classification_module"] = (3, 224, 224) # Size before imputation
-    args_classification["input_size_classifier"] =(3,224,224) # Size after imputation
-    args_classification["input_size_classifier_baseline"] =(3,224,224) # Size before imputation (should be size of data)
+    args_classification["input_size_classification_module"] = (1,28,28) # Size before imputation
+    args_classification["input_size_classifier"] =(1,28,28) # Size after imputation
+    args_classification["input_size_classifier_baseline"] =(1,28,28) # Size before imputation (should be size of data)
 
 
     args_classification["classifier"] = VGGSimilar
@@ -42,17 +43,19 @@ if __name__ == '__main__' :
 
     args_destruct = {}
 
-    args_destruct["input_size_destructor"] =(3,224,224)
-    args_destruct["input_size_autoencoder"] =(3,224,224)
+    args_destruct["input_size_destructor"] =(1,28,28)
+    args_destruct["input_size_autoencoder"] =(1,28,28)
 
 
   
     args_destruct["regularization"] = free_regularization
-    args_destruct["lambda_regularisation"] = 100.0
+    args_destruct["lambda_regularisation"] = 1.0
     args_destruct["destructor"] = DestructorUNET
     args_destruct["regularization_var"] = free_regularization
     args_destruct["lambda_regularisation_var"] = 0.1
     args_destruct["destructor_var"] = None #DestructorSimilarVar
+    args_destruct["kernel_patch"] = (2,2)
+    args_destruct["stride_patch"] = (2,2)
 
     args_classification["autoencoder"] = AutoEncoder # Autoencoder Network to use
     args_classification["post_process_regularization"] = None # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
@@ -112,12 +115,10 @@ if __name__ == '__main__' :
     else :
         current_sampling_test = copy.deepcopy(sampling_distribution_test)
         
-    sample_list, pred = trainer_var.MCMC(loader,data, target, current_sampling_test,5000, return_pred=True)
-    save_interpretation(final_path,sample_list, data, target, suffix = "no_var",
-                        y_hat = torch.exp(pred).detach().cpu().numpy(),
-                        class_names=[str(i) for i in range(10)])
+
     pred = trainer_var._predict(data.cuda(), current_sampling_test, dataset = loader)
     image_output, _ = trainer_var._get_pi(data.cuda())
+    image_output = trainer_var.classification_module.patch_creation(image_output)
     image_output = image_output.detach().cpu().numpy()
     save_interpretation(final_path, image_output, data, target, suffix = "direct_destruction",
                         y_hat= torch.exp(pred).detach().cpu().numpy(),
@@ -126,6 +127,7 @@ if __name__ == '__main__' :
 
     pred = trainer_var._predict(data.cuda(), current_sampling_test, dataset = loader)
     pi_list, loss_reg, z, p_z = trainer_var._destructive_test(data.cuda(), sampling_distribution_test, 1)
+    z = trainer_var.classification_module.patch_creation(z)
     destructed_image, _ = trainer_var.classification_module.imputation.impute(data.cuda(), z)
     if mask :
         mask_index = destructed_image.shape[1]//2
