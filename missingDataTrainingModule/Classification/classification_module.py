@@ -60,13 +60,11 @@ class ClassificationModule():
         assert(self.kernel_updated)
     
         if self.image :
-            sample_b = sample_b.reshape((-1, self.input_size[0],self.nb_patch_x,self.nb_patch_y))
             if self.kernel_patch == (1,1):
                 return sample_b
             else :
                 aux_sample_b = sample_b.reshape(-1, self.input_size[0], self.nb_patch_x*self.nb_patch_y)
-                aux_sample_b = aux_sample_b.expand(-1, self.input_size[0]* np.prod(self.kernel_patch),-1)
-              
+                aux_sample_b = aux_sample_b.unsqueeze(2).expand(-1, -1, np.prod(self.kernel_patch), -1).flatten(1,2)
                 new_sample_b = torch.nn.Fold((self.input_size[1], self.input_size[2]),self.kernel_patch, stride = self.stride_patch)(aux_sample_b)
                 # print(new_sample_b.shape)
 
@@ -137,8 +135,9 @@ class ClassificationModule():
 
     def multiple_channel(self, data, sample_b):
         if data.shape[1]>1 : # If multiple channels
-            wanted_transform = tuple(np.insert(-np.ones(len(sample_b.shape),dtype = int),0,data.shape[1]))
-            sample_b = sample_b.unsqueeze(0).expand(wanted_transform)
+            wanted_transform = tuple(np.insert(-np.ones(len(sample_b.shape),dtype = int),1,data.shape[1]))
+            sample_b = sample_b.unsqueeze(1).expand(wanted_transform)
+            sample_b = sample_b.flatten(1,2)
         return sample_b
 
     def __call__(self, data, sample_b = None):

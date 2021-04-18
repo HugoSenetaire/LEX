@@ -231,7 +231,7 @@ class noVariationalTraining(ordinaryTraining):
 
         pi_list, loss_reg, z, p_z = self._destructive_test(data, sampling_distribution, Nexpectation)
 
-        y_hat, _ = self.classification_module(data_expanded_flatten, z)
+        y_hat, _ = self.classification_module(data_expanded_flatten, z.flatten(0,1))
         y_hat = y_hat.reshape(Nexpectation, -1, dataset.get_category())
         y_hat_mean = torch.logsumexp(y_hat,0)
 
@@ -247,7 +247,7 @@ class noVariationalTraining(ordinaryTraining):
         pi_list, loss_reg, z, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
         
         # Classification module :
-        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z)
+        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1))
 
 
 
@@ -531,7 +531,7 @@ class REINFORCE(noVariationalTraining):
         loss_reg = lambda_reg * loss_reg
 
         # Classification module :
-        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z)
+        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1))
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
         log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
@@ -620,7 +620,7 @@ class variationalTraining(noVariationalTraining):
         
         z = qz.rsample((Nexpectation,))
         
-        y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z)
+        y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1))
         y_hat = y_hat.reshape((Nexpectation,batch_size, dataset.get_category()))
         loss_reconstruction = lambda_reconstruction * loss_reconstruction
         y_hat_mean = torch.mean(y_hat, 0) # TODO CHANGE THIS
@@ -735,7 +735,7 @@ class variationalTraining(noVariationalTraining):
 
                 z = qz.sample()
 
-                y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z)
+                y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1))
                 y_hat_squeeze = y_hat.squeeze()
 
                 test_loss_likelihood = self._likelihood_var(y_hat,one_hot_target_expanded,z,pz,qz)
@@ -783,7 +783,7 @@ class variationalTraining(noVariationalTraining):
             for k in range(Niter):
                 z = qz.sample()
 
-                y_hat, _ = self.classification_module(data_expanded_flatten, z)
+                y_hat, _ = self.classification_module(data_expanded_flatten, z.flatten(0,1))
                 log_py, log_pz, log_qz = self._prob_calc(y_hat, one_hot_target_expanded, z, pz, qz)
 
                 u = torch.rand((batch_size)) 
