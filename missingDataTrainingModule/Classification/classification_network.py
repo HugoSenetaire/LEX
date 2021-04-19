@@ -73,7 +73,7 @@ class PretrainedVGGPytorch(nn.Module):
         self.model = torch.hub.load('pytorch/vision:v0.9.0', model_type, pretrained=True)
         self.model.requires_grad_(False)
         self.new_classifier = nn.Sequential(
-                                nn.Linear(2**(5+k) *7*7, 4096),
+                                nn.Linear(512*7*7, 4096),
                                 nn.ReLU(True),
                                 nn.Dropout(),
                                 nn.Linear(4096,4096),
