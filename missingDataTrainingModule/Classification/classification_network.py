@@ -84,11 +84,9 @@ class PretrainedVGGPytorch(nn.Module):
         self.logsoftmax = nn.LogSoftmax(-1)
 
     def __call__(self, x):
-        print(x.shape)
         x = self.model.features(x)
-        print(x.shape)
         x = self.model.avgpool(x)
-        print(x.shape)
+        x = x.Flatten()
         x = self.new_classifier(x)
         x = self.logsoftmax(x)
         return x
