@@ -73,6 +73,7 @@ class PretrainedVGGPytorch(nn.Module):
         self.model = torch.hub.load('pytorch/vision:v0.9.0', model_type, pretrained=True)
         self.model.requires_grad_(False)
         self.new_classifier = nn.Sequential(
+                                nn.Flatten(),
                                 nn.Linear(512*7*7, 4096),
                                 nn.ReLU(True),
                                 nn.Dropout(),
@@ -86,7 +87,6 @@ class PretrainedVGGPytorch(nn.Module):
     def __call__(self, x):
         x = self.model.features(x)
         x = self.model.avgpool(x)
-        x = x.Flatten()
         x = self.new_classifier(x)
         x = self.logsoftmax(x)
         return x
