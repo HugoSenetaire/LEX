@@ -336,12 +336,10 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test_no_var = fill_dic(total_dic_test_no_var, dic_test_no_var)
-            total_dic_test_no_var_2 = fill_dic(total_dic_test_no_var_2, dic_test_no_var_v2)
             
             temperature *= args_train["temperature_decay"]
         save_dic(os.path.join(final_path,"train"), total_dic_train)
         save_dic(os.path.join(final_path,"test_no_var"), total_dic_test_no_var)
-        save_dic(os.path.join(final_path, "test_no_var_with_bernoulli"), total_dic_test_no_var_2)
         if args_complete_trainer["complete_trainer"] is variationalTraining :
             save_dic(os.path.join(final_path, "test_var"), total_dic_test_var)
 
