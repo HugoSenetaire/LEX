@@ -156,6 +156,26 @@ class DestructorSimpleV2(AbstractDestructor):
         x = F.elu(self.fc2(x))
         return torch.sigmoid(self.pi(x))
 
+class DestructorSimpleV3(AbstractDestructor):
+    def __init__(self,input_size = (1,28,28), bias = True):
+      super().__init__(input_size = input_size)
+      self.bias = bias
+        
+    def kernel_update(self, kernel_patch, stride_patch):
+      super().kernel_update( kernel_patch, stride_patch)
+
+      self.fc1 = nn.Linear(np.prod(self.input_size),50, bias= self.bias)
+      self.fc2 = nn.Linear(50, 50, bias= self.bias)
+      self.pi = nn.Linear(50, self.nb_patch_x*self.nb_patch_y, bias = self.bias)
+
+    def __call__(self, x):
+        # print(x.shape)
+        assert(self.kernel_updated)
+        x = x.flatten(1) # Batch_size, Channels* SizeProduct
+        x = F.elu(self.fc1(x))
+        x = F.elu(self.fc2(x))
+        return torch.sigmoid(self.pi(x))
+
 
 class DestructorUNET(AbstractDestructor):
     def __init__(self,input_size = (1,28,28), bilinear = True):
