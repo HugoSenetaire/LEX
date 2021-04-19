@@ -333,7 +333,6 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                     Nexpectation=args_train["Nexpectation_train"]
                 )
                 dic_test_no_var = trainer_var.test_no_var(loader, current_sampling_test, Nexpectation=args_test["Nexpectation_test"])
-                dic_test_no_var_v2 = trainer_var.test_no_var(loader,Bernoulli, Nexpectation = args_test["Nexpectation_test"])
 
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test_no_var = fill_dic(total_dic_test_no_var, dic_test_no_var)
