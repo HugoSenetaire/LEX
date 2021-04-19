@@ -13,12 +13,16 @@ def get_default():
     
 
     args_output = {}
-    args_output["path"] = "D:\\DTU\\firstProject\\MissingDataResults" # Path to results
+    args_output["path"] = "D:\\DTU\\firstProject\\MissingDataResults\\TestwithNoise" # Path to results
     args_output["experiment_name"] = "all_z"
 
     args_dataset = {}
+    # args_dataset["dataset"] = LinearSeparableDataset
     args_dataset["dataset"] = CircleDataset
     args_dataset["loader"] = LoaderArtificial
+    args_dataset["root_dir"] = None
+    args_dataset["batch_size_train"] = 128
+    args_dataset["batch_size_test"] = 1000
 
     args_classification = {}
 
@@ -31,7 +35,7 @@ def get_default():
     args_classification["classifier_baseline"] = None
 
 
-    args_classification["imputation"] = ConstantImputation
+    args_classification["imputation"] = NoiseImputation
     args_classification["cste_imputation"] = 0
     args_classification["add_mask"] = False
 
@@ -54,10 +58,12 @@ def get_default():
   
     args_destruct["regularization"] = free_regularization
     args_destruct["lambda_regularisation"] = 0.0
-    args_destruct["destructor"] = DestructorSimilar
+    args_destruct["destructor"] = DestructorSimpleV3
     args_destruct["regularization_var"] = free_regularization
     args_destruct["lambda_regularization_var"] = 0.1
     args_destruct["destructor_var"] = None #DestructorSimilarVar
+    args_destruct["kernel_patch"] = (1,1)
+    args_destruct["stride_patch"] = (1,1)
 
     
     args_complete_trainer = {}
@@ -65,7 +71,7 @@ def get_default():
     args_complete_trainer["feature_extractor"] = None
 
     args_train = {}
-    args_train["nb_epoch"] = 10 # Training the complete model
+    args_train["nb_epoch"] = 15 # Training the complete model
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training the complete model
     args_train["nb_epoch_pretrain"] = 0 # Training auto encoder
     args_train["Nexpectation_train"] = 10 # Number K in the IWAE-similar loss 

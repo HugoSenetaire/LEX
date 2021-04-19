@@ -33,7 +33,7 @@ def get_all_z_baseline(args_complete_trainer, args_classification, args_train):
 if __name__ == '__main__' :
 
     args_output, args_dataset, args_classification, args_destruct, args_complete_trainer, args_train, args_test = get_default()
-    args_output["path"] = "D:\\DTU\\firstProject\\MissingDataResults\\TestAllMethodsOnSimpleCaseWithSimpleDestructor" 
+    args_output["path"] = "/scratch/hhjs/TestAllMethodsOnSimpleCaseWithSimpleDestructorV3" 
     for method in ["relax", "reinforce", "reinforce_baseline", "allz"]:
         if method == "reinforce_baseline":
             get_reinforce_baseline(args_complete_trainer, args_classification, args_train)
@@ -46,7 +46,7 @@ if __name__ == '__main__' :
         
         for cste in [0, -1, 10]:
             for lambda_reg in [0, 0.1, 1.0, 10]:
-                for mask in [False, True]:
+                for mask in [True, False]:
                     args_classification["add_mask"] = mask
                     if mask :
                         args_classification["input_size_classifier"] = (2,2) 
