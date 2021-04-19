@@ -68,7 +68,7 @@ class StupidClassifier(nn.Module):
 
 class PretrainedVGGPytorch(nn.Module):
     def __init__(self, input_size = (3, 224, 224), output_size = 2, model_type = "vgg11", pretrained= True, retrain = False):
-        assert(name.startswith("vgg"))
+        assert(model_type.startswith("vgg"))
         self.model = torch.hub.load('pytorch/vision:v0.9.0', model_type, pretrained=True)
         self.model.requires_grad_(False)
         self.new_classifier = nn.Sequential(
