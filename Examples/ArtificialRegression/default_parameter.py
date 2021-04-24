@@ -35,7 +35,7 @@ def get_default():
     args_classification["classifier_baseline"] = None
 
 
-    args_classification["imputation"] = NoiseImputation
+    args_classification["imputation"] = ConstantImputation
     args_classification["cste_imputation"] = 0
     args_classification["add_mask"] = False
 

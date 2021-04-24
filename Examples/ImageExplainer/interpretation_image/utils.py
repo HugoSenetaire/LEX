@@ -75,13 +75,14 @@ def save_interpretation(path, sample, data, target, shape_sample = (1,28,28), sh
     # sample_reshaped = sample[i].reshape(shape_sample)
 
 
-
+    vmin_sample = np.min(sample)
+    vmax_sample = np.max(sample)
     
     fig = plt.figure()
     plt.subplot(1,subplot_number,1)
     plt.imshow(data[i], cmap=cmap_data, interpolation='none')
     plt.subplot(1,subplot_number,2)
-    plt.imshow(sample[i], cmap=cmap_sample, interpolation='none', vmin=0, vmax=1)
+    plt.imshow(sample[i], cmap=cmap_sample, interpolation='none', vmin=vmin_sample, vmax=vmax_sample)
     if show_pred :
         plt.subplot(1, subplot_number, 3)
         x_pos = np.arange(0, len(y_hat[i]))
@@ -89,6 +90,7 @@ def save_interpretation(path, sample, data, target, shape_sample = (1,28,28), sh
         plt.xticks(ticks = x_pos, labels=class_names)
 
     plt.savefig(os.path.join(path_sample,f"{prefix}_{i}_target_{target[i]}_{suffix}.jpg"))
+    plt.close(fig)
 
 
 def batch_predict_gray(images, model, feature_extractor = None):

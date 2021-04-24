@@ -140,19 +140,22 @@ class ClassificationModule():
             sample_b = sample_b.flatten(1,2)
         return sample_b
 
+    def prepare_mask(self, data, sample_b):
+        sample_b = self.multiple_channel(data, sample_b)
+        sample_b = self.patch_creation(sample_b)
+        sample_b = sample_b.reshape(data.shape)
+        return sample_b
+
+
     def __call__(self, data, sample_b = None):
 
         if sample_b is not None :
-            sample_b = self.multiple_channel(data, sample_b)
-            sample_b = self.patch_creation(sample_b)
-            sample_b = sample_b.reshape(data.shape)
-
-
-
+            sample_b = self.prepare_mask(data, sample_b)
         if self.imputation is not None and sample_b is None :
             raise AssertionError("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
         elif self.imputation is not None and sample_b is not None :
             x_imputed, loss_reconstruction = self.imputation.impute(data, sample_b)
+            x_imputed_aux = x_imputed.cpu().detach().numpy()
             if self.need_extraction :
                 x_imputed = self.feature_extractor(x_imputed)
             y_hat = self.classifier(x_imputed)

@@ -246,7 +246,7 @@ class ConstantImputation(Imputation):
     return self.cste
 
   def imputation_function(self, data_expanded, sample_b):
-    return data_expanded * ((1-sample_b) * self.cste + sample_b)
+    return data_expanded *  sample_b + (1-sample_b) * self.cste 
 
 
 class NoiseImputation(Imputation):
@@ -279,7 +279,7 @@ class LearnConstantImputation(Imputation):
                     sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization)
 
   def imputation_function(self, data_expanded, sample_b):
-    return data_expanded * ((1-sample_b) * self.cste + sample_b)
+    return data_expanded * sample_b + (1-sample_b) * self.cste 
    
 
   def has_constant(self):

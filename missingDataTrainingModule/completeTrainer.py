@@ -248,13 +248,11 @@ class noVariationalTraining(ordinaryTraining):
         
         # Classification module :
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1))
-
-
-
         Nexpectation_multiple_imputation = Nexpectation * self.classification_module.imputation.nb_imputation
+        nb_imputation = self.classification_module.imputation.nb_imputation
         _, _, _, one_hot_target_expanded_multiple_imputation, _, _ = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation = Nexpectation_multiple_imputation)
         log_y_hat = log_y_hat.reshape(Nexpectation_multiple_imputation, -1, dataset.get_category())
-        log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./Nexpectation_multiple_imputation))
+        log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./Nexpectation)) + torch.log(torch.tensor(1./nb_imputation))
 
 
         # Loss for regularization :
