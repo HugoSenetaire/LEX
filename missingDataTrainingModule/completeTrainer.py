@@ -217,7 +217,8 @@ class noVariationalTraining(ordinaryTraining):
         return pi_list, loss_reg, z, p_z
 
     def _sample_z_train(self, pi_list, sampling_distribution, Nexpectation):
-        p_z = sampling_distribution(pi_list)
+        try :
+            p_z = sampling_distribution(pi_list)
         z = p_z.rsample((Nexpectation,))
         return z, p_z
     
