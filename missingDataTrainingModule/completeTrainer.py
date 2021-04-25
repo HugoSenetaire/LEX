@@ -200,7 +200,7 @@ class noVariationalTraining(ordinaryTraining):
 
     def _get_pi(self, data):
         pi_list, loss_reg = self.destruction_module(data)
-        pi_list = pi_list 
+        pi_list = pi_list.clamp(0.)
         return pi_list, loss_reg
 
 
