@@ -219,6 +219,10 @@ class noVariationalTraining(ordinaryTraining):
     def _sample_z_train(self, pi_list, sampling_distribution, Nexpectation):
         try :
             p_z = sampling_distribution(pi_list)
+            
+        except(ValueError) :
+            print("Something wrong in the value of pi_list")
+            print("Any negative ? ", (pi_list<0).any())
         z = p_z.rsample((Nexpectation,))
         return z, p_z
     
