@@ -46,7 +46,7 @@ def get_imputation_method(args_class):
     
     if args_class["imputation"] is ConstantImputation:
         return partial(args_class["imputation"], cste = args_class["cste_imputation"], add_mask = args_class["add_mask"])
-    elif args_class["imputation"] is  LearnConstantImputation:
+    elif args_class["imputation"] is LearnConstantImputation:
         return partial(args_class["imputation"], add_mask = args_class["add_mask"])
     elif args_class["imputation"] is NoiseImputation :
         return partial(args_class["imputation"], add_mask = args_class["add_mask"])
@@ -72,7 +72,6 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     
     print(f"Save at {final_path}")
  
-
     save_parameters(final_path, args_dataset, args_classification,
                      args_destruction, args_complete_trainer,
                       args_train, args_test, args_output)
@@ -139,41 +138,6 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         post_proc_regul = None
 
 
-    # if reconstruction_regularization is None and post_process_regularization is None :
-    #     need_autoencoder = False
-    # else :
-    #     need_autoencoder = True
-
-    # if need_autoencoder :
-    #     autoencoder_network = args_classification["autoencoder"](input_size=input_size_autoencoder).cuda()
-
-    #     loader_noise = args_dataset["loader"](dataset, noisy=True, noise_function=args_classification["noise_function"])
-    #     optim_autoencoder = args_train["optim_autoencoder"](autoencoder_network.parameters())
-    #     data_autoencoder, target_autoencoder = next(iter(loader_noise.test_loader))
-    #     data_autoencoder = data_autoencoder[:4]
-    #     target_autoencoder = target_autoencoder[:4]
-        
-        
-            
-    #     for epoch in range(args_train["nb_epoch_pretrain_autoencoder"]):
-    #         train_autoencoder(autoencoder_network, loader_noise, optim_autoencoder)
-    #         test_autoencoder(autoencoder_network, loader_noise)
-
-    #     final_path_autoencoder = os.path.join(final_path, "Autoencoder")
-    #     if not os.path.exists(final_path_autoencoder):
-    #         os.makedirs(final_path_autoencoder)
-
-        # save_interpretation(final_path_autoencoder,
-        # data_autoencoder.detach().cpu().numpy(), 
-        # target_autoencoder.detach().cpu().numpy(), [0,1,2,3],prefix= "input_autoencoder")
-
-        # autoencoder_network_missing = copy.deepcopy(autoencoder_network)
-        # output = autoencoder_network_missing(data_autoencoder.cuda()).reshape(data_autoencoder.shape)
-
-        # save_interpretation(final_path_autoencoder,
-        # output.detach().cpu().numpy(), 
-        # target_autoencoder.detach().cpu().numpy(), [0,1,2,3], prefix="output_autoencoder_before_training")
-
 
     ### Networks :
 
@@ -189,7 +153,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
     
     if args_classification["classifier_baseline"] is not None :
-        classifier_baseline = args_classification["classifier_baseline"](input_size=input_size_classifier_baseline, output=loader.get_category())
+        classifier_baseline = args_classification["classifier_baseline"](input_size_classifier_baseline,loader.get_category())
     else :
         classifier_baseline = None
  
