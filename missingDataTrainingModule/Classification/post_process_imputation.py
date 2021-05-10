@@ -270,45 +270,45 @@ def load_VAEAC(path_model):
   return model, sampler
 
 
-class VAEAC_Imputation(NetworkBasedPostProcess):
-  def __init__(self, network, sampler, nb_imputation = 10, to_train = False, use_cuda = False, deepcopy= False):
-    super().__init__(network= network, to_train=to_train, use_cuda=use_cuda, deepcopy=deepcopy)
-    self.nb_imputation = nb_imputation
-    self.sampler = sampler
-    self.multiple_imputation = True
-    raise NotImplementedError
-  def __call__(self, data_expanded, data_imputed, sample_b):
-    batch = data_imputed
-    masks = 1-sample_b
-    init_shape = batch.shape[0]
-    if torch.cuda.is_available():
-        batch = batch.cuda()
-        masks = masks.cuda()
+# class VAEAC_Imputation(NetworkBasedPostProcess):
+#   def __init__(self, network, sampler, nb_imputation = 10, to_train = False, use_cuda = False, deepcopy= False):
+#     super().__init__(network= network, to_train=to_train, use_cuda=use_cuda, deepcopy=deepcopy)
+#     self.nb_imputation = nb_imputation
+#     self.sampler = sampler
+#     self.multiple_imputation = True
+#     raise NotImplementedError
+#   def __call__(self, data_expanded, data_imputed, sample_b):
+#     batch = data_imputed
+#     masks = 1-sample_b
+#     init_shape = batch.shape[0]
+#     if torch.cuda.is_available():
+#         batch = batch.cuda()
+#         masks = masks.cuda()
 
         
-    if not self.eval_mode :
-      nb_imputation = self.nb_imputation
-    else :
-      nb_imputation = 1
+#     if not self.eval_mode :
+#       nb_imputation = self.nb_imputation
+#     else :
+#       nb_imputation = 1
       
 
 
-    # compute imputation distributions parameters
-    samples_params = self.network.generate_samples_params(batch,
-                                                  masks,
-                                                  nb_imputation)
+#     # compute imputation distributions parameters
+#     samples_params = self.network.generate_samples_params(batch,
+#                                                   masks,
+#                                                   nb_imputation)
 
     
-    img_samples = self.sampler(samples_params, multiple = True)
+#     img_samples = self.sampler(samples_params, multiple = True)
 
 
 
     
-    _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+#     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
 
-    new_data = img_samples *  (1-mask_expanded) + data_expanded * mask_expanded 
-    new_data = new_data.flatten(0,1)
-    return new_data, data_expanded, mask_expanded
+#     new_data = img_samples *  (1-mask_expanded) + data_expanded * mask_expanded 
+#     new_data = new_data.flatten(0,1)
+#     return new_data, data_expanded, mask_expanded
 
 class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
   def __init__(self, network, sampler, nb_imputation = 10, to_train = False, use_cuda = False, deepcopy= False):
@@ -321,7 +321,7 @@ class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
 
   def __call__(self, data_expanded, data_imputed, sample_b, show_output = False):
     batch = data_imputed
-    masks = sample_b
+    masks = 1-sample_b
     init_shape = batch.shape[0]
 
 
