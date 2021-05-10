@@ -13,10 +13,27 @@ np.random.seed(0)
 torch.manual_seed(0)
 
 
+# default_MNIST_transform = torchvision.transforms.Compose([
+#                                     torchvision.transforms.ToTensor(),
+#                                     torchvision.transforms.Normalize(
+#                                         (0.1307,), (0.3081,))
+#                                     ])
+
+
+class fromImageToTensor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, tensor):
+        tensor = tensor.float()/255.
+        return tensor
+
+
+
 default_MNIST_transform = torchvision.transforms.Compose([
                                     torchvision.transforms.ToTensor(),
+                                    fromImageToTensor(),
                                     ])
-
 
 default_cat_dogs_transform = torchvision.transforms.Compose([
     torchvision.transforms.Resize((224,224)),
