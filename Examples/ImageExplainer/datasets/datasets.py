@@ -15,8 +15,6 @@ torch.manual_seed(0)
 
 default_MNIST_transform = torchvision.transforms.Compose([
                                     torchvision.transforms.ToTensor(),
-                                    torchvision.transforms.Normalize(
-                                        (0.1307,), (0.3081,))
                                     ])
 
 
