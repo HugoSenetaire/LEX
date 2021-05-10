@@ -113,7 +113,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     reconstruction_regularization = args_classification["reconstruction_regularization"]
     post_process_regularization =  args_classification["post_process_regularization"]
 
-    if args_classification["post_process_regularization"] is VAEAC_Imputation or args_classification["post_process_regularization"] is VAEAC_Imputation_DetachVersion :
+    if args_classification["post_process_regularization"] is VAEAC_Imputation_DetachVersion :
         model, sampler = load_VAEAC(args_classification["VAEAC_dir"])
         post_proc_regul = post_process_regularization(model, sampler, args_classification["nb_imputation"])
     elif post_process_regularization is DatasetBasedImputation :
