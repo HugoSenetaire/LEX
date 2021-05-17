@@ -192,6 +192,7 @@ class CircleDatasetAndNoise():
         self.n_samples_train = n_samples_train
         self.n_samples_test = n_samples_test
         self.noise = noise
+        self.factor = factor
      
         total_samples = self.n_samples_train + self.n_samples_test
         test_size = self.n_samples_test/float(total_samples)
@@ -214,10 +215,10 @@ class CircleDatasetAndNoise():
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
 
 
-    def impute_result(mask, value, ratio = 0.6):
+    def impute_result(self, mask, value):
         mask_aux = mask.detach()
         value_aux = value.detach()
-        ratio = torch.tensor(ratio)
+        ratio = torch.tensor(self.factor).cuda()
         batch_size = value.shape[0]
 
         x_1_missing = torch.where(mask_aux[:,0] == 0, True, False)
@@ -226,7 +227,7 @@ class CircleDatasetAndNoise():
         both_missing = torch.where(x_1_missing, x_2_missing, False)
         none_missing = torch.where(x_1_missing, False , True)
         none_missing = torch.where(x_2_missing, False, none_missing).unsqueeze(-1).expand(-1,2)
-        ratio_vector = torch.empty(0).new_full(value.shape, ratio)
+        ratio_vector = torch.empty(0).new_full(value.shape, ratio).cuda()
 
         x_1_missing = torch.where(both_missing, False, x_1_missing)
         x_1_missing_sup_r1 = torch.where(torch.abs(value[:,1])>ratio_vector[:,1], x_1_missing, False)
@@ -236,20 +237,19 @@ class CircleDatasetAndNoise():
 
         both_missing = both_missing.unsqueeze(-1).expand(-1,2)
 
-        complete_output = value_aux.clone()
+        complete_output = copy.deepcopy(value_aux)
 
         # First both_missing :
-        bernoulli = torch.bernoulli(torch.ones(batch_size) * 0.5).unsqueeze(-1).expand(-1,2)
-        uniform = 2*torch.pi* torch.rand(batch_size)
+        bernoulli = torch.bernoulli(torch.ones(batch_size) * 0.5).unsqueeze(-1).expand(-1,2).cuda()
+        uniform = 2*torch.pi* torch.rand(batch_size).cuda()
         new_output = (bernoulli + (1-bernoulli) * ratio) * torch.cat([torch.cos(uniform).unsqueeze(-1), torch.sin(uniform).unsqueeze(-1)],-1)
-        complete_output = torch.where(both_missing, new_output, complete_output)
+        complete_output[:,:2] = torch.where(both_missing, new_output, complete_output[:,:2])
 
         # x_1 missing :
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5)
+        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5).cuda()
         x_1_missing_new_value_sup_r1 = (2*bernoulli-1) * torch.sqrt(1 - value[:,1]**2) 
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5)
-        x_1_missing_new_value_inf_r1 = (2*bernoulli-1) * torch.sqrt(torch.maximum(ratio**2 - (value[:,1])**2,torch.zeros(batch_size)))
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5)
+        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5).cuda()
+        x_1_missing_new_value_inf_r1 = (2*bernoulli-1) * torch.sqrt(torch.maximum(ratio**2 - (value[:,1])**2, torch.zeros(batch_size).cuda()))
 
         complete_output[:,0] = torch.where(x_1_missing,
                             bernoulli * x_1_missing_new_value_sup_r1 + (1-bernoulli) * x_1_missing_new_value_inf_r1,
@@ -260,11 +260,11 @@ class CircleDatasetAndNoise():
 
 
         # x_2 missing :
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5)
+        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5).cuda()
         x_2_missing_new_value_sup_r2 = (2*bernoulli-1) * torch.sqrt(1 - value[:,0]**2) 
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5)
-        x_2_missing_new_value_inf_r2 = (2*bernoulli-1) * torch.sqrt(torch.maximum(ratio**2 - (value[:,0])**2,torch.zeros(batch_size)))
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5)
+        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5).cuda()
+        x_2_missing_new_value_inf_r2 = (2*bernoulli-1) * torch.sqrt(torch.maximum(ratio**2 - (value[:,0])**2,torch.zeros(batch_size).cuda()))
+        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5).cuda()
 
         complete_output[:,1] = torch.where(x_2_missing,
                             bernoulli * x_2_missing_new_value_sup_r2 + (1-bernoulli) * x_2_missing_new_value_inf_r2,
@@ -273,10 +273,10 @@ class CircleDatasetAndNoise():
         complete_output[:,1] = torch.where(x_2_missing_sup_r2, x_2_missing_new_value_sup_r2,
                             complete_output[:,1])
 
-
+        
         # None missing 
-        complete_output = torch.where(none_missing, value, complete_output)
-
+        complete_output[:,:2] = torch.where(none_missing, value[:,:2], complete_output[:,:2])
+        complete_output[:,2] =  torch.tensor(np.random.normal(loc=0.0, scale=1.0, size=(batch_size))).cuda()
 
         return complete_output
 
