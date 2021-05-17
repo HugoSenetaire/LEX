@@ -349,15 +349,64 @@ class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
       img_samples = self.sampler(samples_params, multiple = True).flatten(0,1)
 
 
-      # plt.imshow(img_samples[0].reshape(28,28).detach().cpu().numpy(), cmap='gray')
-      # plt.show()
-      # plt.imshow(batch[0].reshape(28,28).detach().cpu().numpy(), cmap = 'gray')
-      # plt.show()
+
+    
+    _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+    new_data = img_samples.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
+    # fig, axs = plt.subplots(3,2)
+    # axs[0,0].imshow(batch[0].reshape(28,28).detach().cpu().numpy(), cmap = 'gray')
+    # axs[0,1].imshow(masks[0].reshape(28,28).detach().cpu().numpy(), cmap = 'gray')
+    # axs[1,0].imshow(img_samples[0].reshape(28,28).detach().cpu().numpy(), cmap='gray')
+    # axs[1,1].imshow(new_data[0].reshape(28,28).detach().cpu().numpy(), cmap='gray')
+    # axs[2,0].imshow(img_samples[1].reshape(28,28).detach().cpu().numpy(), cmap='gray')
+    # axs[2,1].imshow(new_data[1].reshape(28,28).detach().cpu().numpy(), cmap='gray')
+    # plt.show()
+    return new_data, data_expanded, sample_b
+
+class VAEAC_Imputation_Renormalized(NetworkBasedMultipleImputation):
+  def __init__(self, network, sampler, nb_imputation = 10, to_train = False, use_cuda = False, deepcopy= False):
+    super().__init__(network= network, to_train=to_train, use_cuda=use_cuda, deepcopy=deepcopy)
+    self.nb_imputation = nb_imputation
+    self.sampler = sampler
+    self.multiple_imputation = True
+    
+
+
+  def __call__(self, data_expanded, data_imputed, sample_b, show_output = False):
+    batch = data_imputed
+    masks = 1-sample_b
+    init_shape = batch.shape[0]
+
+
+    if torch.cuda.is_available():
+        batch = batch.cuda()
+        masks = masks.cuda()
+
+
+    if not self.eval_mode :
+      nb_imputation = self.nb_imputation
+    else :
+      nb_imputation = 1
+    
+
+  
+    with torch.no_grad():
+      batch = (batch * 0.3081 + 0.1307) / 255.
+      # compute imputation distributions parameters
+      samples_params = self.network.generate_samples_params(batch.detach(),
+                                                    masks.detach(),
+                                                    nb_imputation,
+                                                    need_observed = False)
+      # img_samples = []
+      # for element in samples_params :
+      img_samples = self.sampler(samples_params, multiple = True).flatten(0,1)
+
+      img_samples = (img_samples * 255. -  0.1307)/0.3081
+
     
     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
     new_data = img_samples.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
     return new_data, data_expanded, sample_b
-
 
 
 
