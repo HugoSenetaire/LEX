@@ -44,7 +44,7 @@ def save_parameters(path, args_dataset, args_classification, args_destruction, a
 
 def get_imputation_method(args_class):
     
-    if args_class["imputation"] is ConstantImputation:
+    if args_class["imputation"] is ConstantImputation or args_class["imputation"] is ConstantImputation_ContinuousAddMask or args_class["imputation"] is ConstantImputation_ContinuousAddMaskV2:
         return partial(args_class["imputation"], cste = args_class["cste_imputation"], add_mask = args_class["add_mask"])
     elif args_class["imputation"] is LearnConstantImputation:
         return partial(args_class["imputation"], add_mask = args_class["add_mask"])
@@ -98,7 +98,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     sampling_distribution_train = args_train["sampling_distribution_train"]
     sampling_distribution_train_var = args_train["sampling_distribution_train_var"]
     sampling_distribution_test = args_test["sampling_distribution_test"]
-
+    use_cuda = args_train["use_cuda"]
 
 
     ### Imputation :
@@ -167,7 +167,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
     if args_complete_trainer["complete_trainer"] is [postHocTraining, ordinaryTraining] or args_train["nb_epoch_pretrain"]>0 :
         if args_complete_trainer["feature_extractor"] is not None :
-            optim_feature_extractor = args_complete_trainer["feature_extractor"]().cuda()
+            optim_feature_extractor = args_complete_trainer["feature_extractor"]()
         else :
             optim_feature_extractor = None
         vanilla_classification_module = ClassificationModule(classifier)
@@ -196,7 +196,6 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
             destruction_module_var.kernel_update(kernel_patch, stride_patch)
         else :
             destruction_module_var = None
-
         imputation = imputationMethod(input_size= input_size_classification_module,post_process_regularization = post_proc_regul,
                         reconstruction_reg= recons_regul)
         classification_module = ClassificationModule(classifier, imputation=imputation, feature_extractor=feature_extractor)
@@ -214,6 +213,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                 destruction_module_var,
                 baseline=classifier_baseline,
                 feature_extractor=feature_extractor,
+                use_cuda = use_cuda,
             )
         
         else :
@@ -222,6 +222,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                 destruction_module,
                 baseline=classifier_baseline,
                 feature_extractor=feature_extractor,
+                use_cuda = use_cuda,
             )
 
 

@@ -83,3 +83,32 @@ def u_to_v(pi_list, u, eps = 1e-8):
 
 
 
+def vectorize_dic(parameters, named_parameters, set_none_to_zero=False, skip_none=False):
+    if set_none_to_zero:
+        return torch.cat([parameters[name].flatten() if parameters[name] is not None else
+                    torch.zeros(p.shape).flatten() for name,p in named_parameters])
+    elif skip_none:
+        return torch.cat([parameters[name].flatten() for name,_ in named_parameters if parameters[name] is not None])
+    else:
+        return torch.cat([parameters[name].flatten() for name,_ in named_parameters])
+
+def vectorize_gradient(gradient, named_parameters, set_none_to_zero=False, skip_none=False):
+    if set_none_to_zero:
+        return torch.cat([g.flatten() if g is not None else 
+                    torch.zeros(p.shape).flatten() for g,(name, p) in zip(gradient, named_parameters)])
+    elif skip_none:
+        return torch.cat([g.flatten() for g,(name, p) in zip(gradient, named_parameters) if g is not None])
+    else:
+        return torch.cat([g.flatten() for g,(name, p) in zip(gradient, named_parameters)])
+
+
+def add_gradients(gradients1, gradients2):
+    g_dic = {}
+    for name in gradients1.keys():
+        if gradients1[name] is None :
+            g_dic[name] = gradients2[name]
+        elif gradients2[name] is None :
+            g_dic[name] = gradients1[name]
+        else :
+            g_dic[name] = gradients1[name] + gradients2[name]
+    return g_dic

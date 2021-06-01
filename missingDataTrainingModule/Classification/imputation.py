@@ -1,5 +1,7 @@
 import sys
 import os
+
+from scipy.sparse import data
 from .post_process_imputation import *
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils_missing import *
@@ -235,6 +237,27 @@ class ConstantImputation(Imputation):
   def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
                add_mask = False, post_process_regularization = None):
+    # self.cste = torch.tensor(cste).cuda()
+    self.cste = torch.tensor(cste) #TODO
+    super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
+                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization)
+
+  def has_constant(self):
+    return True
+
+  def get_constant(self):
+    return self.cste
+
+  def imputation_function(self, data_expanded, sample_b):
+    return data_expanded *  sample_b + (1-sample_b) * self.cste 
+
+
+class ConstantImputation_ContinuousAddMask(Imputation):
+
+ 
+  def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
+               reconstruction_reg = None, sample_b_reg = None,
+               add_mask = False, post_process_regularization = None):
     self.cste = torch.tensor(cste).cuda()
     super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
                     sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization)
@@ -248,6 +271,44 @@ class ConstantImputation(Imputation):
   def imputation_function(self, data_expanded, sample_b):
     return data_expanded *  sample_b + (1-sample_b) * self.cste 
 
+  def add_mask_method(self, data_imputed, sample_b):
+    zero_sample_b = torch.rand(sample_b.shape).cuda() * 0.5
+    one_sample_b = torch.rand(sample_b.shape).cuda()*0.5 +0.5
+    sample_b = torch.where(sample_b<0.5, zero_sample_b, one_sample_b)
+
+    if len(sample_b.shape)>2:
+      sample_b_aux = sample_b[:,0].unsqueeze(1)
+    else :
+      sample_b_aux = sample_b
+    return torch.cat([data_imputed, sample_b_aux], axis =1)
+
+class ConstantImputation_ContinuousAddMaskV2(Imputation):
+  def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
+               reconstruction_reg = None, sample_b_reg = None,
+               add_mask = False, post_process_regularization = None):
+    self.cste = torch.tensor(cste).cuda()
+    super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
+                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization)
+
+  def has_constant(self):
+    return True
+
+  def get_constant(self):
+    return self.cste
+
+  def imputation_function(self, data_expanded, sample_b):
+    return data_expanded *  sample_b + (1-sample_b) * self.cste 
+
+  def add_mask_method(self, data_imputed, sample_b):
+    zero_sample_b = torch.rand(sample_b.shape).cuda() * -1
+    one_sample_b = torch.rand(sample_b.shape).cuda()
+    sample_b = torch.where(sample_b<0.5, zero_sample_b, one_sample_b)
+
+    if len(sample_b.shape)>2:
+      sample_b_aux = sample_b[:,0].unsqueeze(1)
+    else :
+      sample_b_aux = sample_b
+    return torch.cat([data_imputed, sample_b_aux], axis =1)
 
 class NoiseImputation(Imputation):
   def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
