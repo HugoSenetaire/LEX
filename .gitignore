@@ -141,3 +141,6 @@ Examples/ArtificialRegression/multiple_interpretation.py
 Examples/ArtificialRegression/multiple_interpretation.py
 Examples/ImageExplainer/test_multiple_imputation.py
 Examples/ImageExplainer/new_main_copy.py
+*.jpg
+*.sh
+*.tar
