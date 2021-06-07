@@ -56,12 +56,6 @@ def reparam_pz_b(v, b, theta):
     return(b * F.softplus(safe_log_prob(v) - safe_log_prob((1 - v) * (1 - theta)))) \
         + ((1 - b) * (-F.softplus(safe_log_prob(v) - safe_log_prob(v * (1 - theta)))))
 
-# def reparam_pz_b(v, b, theta):
-#     # From Appendix C of the paper, this is the reparameterization of p(z|b) for the 
-#     # case where b ~ Bernoulli($\theta$). Returns z_squiggle, a Gumbel RV
-#     return(b * safe_log_prob(v) - safe_log_prob((1 - v) * (1 - theta))) \
-#         + ((1 - b) * (safe_log_prob(v) - safe_log_prob(v * (1 - theta))))
-
 def u_to_v(pi_list, u, eps = 1e-8):
     """Convert u to tied randomness in v."""
     u_prime = F.sigmoid(safe_log_prob(pi_list/(1-pi_list)))  # g(u') = 0
