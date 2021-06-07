@@ -28,3 +28,33 @@ Other Regularization method on the z not on pis
 
 
 Problems with imputation, learnable parameter and cuda, find a better solve for the problem
+
+
+Dataset : Mélanger Fashion Mnist et non Mnist avec un Mnist en changeant les places. Utiliser avec un CNN
+
+Concatener z impute(x) 
+
+Analyse adult dataset en utilisant un deep sets, et regarder si les elements proches ont la même interprétation => Comparer à Lime
+
+
+
+Try something close to the UNETs for destruction and conv for classifier
+
+Sentiment Analysis/Lime Comparison/ Find Dataset
+
+Find competitors 
+
+I'll try post Hoc
+
+Saving accuracy, 
+
+CIFAR 10
+
+Currently Launched : dogs vs cats sur Oceanus (gpu 1, Vgg, gpu2, Stupid)
+dogs_vs_cats vanilla sur cronus (gpu 6) Follow up sur Circle Dataset and Noise avec le reste Maintenant on a aussi le original config
+
+VAEAC sur THEIA
+
+Sur MNEMOSYME : STUPID CLASSIFIER UNET
+
+CRONUS : All type of imputation for MNIST
