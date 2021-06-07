@@ -609,34 +609,6 @@ class REBAR(noVariationalTraining):
         variance = torch.mean(grad**2)
         return variance
 
-    # def set_variance_grad2(self, network, loss1, loss2, eta):
-
-        # for name, p in network.named_parameters():
-        #     # current_grad =[]
-        #     # for index in range(len(loss_hard)):
-        #         # current_grad.append(torch.autograd.grad(loss_hard[index] + eta[name] * loss_control[index], p, retain_graph = True, create_graph = True))
-        #     aux_p_grad = torch.flatten(p.grad)
-        #     dg_dtheta = torch.cat([torch.autograd.grad(aux_p_grad[i], eta[name]) for i in range(len(aux_p_grad))])
-        #     eta[name].grad = -2*torch.dot(aux_p_grad,dg_dtheta)
-
-
-    #     # grad1_total = torch.autograd.grad(loss_hard.mean(), network.parameters(), retain_graph = True, allow_unused=True, )
-    #     # grad2_total = torch.autograd.grad(loss_control.mean(), network.parameters(), retain_graph = True, allow_unused=True)
-        
-
-    #     # for index in range(len(loss_hard)):
-    #         # gradient1 = torch.autograd.grad(loss_hard[index], network.parameters(), retain_graph = True, allow_unused=True)
-    #         # gradient2 = torch.autograd.grad(loss_control[index], network.parameters(), retain_graph = True, allow_unused=True)
-            
-    #         # Use torch eta
-    #         for g1, g2, (name, p) in zip(gradient1, gradient2, network.named_parameters()):
-    #             if g1 is None or g2 is None:
-    #                 continue
-    #             else :
-    #                 variance += (torch.sum((g1 + eta[name] * g2))**2) /len(loss_hard)
-
-    #     return variance
-
 
 
     def _train_step(self, data, target, dataset, optim_classifier, optim_destruction, sampling_distribution, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
@@ -663,7 +635,7 @@ class REBAR(noVariationalTraining):
             u = (torch.rand((z_real_sampled.shape), requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1)
             v = (torch.rand((z_real_sampled.shape), requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1)
 
-        # v = u_to_v(pi_list_extended, u)
+
 
         b = reparam_pz(u, pi_list_extended)
         z = Heaviside(b)
@@ -727,39 +699,6 @@ class REBAR(noVariationalTraining):
         self.classification_module.classifier.zero_grad()
         torch.mean(loss_hard).backward(retain_graph = True, create_graph = False)
 
-        # torch.mean(loss_control_variate).backward(retain_graph = True, create_graph = False, inputs=self.destruction_module.destructor.parameters())
-        # self._multiply_by_eta_per_layer(self.destruction_module.destructor.named_parameters(), self.eta_destruction)
-        # torch.mean(loss_hard).backward(retain_graph = True, create_graph = False, inputs=self.destruction_module.destructor.parameters())
-        # torch.mean(loss_hard).backward(retain_graph = True, create_graph = False, inputs=self.classification_module.classifier.parameters())
-
-
-
-        # # Temperature T optimisation :
-        # gumbel_learning_signal = - log_y_hat_iwae_masked_soft_tilde_z
-        # df_dt = []
-        # for k in range(len(gumbel_learning_signal)):
-        #     df_dt.append(torch.nn.utils.parameters_to_vector(torch.autograd.grad(gumbel_learning_signal[k], self.temperature_lambda, retain_graph=True)))
-        # df_dt = torch.cat(df_dt)
-        # backward_aux = torch.autograd.grad(torch.mean(df_dt.detach() * log_prob_z),self.destruction_module.destructor.parameters(), retain_graph=True)
-        # reinf_g_t = self._multiply_by_eta_per_layer_gradient(
-        #     backward_aux,
-        #     self.eta_destruction,
-        #     self.destruction_module.destructor.named_parameters() 
-        # )
-        # reinf_g_t = vectorize_dic(reinf_g_t, self.destruction_module.destructor.named_parameters(), set_none_to_zero=True)
-
-        # reparam = log_y_hat_iwae_masked_soft_z - log_y_hat_iwae_masked_soft_tilde_z
-        # reparam_g = torch.autograd.grad(torch.mean(reparam), self.destruction_module.destructor.parameters(), retain_graph = True, create_graph = True)
-        # reparam_g = self._multiply_by_eta_per_layer_gradient(reparam_g, self.eta_destruction, self.destruction_module.destructor.named_parameters())
-        # reparam_g = vectorize_dic(reparam_g, self.destruction_module.destructor.named_parameters(), set_none_to_zero=True)
-        # g_aux = torch.nn.utils.parameters_to_vector(-p.grad for p in self.destruction_module.destructor.parameters())
-        # reparam_g_t = torch.autograd.grad(torch.mean(2*g_aux*reparam_g), self.temperature_lambda, retain_graph = True)[0]
-
-
-        # grad_t = torch.mean(2*g_aux*reinf_g_t) + reparam_g_t
-        # self.temperature_lambda = self.temperature_lambda - 1e-4 * grad_t 
-        # self.temperature_lambda.backward()
-        # self.temperature_lambda.grad.zero_()
         optim_destruction.step()
         optim_classifier.step()
         self.optimizer_eta.step()
@@ -792,9 +731,7 @@ class REBAR2(noVariationalTraining):
                 self.eta_destruction[name].grad.zero_()
         if self.temperature_lambda.grad is not None :
             self.temperature_lambda.grad.zero_()
-        # for name in self.eta_classif.keys():
-            # if self.eta_classif[name].grad is not None :
-                # self.eta_classif[name].grad.zero_()
+
 
     def _destructive_train(self, data, sampling_distribution, Nexpectation):
         pi_list, loss_reg = self._get_pi(data)
@@ -820,8 +757,7 @@ class REBAR2(noVariationalTraining):
                 continue
             else :
                 p.grad = p.grad * eta[name]
-                # print(eta[name].requires_grad)
-                # print(torch.autograd.grad(p.grad, eta[name]))
+
     def _multiply_by_eta_per_layer_gradient(self, gradients, eta, named_parameters):
         g_dic = {}
         for g,(name, _) in zip(gradients,named_parameters):
@@ -831,31 +767,31 @@ class REBAR2(noVariationalTraining):
                 g_dic[name] = g * eta[name]
         return g_dic
 
-    def _calculate_variance(self, loss_hard, loss_control, eta, network):
-        # variance = torch.tensor(0.).cuda()
-        variance = torch.tensor(0.)
-        compteur = 0
-        if self.use_cuda :
-            variance = variance.cuda()
+    # def _calculate_variance(self, loss_hard, loss_control, eta, network):
+    #     # variance = torch.tensor(0.).cuda()
+    #     variance = torch.tensor(0.)
+    #     compteur = 0
+    #     if self.use_cuda :
+    #         variance = variance.cuda()
 
-        grad1_total = torch.autograd.grad(loss_hard.mean(), network.parameters(), retain_graph = True, allow_unused=True, )
-        grad2_total = torch.autograd.grad(loss_control.mean(), network.parameters(), retain_graph = True, allow_unused=True)
+    #     grad1_total = torch.autograd.grad(loss_hard.mean(), network.parameters(), retain_graph = True, allow_unused=True, )
+    #     grad2_total = torch.autograd.grad(loss_control.mean(), network.parameters(), retain_graph = True, allow_unused=True)
         
 
-        for index in range(len(loss_hard)):
-            gradient1 = torch.autograd.grad(loss_hard[index], network.parameters(), retain_graph = True, allow_unused=True)
-            gradient2 = torch.autograd.grad(loss_control[index], network.parameters(), retain_graph = True, allow_unused=True)
+    #     for index in range(len(loss_hard)):
+    #         gradient1 = torch.autograd.grad(loss_hard[index], network.parameters(), retain_graph = True, allow_unused=True)
+    #         gradient2 = torch.autograd.grad(loss_control[index], network.parameters(), retain_graph = True, allow_unused=True)
             
             
 
-            # Use torch eta
-            for g1, g2, (name, p) in zip(gradient1, gradient2, network.named_parameters()):
-                if g1 is None or g2 is None:
-                    continue
-                else :
-                    variance += (torch.sum((g1 + eta[name] * g2))**2) /len(loss_hard)
+    #         # Use torch eta
+    #         for g1, g2, (name, p) in zip(gradient1, gradient2, network.named_parameters()):
+    #             if g1 is None or g2 is None:
+    #                 continue
+    #             else :
+    #                 variance += (torch.sum((g1 + eta[name] * g2))**2) /len(loss_hard)
 
-        return variance
+    #     return variance
 
 
     def _initialize_eta(self, eta, parameters):
@@ -874,39 +810,6 @@ class REBAR2(noVariationalTraining):
         dic = super()._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction)
         dic["variance_grad"] = variance.detach().cpu().item()
         return dic
-
-    def set_variance_grad(self, network):
-        grad = torch.nn.utils.parameters_to_vector(-p.grad for p in network.parameters()).flatten()
-        variance = torch.mean(grad**2)
-        return variance
-
-    # def set_variance_grad2(self, network, loss1, loss2, eta):
-
-        # for name, p in network.named_parameters():
-        #     # current_grad =[]
-        #     # for index in range(len(loss_hard)):
-        #         # current_grad.append(torch.autograd.grad(loss_hard[index] + eta[name] * loss_control[index], p, retain_graph = True, create_graph = True))
-        #     aux_p_grad = torch.flatten(p.grad)
-        #     dg_dtheta = torch.cat([torch.autograd.grad(aux_p_grad[i], eta[name]) for i in range(len(aux_p_grad))])
-        #     eta[name].grad = -2*torch.dot(aux_p_grad,dg_dtheta)
-
-
-    #     # grad1_total = torch.autograd.grad(loss_hard.mean(), network.parameters(), retain_graph = True, allow_unused=True, )
-    #     # grad2_total = torch.autograd.grad(loss_control.mean(), network.parameters(), retain_graph = True, allow_unused=True)
-        
-
-    #     # for index in range(len(loss_hard)):
-    #         # gradient1 = torch.autograd.grad(loss_hard[index], network.parameters(), retain_graph = True, allow_unused=True)
-    #         # gradient2 = torch.autograd.grad(loss_control[index], network.parameters(), retain_graph = True, allow_unused=True)
-            
-    #         # Use torch eta
-    #         for g1, g2, (name, p) in zip(gradient1, gradient2, network.named_parameters()):
-    #             if g1 is None or g2 is None:
-    #                 continue
-    #             else :
-    #                 variance += (torch.sum((g1 + eta[name] * g2))**2) /len(loss_hard)
-
-    #     return variance
 
 
 
@@ -977,8 +880,8 @@ class REBAR2(noVariationalTraining):
 
         g=[]
         for k in range(len(loss_hard)):
-            g1 = torch.autograd.grad(loss_control_variate[k], self.destruction_module.destructor.parameters(), retain_graph = True)
-            g2 = vectorize_gradient(torch.autograd.grad(loss_hard[k], self.destruction_module.destructor.parameters(), retain_graph = True), 
+            g1 = torch.autograd.grad(loss_control_variate[k], self.destruction_module.destructor.parameters(), retain_graph = True, create_graph = True)
+            g2 = vectorize_gradient(torch.autograd.grad(loss_hard[k], self.destruction_module.destructor.parameters(), retain_graph = True, create_graph = True), 
                     self.destruction_module.destructor.named_parameters(), set_none_to_zero=True)
             g1 = self._multiply_by_eta_per_layer_gradient(g1, self.eta_destruction, self.destruction_module.destructor.named_parameters())
             g1= vectorize_dic(g1, self.destruction_module.destructor.named_parameters(), set_none_to_zero=True)
@@ -989,6 +892,7 @@ class REBAR2(noVariationalTraining):
 
         variance = torch.mean(g**2)
         torch.autograd.backward(variance, inputs = [self.eta_destruction[name] for name in self.eta_destruction.keys()])
+        torch.autograd.backward(variance, inputs = [self.temperature_lambda])
 
         self.classification_module.classifier.zero_grad()
         self.destruction_module.destructor.zero_grad()
@@ -997,11 +901,6 @@ class REBAR2(noVariationalTraining):
         self._multiply_by_eta_per_layer(self.destruction_module.destructor.named_parameters(), self.eta_destruction)
         self.classification_module.classifier.zero_grad()
         torch.mean(loss_hard).backward(retain_graph = True, create_graph = False)
-
-        # torch.mean(loss_control_variate).backward(retain_graph = True, create_graph = False, inputs=self.destruction_module.destructor.parameters())
-        # self._multiply_by_eta_per_layer(self.destruction_module.destructor.named_parameters(), self.eta_destruction)
-        # torch.mean(loss_hard).backward(retain_graph = True, create_graph = False, inputs=self.destruction_module.destructor.parameters())
-        # torch.mean(loss_hard).backward(retain_graph = True, create_graph = False, inputs=self.classification_module.classifier.parameters())
 
 
 
