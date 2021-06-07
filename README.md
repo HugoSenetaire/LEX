@@ -49,3 +49,12 @@ I'll try post Hoc
 Saving accuracy, 
 
 CIFAR 10
+
+Currently Launched : dogs vs cats sur Oceanus (gpu 1, Vgg, gpu2, Stupid)
+dogs_vs_cats vanilla sur cronus (gpu 6) Follow up sur Circle Dataset and Noise avec le reste Maintenant on a aussi le original config
+
+VAEAC sur THEIA
+
+Sur MNEMOSYME : STUPID CLASSIFIER UNET
+
+CRONUS : All type of imputation for MNIST

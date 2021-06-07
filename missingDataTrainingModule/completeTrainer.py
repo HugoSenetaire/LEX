@@ -773,6 +773,277 @@ class REBAR(noVariationalTraining):
         return dic
 
 
+
+class REBAR2(noVariationalTraining):
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), feature_extractor_training = False, use_cuda = True):
+        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda)
+        self.compteur = 0
+        self.eta_classif = {}
+        self.eta_destruction = {}
+        # self._initialize_eta(self.eta_classif, self.classification_module.classifier.named_parameters())
+        self._initialize_eta(self.eta_destruction, self.destruction_module.destructor.named_parameters())
+        self.temperature_lambda = torch.tensor(0., requires_grad = True, device='cuda:0')
+        self.create_optimizer()
+
+    def zero_grad(self):
+        super().zero_grad()
+        for name in self.eta_destruction.keys():
+            if self.eta_destruction[name].grad is not None :
+                self.eta_destruction[name].grad.zero_()
+        if self.temperature_lambda.grad is not None :
+            self.temperature_lambda.grad.zero_()
+        # for name in self.eta_classif.keys():
+            # if self.eta_classif[name].grad is not None :
+                # self.eta_classif[name].grad.zero_()
+
+    def _destructive_train(self, data, sampling_distribution, Nexpectation):
+        pi_list, loss_reg = self._get_pi(data)
+        if (pi_list<0).any() or torch.isnan(pi_list).any() or torch.isinf(pi_list).any():
+            print(pi_list)
+        assert((pi_list>=0).any())
+        assert((pi_list<=1).any())
+        z, p_z = self._sample_z_test(pi_list, sampling_distribution, Nexpectation)
+        return pi_list, loss_reg, z, p_z
+
+
+    def create_optimizer(self, lr = 1e-4):
+        # list = torch.parameters_to_vector(self.eta_classif)
+        list = []
+        for name in self.eta_destruction:
+            list.append(self.eta_destruction[name])
+        list.append(self.temperature_lambda)
+        self.optimizer_eta = torch.optim.SGD(list, lr=lr)
+
+    def _multiply_by_eta_per_layer(self, parameters, eta):
+        for (name, p) in parameters:
+            if p.grad is None :
+                continue
+            else :
+                p.grad = p.grad * eta[name]
+                # print(eta[name].requires_grad)
+                # print(torch.autograd.grad(p.grad, eta[name]))
+    def _multiply_by_eta_per_layer_gradient(self, gradients, eta, named_parameters):
+        g_dic = {}
+        for g,(name, _) in zip(gradients,named_parameters):
+            if g is None :
+                g_dic[name] = None
+            else :
+                g_dic[name] = g * eta[name]
+        return g_dic
+
+    def _calculate_variance(self, loss_hard, loss_control, eta, network):
+        # variance = torch.tensor(0.).cuda()
+        variance = torch.tensor(0.)
+        compteur = 0
+        if self.use_cuda :
+            variance = variance.cuda()
+
+        grad1_total = torch.autograd.grad(loss_hard.mean(), network.parameters(), retain_graph = True, allow_unused=True, )
+        grad2_total = torch.autograd.grad(loss_control.mean(), network.parameters(), retain_graph = True, allow_unused=True)
+        
+
+        for index in range(len(loss_hard)):
+            gradient1 = torch.autograd.grad(loss_hard[index], network.parameters(), retain_graph = True, allow_unused=True)
+            gradient2 = torch.autograd.grad(loss_control[index], network.parameters(), retain_graph = True, allow_unused=True)
+            
+            
+
+            # Use torch eta
+            for g1, g2, (name, p) in zip(gradient1, gradient2, network.named_parameters()):
+                if g1 is None or g2 is None:
+                    continue
+                else :
+                    variance += (torch.sum((g1 + eta[name] * g2))**2) /len(loss_hard)
+
+        return variance
+
+
+    def _initialize_eta(self, eta, parameters):
+        for (name, _) in parameters:
+            if name in eta.keys() :
+                print("Doubling parameters here")
+            if self.use_cuda :
+                eta[name] = torch.rand(1, requires_grad=True, device="cuda:0") # TODO
+                # eta[name] = torch.ones(1, requires_grad=True, device='cuda:0')
+            else :
+                eta[name] = torch.rand(1, requires_grad=True, device="cpu") # TODO
+
+            # eta[name] = torch.tensor(0., dtype=torch.double, requires_grad = True).cuda()
+
+    def _create_dic(self, loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction = None, variance = None):
+        dic = super()._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction)
+        dic["variance_grad"] = variance.detach().cpu().item()
+        return dic
+
+    def set_variance_grad(self, network):
+        grad = torch.nn.utils.parameters_to_vector(-p.grad for p in network.parameters()).flatten()
+        variance = torch.mean(grad**2)
+        return variance
+
+    # def set_variance_grad2(self, network, loss1, loss2, eta):
+
+        # for name, p in network.named_parameters():
+        #     # current_grad =[]
+        #     # for index in range(len(loss_hard)):
+        #         # current_grad.append(torch.autograd.grad(loss_hard[index] + eta[name] * loss_control[index], p, retain_graph = True, create_graph = True))
+        #     aux_p_grad = torch.flatten(p.grad)
+        #     dg_dtheta = torch.cat([torch.autograd.grad(aux_p_grad[i], eta[name]) for i in range(len(aux_p_grad))])
+        #     eta[name].grad = -2*torch.dot(aux_p_grad,dg_dtheta)
+
+
+    #     # grad1_total = torch.autograd.grad(loss_hard.mean(), network.parameters(), retain_graph = True, allow_unused=True, )
+    #     # grad2_total = torch.autograd.grad(loss_control.mean(), network.parameters(), retain_graph = True, allow_unused=True)
+        
+
+    #     # for index in range(len(loss_hard)):
+    #         # gradient1 = torch.autograd.grad(loss_hard[index], network.parameters(), retain_graph = True, allow_unused=True)
+    #         # gradient2 = torch.autograd.grad(loss_control[index], network.parameters(), retain_graph = True, allow_unused=True)
+            
+    #         # Use torch eta
+    #         for g1, g2, (name, p) in zip(gradient1, gradient2, network.named_parameters()):
+    #             if g1 is None or g2 is None:
+    #                 continue
+    #             else :
+    #                 variance += (torch.sum((g1 + eta[name] * g2))**2) /len(loss_hard)
+
+    #     return variance
+
+
+
+    def _train_step(self, data, target, dataset, optim_classifier, optim_destruction, sampling_distribution, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
+        
+        nb_imputation = self.classification_module.imputation.nb_imputation
+        batch_size = data.shape[0]
+        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
+        
+        self.zero_grad()
+
+
+        # Selection module :
+        pi_list, loss_reg, z_real_sampled, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
+
+        loss_reg = lambda_reg * loss_reg
+
+
+        pi_list_extended = torch.cat([pi_list for k in range(Nexpectation)], axis=0)
+        # u = torch.FloatTensor(1., batch_size * nb_imputation,  requires_grad=False).uniform_(0, 1) + 1e-9
+        if self.use_cuda :
+            u = (torch.rand((z_real_sampled.shape), requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1).cuda() # TODO
+            v = (torch.rand((z_real_sampled.shape), requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1).cuda()
+        else :
+            u = (torch.rand((z_real_sampled.shape), requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1)
+            v = (torch.rand((z_real_sampled.shape), requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1)
+
+        # v = u_to_v(pi_list_extended, u)
+
+        b = reparam_pz(u, pi_list_extended)
+        z = Heaviside(b)
+        tilde_b = reparam_pz_b(v, z, pi_list_extended)
+
+
+        soft_concrete_rebar_z = sigma_lambda(b, torch.exp(self.temperature_lambda))  
+        soft_concrete_rebar_tilde_z = sigma_lambda(tilde_b, torch.exp(self.temperature_lambda))
+
+
+
+        # Classification module hard :
+        log_y_hat, _ = self.classification_module(data_expanded_flatten, z.detach())
+        log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
+        log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
+        log_y_hat_iwae_masked_hard_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
+
+        # Classification module relaxed:
+        log_y_hat, _ = self.classification_module(data_expanded_flatten,  soft_concrete_rebar_tilde_z)
+        log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
+        log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
+        log_y_hat_iwae_masked_soft_tilde_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
+
+
+        # Classification module relaxed_2 :
+        log_y_hat, _ = self.classification_module(data_expanded_flatten, soft_concrete_rebar_z)
+        log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
+        log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
+        log_y_hat_iwae_masked_soft_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
+
+        # Loss calculation
+        z = z.reshape(z_real_sampled.shape)
+        log_prob_z_sampled = p_z.log_prob(z.detach()).reshape(Nexpectation, batch_size, -1)
+        log_prob_z = torch.sum(torch.sum(log_prob_z_sampled,axis=0), axis=-1) 
+
+        likelihood_hard = log_y_hat_iwae_masked_hard_z.detach() * log_prob_z + log_y_hat_iwae_masked_hard_z
+        loss_hard = - likelihood_hard
+        likelihood_control_variate = - log_y_hat_iwae_masked_soft_tilde_z.detach() * log_prob_z + log_y_hat_iwae_masked_soft_z - log_y_hat_iwae_masked_soft_tilde_z
+        loss_control_variate = - likelihood_control_variate
+
+        g=[]
+        for k in range(len(loss_hard)):
+            g1 = torch.autograd.grad(loss_control_variate[k], self.destruction_module.destructor.parameters(), retain_graph = True)
+            g2 = vectorize_gradient(torch.autograd.grad(loss_hard[k], self.destruction_module.destructor.parameters(), retain_graph = True), 
+                    self.destruction_module.destructor.named_parameters(), set_none_to_zero=True)
+            g1 = self._multiply_by_eta_per_layer_gradient(g1, self.eta_destruction, self.destruction_module.destructor.named_parameters())
+            g1= vectorize_dic(g1, self.destruction_module.destructor.named_parameters(), set_none_to_zero=True)
+            g.append(g1+g2)
+        g = torch.cat(g)
+        
+
+
+        variance = torch.mean(g**2)
+        torch.autograd.backward(variance, inputs = [self.eta_destruction[name] for name in self.eta_destruction.keys()])
+
+        self.classification_module.classifier.zero_grad()
+        self.destruction_module.destructor.zero_grad()
+
+        torch.mean(loss_control_variate).backward(retain_graph = True, create_graph = False)
+        self._multiply_by_eta_per_layer(self.destruction_module.destructor.named_parameters(), self.eta_destruction)
+        self.classification_module.classifier.zero_grad()
+        torch.mean(loss_hard).backward(retain_graph = True, create_graph = False)
+
+        # torch.mean(loss_control_variate).backward(retain_graph = True, create_graph = False, inputs=self.destruction_module.destructor.parameters())
+        # self._multiply_by_eta_per_layer(self.destruction_module.destructor.named_parameters(), self.eta_destruction)
+        # torch.mean(loss_hard).backward(retain_graph = True, create_graph = False, inputs=self.destruction_module.destructor.parameters())
+        # torch.mean(loss_hard).backward(retain_graph = True, create_graph = False, inputs=self.classification_module.classifier.parameters())
+
+
+
+        # # Temperature T optimisation :
+        # gumbel_learning_signal = - log_y_hat_iwae_masked_soft_tilde_z
+        # df_dt = []
+        # for k in range(len(gumbel_learning_signal)):
+        #     df_dt.append(torch.nn.utils.parameters_to_vector(torch.autograd.grad(gumbel_learning_signal[k], self.temperature_lambda, retain_graph=True)))
+        # df_dt = torch.cat(df_dt)
+        # backward_aux = torch.autograd.grad(torch.mean(df_dt.detach() * log_prob_z),self.destruction_module.destructor.parameters(), retain_graph=True)
+        # reinf_g_t = self._multiply_by_eta_per_layer_gradient(
+        #     backward_aux,
+        #     self.eta_destruction,
+        #     self.destruction_module.destructor.named_parameters() 
+        # )
+        # reinf_g_t = vectorize_dic(reinf_g_t, self.destruction_module.destructor.named_parameters(), set_none_to_zero=True)
+
+        # reparam = log_y_hat_iwae_masked_soft_z - log_y_hat_iwae_masked_soft_tilde_z
+        # reparam_g = torch.autograd.grad(torch.mean(reparam), self.destruction_module.destructor.parameters(), retain_graph = True, create_graph = True)
+        # reparam_g = self._multiply_by_eta_per_layer_gradient(reparam_g, self.eta_destruction, self.destruction_module.destructor.named_parameters())
+        # reparam_g = vectorize_dic(reparam_g, self.destruction_module.destructor.named_parameters(), set_none_to_zero=True)
+        # g_aux = torch.nn.utils.parameters_to_vector(-p.grad for p in self.destruction_module.destructor.parameters())
+        # reparam_g_t = torch.autograd.grad(torch.mean(2*g_aux*reparam_g), self.temperature_lambda, retain_graph = True)[0]
+
+
+        # grad_t = torch.mean(2*g_aux*reinf_g_t) + reparam_g_t
+        # self.temperature_lambda = self.temperature_lambda - 1e-4 * grad_t 
+        # self.temperature_lambda.backward()
+        # self.temperature_lambda.grad.zero_()
+        optim_destruction.step()
+        optim_classifier.step()
+        self.optimizer_eta.step()
+
+
+        
+        loss_total = torch.mean(loss_hard + loss_control_variate)
+
+        dic = self._create_dic(loss_total, -log_y_hat_iwae_masked_hard_z.mean(), torch.tensor(0.), torch.tensor(0.), loss_reg, pi_list, torch.mean(loss_hard), variance)
+
+        return dic
+
+
 class REINFORCE(noVariationalTraining):
     def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), feature_extractor_training = False, use_cuda = True):
         super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda = use_cuda)

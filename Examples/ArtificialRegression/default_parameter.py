@@ -58,7 +58,7 @@ def get_default():
   
     args_destruct["regularization"] = free_regularization
     args_destruct["lambda_regularisation"] = 0.0
-    args_destruct["destructor"] = DestructorSimpleV3
+    args_destruct["destructor"] = DestructorSimpleV2
     args_destruct["regularization_var"] = free_regularization
     args_destruct["lambda_regularization_var"] = 0.1
     args_destruct["destructor_var"] = None #DestructorSimilarVar

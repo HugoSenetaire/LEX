@@ -66,26 +66,7 @@ class ClassificationModule():
                 aux_sample_b = sample_b.reshape(-1, self.input_size[0], self.nb_patch_x*self.nb_patch_y)
                 aux_sample_b = aux_sample_b.unsqueeze(2).expand(-1, -1, np.prod(self.kernel_patch), -1).flatten(1,2)
                 new_sample_b = torch.nn.Fold((self.input_size[1], self.input_size[2]),self.kernel_patch, stride = self.stride_patch)(aux_sample_b)
-                # print(new_sample_b.shape)
 
-                # batch_size = sample_b.shape[0]
-                # new_sample_b = torch.zeros((batch_size, self.input_size[0],self.input_size[1],self.input_size[2]))
-                # print(new_sample_b.shape)
-                # print("==========")
-                # if sample_b.is_cuda :
-                #     new_sample_b = new_sample_b.cuda()
-                # for channel in range(self.input_size[0]):
-                #     for stride_idx in range(self.nb_patch_x):
-                #         stride_x_location = stride_idx*self.stride_patch[0]
-                #         remaining_size_x = min(self.input_size[1]-stride_x_location,self.kernel_patch[0])
-
-                #         for stride_idy in range(self.nb_patch_y):
-                #             stride_y_location = stride_idy*self.stride_patch[0]
-                #             remaining_size_y = min(self.input_size[2]-stride_y_location,self.kernel_patch[1])
-                            
-                        
-                #             new_sample_b[:, channel, stride_x_location:stride_x_location+remaining_size_x, stride_y_location:stride_y_location+remaining_size_y] += \
-                #                 sample_b[:,channel, stride_idx, stride_idy].unsqueeze(1).unsqueeze(1).expand(-1, remaining_size_x, remaining_size_y)
             new_sample_b = new_sample_b.clamp(0.0, 1.0)    
         else :
             new_sample_b = sample_b
