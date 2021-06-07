@@ -34,7 +34,9 @@ def get_all_z_baseline(args_complete_trainer, args_classification, args_train):
 if __name__ == '__main__' :
 
     args_output, args_dataset, args_classification, args_destruct, args_complete_trainer, args_train, args_test = get_default()
+    args_classification["classifier"] = StupidClassifier
     args_output["path"] = "/scratch/hhjs/TestAllMethodsOnSimpleCaseWithSimpleDestructorV3" 
+    args_dataset["dataset"] = CircleDataset
     for method in ["relax", "reinforce", "reinforce_baseline", "allz"]:
         if method == "reinforce_baseline":
             get_reinforce_baseline(args_complete_trainer, args_classification, args_train)

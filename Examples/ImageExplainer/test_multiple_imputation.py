@@ -18,6 +18,7 @@ if __name__ == '__main__' :
     args_dataset = {}
     args_dataset["dataset"] = FashionMNISTDataset
     args_dataset["loader"] = LoaderEncapsulation
+    args_dataset["root_dir"] = "/scratch/hhjs/"
 
     args_classification = {}
 
@@ -46,7 +47,7 @@ if __name__ == '__main__' :
     args_classification["noise_function"] = DropOutNoise(pi = 0.3) # Noise used to pretrain the autoencoder
 
 
-    args_classification["VAEAC_dir"] = "fashion_mnist_model"
+    args_classification["VAEAC_dir"] = "fashion_mnist_dropout05"
     args_classification["nb_imputation"] = 3
 
 
