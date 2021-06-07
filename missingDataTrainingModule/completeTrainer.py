@@ -713,7 +713,7 @@ class REBAR(noVariationalTraining):
 
 
 
-class REBAR2(noVariationalTraining):
+class REBAR_TEMPERATURE(noVariationalTraining):
     def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), feature_extractor_training = False, use_cuda = True):
         super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda)
         self.compteur = 0
@@ -891,8 +891,8 @@ class REBAR2(noVariationalTraining):
 
 
         variance = torch.mean(g**2)
-        torch.autograd.backward(variance, inputs = [self.eta_destruction[name] for name in self.eta_destruction.keys()])
-        torch.autograd.backward(variance, inputs = [self.temperature_lambda])
+        torch.autograd.backward(variance, inputs = [self.eta_destruction[name] for name in self.eta_destruction.keys()], retain_graph = True)
+        torch.autograd.backward(variance, inputs = [self.temperature_lambda], retain_graph = True)
 
         self.classification_module.classifier.zero_grad()
         self.destruction_module.destructor.zero_grad()
