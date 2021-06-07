@@ -63,4 +63,4 @@ dependencies:
     - pywavelets==1.1.1
     - scikit-image==0.18.1
     - tifffile==2021.4.8
-prefix: C:\Users\hugos\anaconda3\envs\Pytorch18
+
