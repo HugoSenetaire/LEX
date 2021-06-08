@@ -136,7 +136,13 @@ class ClassificationModule():
             raise AssertionError("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
         elif self.imputation is not None and sample_b is not None :
             x_imputed, loss_reconstruction = self.imputation.impute(data, sample_b)
-            x_imputed_aux = x_imputed.cpu().detach().numpy()
+            
+            # x_imputed_aux = x_imputed.cpu().detach().numpy()
+            # fig, (ax1, ax2, ax3)= plt.subplots(1,3)
+            # ax1.imshow(data[0].cpu().detach().numpy().reshape((28,28)), cmap='gray')
+            # ax2.imshow(sample_b[0].cpu().detach().numpy().reshape((28,28)), cmap='gray')
+            # ax3.imshow(x_imputed_aux[0].reshape((28,28)), cmap='gray')
+            # plt.show()
             if self.need_extraction :
                 x_imputed = self.feature_extractor(x_imputed)
             y_hat = self.classifier(x_imputed)

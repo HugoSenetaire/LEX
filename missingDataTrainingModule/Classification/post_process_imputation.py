@@ -353,14 +353,16 @@ class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
     
     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
     new_data = img_samples.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
-    # fig, axs = plt.subplots(3,2)
-    # axs[0,0].imshow(batch[0].reshape(28,28).detach().cpu().numpy(), cmap = 'gray')
-    # axs[0,1].imshow(masks[0].reshape(28,28).detach().cpu().numpy(), cmap = 'gray')
-    # axs[1,0].imshow(img_samples[0].reshape(28,28).detach().cpu().numpy(), cmap='gray')
-    # axs[1,1].imshow(new_data[0].reshape(28,28).detach().cpu().numpy(), cmap='gray')
-    # axs[2,0].imshow(img_samples[1].reshape(28,28).detach().cpu().numpy(), cmap='gray')
-    # axs[2,1].imshow(new_data[1].reshape(28,28).detach().cpu().numpy(), cmap='gray')
-    # plt.show()
+    # if np.random.rand()<0.01:
+    #   fig, axs = plt.subplots(3,2)
+    #   axs[0,0].imshow(batch[0].reshape(28,28).detach().cpu().numpy(), cmap = 'gray')
+    #   axs[0,1].imshow(masks[0].reshape(28,28).detach().cpu().numpy(), cmap = 'gray')
+    #   axs[1,0].imshow(img_samples[0].reshape(28,28).detach().cpu().numpy(), cmap='gray')
+    #   axs[1,1].imshow(new_data[0].reshape(28,28).detach().cpu().numpy(), cmap='gray')
+    #   axs[2,0].imshow(img_samples[1].reshape(28,28).detach().cpu().numpy(), cmap='gray')
+    #   axs[2,1].imshow(new_data[1].reshape(28,28).detach().cpu().numpy(), cmap='gray')
+    #   plt.show()
+      # plt.close(fig)
     return new_data, data_expanded, sample_b
 
 class VAEAC_Imputation_Renormalized(NetworkBasedMultipleImputation):
