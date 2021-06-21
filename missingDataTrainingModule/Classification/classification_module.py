@@ -34,14 +34,18 @@ class ClassificationModule():
 
     def kernel_update(self, kernel_patch, stride_patch):
         self.kernel_updated = True
-        if self.input_size is int or len(self.input_size)<=2:
-            self.image=False
-            self.kernel_patch = (1,1)
-            self.stride_patch = (1,1)
+        self.image = False
+        if self.input_size is int or len(self.input_size)<=1:
+            self.kernel_patch = 1
+            self.stride_patch = 1
             try :
-                self.nb_patch_x, self.nb_patch_y = int(self.input_size), 1
+                self.nb_patch_x, self.nb_patch_y = int(self.input_size), None
             except :
-                self.nb_patch_x, self.nb_patch_y = int(self.input_size[0]), int(self.input_size[1])
+                self.nb_patch_x, self.nb_patch_y = int(self.input_size[1]), None
+        elif len(self.input_size)==2: # For protein like example (1D CNN) #TODO: really implement that ?
+            self.kernel_patch = kernel_patch
+            self.stride_patch = stride_patch
+            self.nb_patch_x, self.nb_patch_y = int(self.input_size[1]), None 
         else :
             self.image = True
             assert(kernel_patch[0]>= stride_patch[0])

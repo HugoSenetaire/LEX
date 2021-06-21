@@ -481,3 +481,109 @@ class MICE_imputation_pretrained(MultipleImputation):
     return new_data, data_expanded, sample_b
 
 
+
+
+
+class MarkovChain():
+  def __init__(self, train_loader, total_init_probability = None, total_transfer_probability = None):
+    example_x, target = next(iter(train_loader))
+    batch_size, output_dim, sequence_len = example_x.shape
+    self.sequence_len = sequence_len
+    self.output_dim = output_dim
+    if total_transfer_probability is None or total_init_probability is None :
+      self.train(train_loader)
+    else :
+       self.init_probability = total_init_probability
+       self.transition_probability = total_transfer_probability
+
+    self.log_init_probability = torch.log(self.init_probability)
+    self.log_transition_probability = torch.log(self.transition_probability)
+
+  def train(self, train_loader):
+    self.init_probability = np.zeros((self.output_dim))
+    self.transition_probability = np.zeros((self.output_dim, self.output_dim))
+    
+    for element, _ in iter(train_loader):
+      for sequence in element :
+        sequence = sequence.transpose(0,1)
+        self.init_probability += sequence[0].numpy()
+
+        for k in range(1,len(sequence)):
+          self.transition_probability[torch.argmax(sequence[k-1]).item()] += sequence[k].numpy()
+
+    self.init_probability = torch.tensor(self.init_probability/np.sum(self.init_probability))
+    for k in range(self.output_dim):
+      self.transition_probability[k] /= np.sum(self.transition_probability[k])
+    
+    self.transition_probability = torch.tensor(self.transition_probability, dtype = torch.float32)
+
+  def impute(self, data, masks, nb_imputation):
+    data_argmax = torch.argmax(data, axis=1)
+    for k in range(data_argmax.shape[0]):
+      mask = masks[k]
+      x = data_argmax[k]
+      message = torch.zeros((self.sequence_len, self.output_dim))
+
+
+
+      # Forward :
+      message[0] = self.init_probability # mESSAGE I is arriving at i
+      for i in range(1, self.sequence_len):
+        if mask[i] == 0:
+          message[i] = self.transition_probability[x[k]] # Il faut trouver une façon convenable d'écrire ça avec des batchs
+        else :
+          message[i] = torch.matmul(message[i-1], self.transition_probability)
+        message[i] = message[i]/torch.sum(message[i])
+      
+      # Backward : 
+      output_sample = torch.zeros((nb_imputation,self.sequence_len))
+      if mask[self.sequence_len-1]==0 :
+        dist = torch.distributions.categorical.Categorical(probs = message[-1]/torch.sum(message[-1],axis=-1))
+        aux = dist.sample((torch.tensor(nb_imputation),))
+        output_sample[:, -1] = aux
+      else :
+        output_sample[:, -1] = x[-1].expand(nb_imputation)
+
+      message = message.unsqueeze(1).expand(-1, nb_imputation,-1)
+      for i in range(self.sequence_len-2, -1, -1):
+        if mask[i] == 0 :
+          for l in range(nb_imputation):
+            message[i, l, :] *= self.transition_probability[:,output_sample[l,i+1].type(torch.int64)]
+            message[i, l, :] = message[i,l,:]/torch.sum(message[i,l])
+          dist = torch.distributions.categorical.Categorical(probs=message[i])
+          output_sample[:, i] = dist.sample()
+        else :
+          output_sample[:, i] = x[i].expand(nb_imputation)
+            
+    # Combine
+      if k == 0 :
+        output_total = output_sample.unsqueeze(0)
+      else :
+        output_total = torch.cat([output_total, output_sample.unsqueeze(0)], dim = 0)
+
+    output_total = torch.nn.functional.one_hot(output_total,num_classes=self.output_dim)
+
+    return output_total
+
+
+# Markov chain imputation
+
+class MarkovChainImputation(MultipleImputation):
+  def __init__(self, markov_chain, nb_imputation = 10, to_train = False, use_cuda = False, deepcopy= False):
+    super().__init__(nb_imputation=nb_imputation)
+    self.markov_chain = markov_chain    
+
+
+  def __call__(self, data_expanded, data_imputed, sample_b, show_output = False):
+    if not self.eval_mode :
+      nb_imputation = self.nb_imputation
+    else :
+      nb_imputation = 1
+
+    with torch.no_grad():
+      output = self.markov_chain.impute(data_expanded, sample_b).cuda()
+    
+    _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+    new_data = output.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
+
+    return new_data, data_expanded, sample_b

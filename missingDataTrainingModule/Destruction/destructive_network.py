@@ -25,13 +25,18 @@ class AbstractDestructor(nn.Module):
   def kernel_update(self, kernel_patch, stride_patch):
     self.kernel_updated = True
     
-    if self.input_size is int or len(self.input_size)<=2:
-      self.kernel_patch = (1,1)
-      self.stride_patch = (1,1)
+    if self.input_size is int or len(self.input_size)<=1:
+      self.kernel_patch = 1
+      self.stride_patch = 1
       try :
-        self.nb_patch_x, self.nb_patch_y = int(self.input_size), 1
+        self.nb_patch_x, self.nb_patch_y = int(self.input_size), None
       except :
-        self.nb_patch_x, self.nb_patch_y = int(self.input_size[0]), int(self.input_size[1])
+        self.nb_patch_x, self.nb_patch_y = int(self.input_size[1]), None
+    elif len(self.input_size)==2: # For protein like example (1D CNN) #TODO: really implement that ?
+        self.kernel_patch = kernel_patch
+        self.stride_patch = stride_patch
+        self.nb_patch_x, self.nb_patch_y = int(self.input_size[1]), None 
+
     else :
       assert(kernel_patch[0]>= stride_patch[0])
       assert(kernel_patch[1]>= stride_patch[1])
@@ -63,7 +68,6 @@ class Destructor(AbstractDestructor):
 
 
     def __call__(self, x):
-        # print(x.shape)
         assert(self.kernel_updated)
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         x = F.elu(self.fc1(x))
@@ -197,13 +201,41 @@ class DestructorUNET(AbstractDestructor):
         nn.ReLU(inplace = False),
       ])
 
-      self.UNET = UNet(1, bilinear= self.bilinear, nb_block=self.nb_block)
+      self.UNET = UNet(1, bilinear = self.bilinear, nb_block = self.nb_block)
 
     def __call__(self, x):
       x = self.getconfiguration(x)
       x = self.UNET(x)
       pi = torch.sigmoid(x)
       return pi
+
+class DestructorUNET1D(AbstractDestructor):
+    def __init__(self, input_size = (22, 19), bilinear = False):
+      super().__init__(input_size = input_size)
+      self.channels = self.input_size[0]
+      self.w = self.input_size[1]
+      self.bilinear = bilinear
+
+
+    def kernel_update(self, kernel_patch = 1, stride_patch = 1):
+      super().kernel_update(kernel_patch, stride_patch)
+      self.nb_block = int(math.log(self.nb_patch_x, 2)//2)
+      self.getconfiguration = nn.Sequential(*[
+        nn.Conv1d(self.channels, 64, kernel_size = kernel_patch, stride = stride_patch),
+        nn.ReLU(inplace = False),
+        nn.Conv1d(64, 64, kernel_size = 3, padding=1),
+        nn.BatchNorm1d(64),
+        nn.ReLU(inplace = False),
+      ])
+
+      self.UNET = UNet1D(1, bilinear = self.bilinear, nb_block = self.nb_block)
+
+    def __call__(self, x):
+      x = self.getconfiguration(x)
+      x = self.UNET(x)
+      pi = torch.sigmoid(x)
+      return pi
+
 
 
 class DestructorSimilarVar(AbstractDestructor):
@@ -257,6 +289,8 @@ class DestructorFromFeature(AbstractDestructor):
           x = F.elu(layer(x))
         return torch.sigmoid(self.pi(x))
 
+
+
 class DestructorFromFeatureVar(AbstractDestructor):
     def __init__(self,feature_size = [200, 500], input_size = (1,28,28), nb_category = 10):
       super().__init__(input_size = input_size)
@@ -274,7 +308,6 @@ class DestructorFromFeatureVar(AbstractDestructor):
       self.module = torch.nn.ModuleList(self.layers)
 
     def __call__(self, x, y):
-        # print(x.shape)
         assert(self.kernel_updated)
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         y = y.flatten(1)
@@ -285,6 +318,10 @@ class DestructorFromFeatureVar(AbstractDestructor):
 
 
       
+
+
+
+
 
 class DestructorVariational(AbstractDestructor):
   def __init__(self, input_size = (1,28,28), output_size = 10):
@@ -308,6 +345,8 @@ class DestructorVariational(AbstractDestructor):
     return torch.sigmoid(self.pi(pi))
 
 
+
+
 class DestructorVariationalNoY(AbstractDestructor):
   def __init__(self, input_size = (1,28,28), output_size = 10):
     super().__init__(input_size = input_size)
@@ -327,6 +366,11 @@ class DestructorVariationalNoY(AbstractDestructor):
     x = F.elu(self.fc1(x))
     pi = F.elu(self.fc2(x))
     return torch.sigmoid(self.pi(pi))
+
+
+
+
+
 
 class ConvDestructor(nn.Module):
     def __init__(self, input_channel, input_size = (1,28,28), output_size= 10):
