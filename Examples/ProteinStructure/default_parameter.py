@@ -1,10 +1,11 @@
 import sys
 sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
+sys.path.append("/home/hhjs/MissingDataTraining/")
+
 
 from missingDataTrainingModule import *
 from datasets import *
 from interpretation_protein import *
-from networks import *
 
 
 from torch.distributions import *
