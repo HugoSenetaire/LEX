@@ -500,6 +500,7 @@ class MarkovChain():
     self.log_transition_probability = torch.log(self.transition_probability)
 
   def train(self, train_loader):
+    print("Start training Markov Chain")
     self.init_probability = np.zeros((self.output_dim))
     self.transition_probability = np.zeros((self.output_dim, self.output_dim))
     
@@ -520,17 +521,16 @@ class MarkovChain():
   def impute(self, data, masks, nb_imputation):
     data_argmax = torch.argmax(data, axis=1)
     for k in range(data_argmax.shape[0]):
-      mask = masks[k]
+      mask = masks[k,0]
       x = data_argmax[k]
       message = torch.zeros((self.sequence_len, self.output_dim))
-
 
 
       # Forward :
       message[0] = self.init_probability # mESSAGE I is arriving at i
       for i in range(1, self.sequence_len):
         if mask[i] == 0:
-          message[i] = self.transition_probability[x[k]] # Il faut trouver une façon convenable d'écrire ça avec des batchs
+          message[i] = self.transition_probability[x[i]] # Il faut trouver une façon convenable d'écrire ça avec des batchs
         else :
           message[i] = torch.matmul(message[i-1], self.transition_probability)
         message[i] = message[i]/torch.sum(message[i])
@@ -561,8 +561,7 @@ class MarkovChain():
       else :
         output_total = torch.cat([output_total, output_sample.unsqueeze(0)], dim = 0)
 
-    output_total = torch.nn.functional.one_hot(output_total,num_classes=self.output_dim)
-
+    output_total = torch.nn.functional.one_hot(output_total.type(torch.int64),num_classes=self.output_dim).transpose(-1, -2)
     return output_total
 
 
@@ -581,9 +580,11 @@ class MarkovChainImputation(MultipleImputation):
       nb_imputation = 1
 
     with torch.no_grad():
-      output = self.markov_chain.impute(data_expanded, sample_b).cuda()
+      output = self.markov_chain.impute(data_expanded, sample_b, nb_imputation = self.nb_imputation).cuda()
     
+  
     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+    output = output.reshape(data_expanded.shape)
     new_data = output.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
 
     return new_data, data_expanded, sample_b
