@@ -1,5 +1,6 @@
 import sys
 sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
+sys.path.append("/home/hhjs/MissingDataTraining")
 from missingDataTrainingModule import *
 from datasets import *
 from interpretation_regression import *
