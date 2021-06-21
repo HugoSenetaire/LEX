@@ -24,7 +24,7 @@ def get_default():
     args_dataset["dataset"] = cullpdb_6133_8classes_nosides
     args_dataset["loader"] = LoaderProtein
     args_dataset["root_dir"] = "/scratch/hhjs/"
-    args_dataset["batch_size_train"] = 64
+    args_dataset["batch_size_train"] = 256
     args_dataset["batch_size_test"] = 1000
 
     args_classification = {}
