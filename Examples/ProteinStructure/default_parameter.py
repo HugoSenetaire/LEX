@@ -15,14 +15,14 @@ def get_default():
     
 
     args_output = {}
-    args_output["path"] = "D:\\DTU\\firstProject\\MissingDataResults\\Protein" # Path to results
+    args_output["path"] = "/scratch/hhjs/" # Path to results
     args_output["experiment_name"] = "all_z"
 
     args_dataset = {}
     # args_dataset["dataset"] = LinearSeparableDataset
     args_dataset["dataset"] = cullpdb_6133_8classes_nosides
     args_dataset["loader"] = LoaderProtein
-    args_dataset["root_dir"] = "/scratch/dataset/"
+    args_dataset["root_dir"] = "/scratch/hhjs/"
     args_dataset["batch_size_train"] = 64
     args_dataset["batch_size_test"] = 1000
 
