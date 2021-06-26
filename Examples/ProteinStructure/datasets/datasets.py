@@ -20,7 +20,8 @@ from itertools import cycle, islice
 
 sequence_len = 700
 total_features = 57
-amino_acid_residues = 22
+amino_acid_residues = 21
+
 
 
 class TensorDatasetAugmented(TensorDataset):
@@ -148,6 +149,7 @@ class cullpdb_6133_8classes():
         return X, Y
     
 
+
 class cullpdb_6133_8classes_nosides():
     def __init__(self,
             root: str,
@@ -161,7 +163,6 @@ class cullpdb_6133_8classes_nosides():
         self.cnn_width = cnn_width
         self.num_classes = 8
         path=os.path.join(root, "cullpdb+profile_6133.npy.gz")
-        # path ="D:\\scratch\\hhjs\\dataset\\stupid.npy.gz.npy"
         if not os.path.exists(path):
             if download == True :
                 raise NotImplementedError('The download function is not yet implemented') # TODO
@@ -169,15 +170,12 @@ class cullpdb_6133_8classes_nosides():
                 raise NotImplementedError('The data has not been downloaded, should use download argument') # TODO : Change the exception
         self.noisy = noisy
         self.noise_function = noise_function
-
         ds = np.load(path)
+        
         ds = np.reshape(ds, (ds.shape[0], sequence_len, total_features))
 
-    
-        ret = np.zeros((ds.shape[0], ds.shape[1], amino_acid_residues + self.num_classes),dtype=np.int32)
-        ret[:, :, :amino_acid_residues] = ds[:, :, :amino_acid_residues]
-        ret[:, :, amino_acid_residues:] = ds[:, :, amino_acid_residues :amino_acid_residues+ self.num_classes]
-    
+
+        ret = np.concatenate([ds[:,:, :amino_acid_residues+1], ds[:, :, amino_acid_residues + 1:amino_acid_residues+ 1 + self.num_classes]],axis = -1) # Actually the part no seq in Y is not considered.
 
         D_train, D_test, D_val = split_with_shuffle(ret)
 
@@ -186,41 +184,61 @@ class cullpdb_6133_8classes_nosides():
         self.X_val, self.Y_val = self.get_data_labels(D_val)
 
 
-        self.X_train = torch.tensor(self.reshape_data(self.X_train))
-        self.X_test = torch.tensor(self.reshape_data(self.X_test))
-        self.X_val = torch.tensor(self.reshape_data(self.X_val))
+        self.X_train, self.Y_train = self.reshape_data(self.X_train, self.Y_train)
+        self.X_test, self.Y_test = self.reshape_data(self.X_test, self.Y_test)
+        self.X_val, self.Y_val = self.reshape_data(self.X_val, self.Y_val)
 
-        self.Y_train = torch.tensor(self.reshape_labels(self.Y_train), dtype = torch.int64)
+        self.X_train = torch.tensor(self.X_train)
+        self.Y_train = torch.tensor(self.Y_train, dtype= torch.int64)
+        self.X_test = torch.tensor(self.X_test)
+        self.Y_test = torch.tensor(self.Y_test, dtype= torch.int64)
+        self.X_val = torch.tensor(self.X_val)
+        self.Y_val = torch.tensor(self.Y_val, dtype= torch.int64)
+
+        # self.Y_train = torch.tensor(self.reshape_labels(self.Y_train), dtype = torch.int64)
         self.Y_train = torch.argmax(self.Y_train, axis = 1)
-        self.Y_test = torch.tensor(self.reshape_labels(self.Y_test), dtype = torch.int64)
+        # self.Y_test = torch.tensor(self.reshape_labels(self.Y_test), dtype = torch.int64)
         self.Y_test = torch.argmax(self.Y_test, axis = 1)
-        self.Y_val = torch.tensor(self.reshape_labels(self.Y_val), dtype = torch.int64)
+        # self.Y_val = torch.tensor(self.reshape_labels(self.Y_val), dtype = torch.int64)
         
 
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, noisy = noisy, noise_function = noise_function)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, noisy= noisy, noise_function = noise_function)
 
-    def reshape_data(self, X):
-        res = np.zeros((X.shape[0], X.shape[1] - self.cnn_width + 1, self.cnn_width, amino_acid_residues))
-        print(res.shape)
-        for i in range(X.shape[1] - self.cnn_width + 1):
-            res[:, i, :, :] = X[:, i:i+self.cnn_width, :]
-        res = np.reshape(res, (X.shape[0]*(X.shape[1] - self.cnn_width + 1),amino_acid_residues, self.cnn_width))
-      
-        return res
+    def reshape_data(self, X, labels):
 
+        padding = np.concatenate([np.zeros((X.shape[0],X.shape[2]-1,int(self.cnn_width/2))), np.ones((X.shape[0],1, int(self.cnn_width/2)))], axis=1)
+        X = np.dstack((padding, np.swapaxes(X, 1, 2), padding))
+        X = np.swapaxes(X, 1, 2)
 
-    def reshape_labels(self, labels):
-        labels = labels[:, int(self.cnn_width/2):-int(self.cnn_width/2), :]
         Y = np.reshape(labels, (labels.shape[0]*labels.shape[1], labels.shape[2]))
-        return Y
+
+        res = np.zeros((X.shape[0], X.shape[1] - self.cnn_width + 1, self.cnn_width, amino_acid_residues+1))
+        for i in range(X.shape[1] - self.cnn_width + 1):
+            aux = X[:, i:i+self.cnn_width, :]
+            res[:, i, :, :] = X[:, i:i+self.cnn_width, :]
+            aux = res[:,i,:,:]
+         
+      
+        res = np.reshape(res, (np.shape(res)[0]*np.shape(res)[1], self.cnn_width, amino_acid_residues+1))
+
+        res = np.transpose(res, (0,2,1))
+        Y = Y[~np.any(np.argmax(res, axis=-2)==21, axis =-1)]
+        res = res[~np.any(np.argmax(res, axis=-2)==21, axis=-1)]
+        res = res[:,:21,:]
+        auxres1 = np.sum(res,axis=-2)
+        print("problem with 0", len(np.where(auxres1 !=1)[0]))
+        auxres2 = np.argmax(res, axis=-2)
+        print("Problem with no seq", len(np.where(auxres2==21)[0]))
+        
+        return res, Y
+
 
 
     def get_data_labels(self, D):
-        X = D[:, :, 0:amino_acid_residues]
-        Y = D[:, :, amino_acid_residues:amino_acid_residues + self.num_classes]
+        X = D[:, :, 0:amino_acid_residues+1]
+        Y = D[:, :, amino_acid_residues+1:amino_acid_residues+1 + self.num_classes]
         return X, Y
-
 ##### ENCAPSULATION :
 
 
