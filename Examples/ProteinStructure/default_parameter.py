@@ -24,14 +24,14 @@ def get_default():
     args_dataset["dataset"] = cullpdb_6133_8classes_nosides
     args_dataset["loader"] = LoaderProtein
     args_dataset["root_dir"] = "/scratch/hhjs/"
-    args_dataset["batch_size_train"] = 256
+    args_dataset["batch_size_train"] = 10
     args_dataset["batch_size_test"] = 1000
 
     args_classification = {}
 
-    args_classification["input_size_classification_module"] = (22,19) # Size before imputation
-    args_classification["input_size_classifier"] = (22,19) # Size after imputation
-    args_classification["input_size_classifier_baseline"] = (22,19) # Size before imputation (should be size of data)
+    args_classification["input_size_classification_module"] = (21,19) # Size before imputation
+    args_classification["input_size_classifier"] = (21,19) # Size after imputation
+    args_classification["input_size_classifier_baseline"] = (21,19) # Size before imputation (should be size of data)
 
 
     args_classification["classifier"] = ProteinCNN
@@ -53,8 +53,8 @@ def get_default():
     
 
     args_destruct = {}
-    args_destruct["input_size_destructor"] = (22,19)
-    args_destruct["input_size_autoencoder"] = (22,19)
+    args_destruct["input_size_destructor"] = (21,19)
+    args_destruct["input_size_autoencoder"] = (21,19)
 
 
   
