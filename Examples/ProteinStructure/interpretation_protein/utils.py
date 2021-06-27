@@ -20,7 +20,6 @@ def interpretation_proteinv1(path, samples, interpretations, targets, outputs):
     """ Draw the interpretation of the protein """
 
     samples = np.transpose(samples, axes= (0,2,1))
-    print(samples.shape)
 
     # for i in range(len(samples)):
     #     print(i, np.count_nonzero(samples[0]), np.where(samples[0]>0)[0], np.where(samples[0]>0)[1])

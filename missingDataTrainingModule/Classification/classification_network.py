@@ -210,14 +210,14 @@ class AutoEncoder(nn.Module):
         return x
 
 class ProteinCNN(nn.Module):
-    def __init__(self, input_size = (22,19), output_size = 8):
+    def __init__(self, input_size = (21,19), output_size = 8):
         super().__init__()
         self.input_size = input_size
         self.output_size = output_size
         self.dropout_rate = 0.38 # In the original implementation https://github.com/LucaAngioloni/ProteinSecondaryStructure-CNN/
 
         self.cnns = nn.Sequential(
-            nn.Conv1d(22, 128, 5, stride =1, padding=2),
+            nn.Conv1d(self.input_size[0], 128, 5, stride =1, padding=2),
             nn.ReLU(),
             nn.BatchNorm1d(128),
             nn.Dropout(p=self.dropout_rate),
