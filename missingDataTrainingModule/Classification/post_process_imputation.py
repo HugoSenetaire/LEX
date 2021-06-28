@@ -548,8 +548,16 @@ class MarkovChain():
       output_sample_masks =  torch.nn.functional.one_hot(output_sample[:, :, i+1].type(torch.int64), num_classes=self.output_dim).unsqueeze(-2).expand(-1,-1, self.output_dim, -1)>0.5
       aux_transition = torch.masked_select(aux_transition, output_sample_masks).reshape(batch_size, nb_imputation, self.output_dim)
       message[:,i,:,:] *=aux_transition
-      message[:,i,:,:] /= torch.sum(message[:,i,:,:], axis=-1).unsqueeze(-1).expand(-1,-1, self.output_dim)
-      dist = torch.distributions.categorical.Categorical(probs=message[:,i,:,:])
+      message[:,i,:,:] /= (torch.sum(message[:,i,:,:], axis=-1).unsqueeze(-1).expand(-1,-1, self.output_dim)+1e-8)
+      try :
+        dist = torch.distributions.categorical.Categorical(probs=message[:,i,:,:])
+      except ValueError:
+        print("There is a problem value in here")
+        print(message[:,i,:,:])
+        print("Is there negative proba ?", torch.any(message[:,i,:,:]<0))
+        print("Is there >1 proba ?", torch.any(message[:,i,:,:]>1))
+        print("Is there nan", torch.any(torch.isnan(message[:,i,:,:])))
+        dist = torch.distributions.categorical.Categorical(probs = torch.ones(message[:,i,:,:].shape, dtype=torch.float32).cuda()/self.output_dim)
       output_sample[:, :, i] = torch.where(masks_imputation[:,:,i] == 1, data_argmax_imputation[:,:,i],dist.sample())
     
     output_sample = torch.nn.functional.one_hot(output_sample.type(torch.int64),num_classes=self.output_dim).transpose(-1, -2)
@@ -569,16 +577,22 @@ class MarkovChainImputation(MultipleImputation):
 
 
   def __call__(self, data_expanded, data_imputed, sample_b, show_output = False):
+
+    # print("init expanded", data_expanded.shape)
+    # print("init imputed", data_imputed.shape)
     if not self.eval_mode :
       nb_imputation = self.nb_imputation
     else :
       nb_imputation = 1
 
     with torch.no_grad():
-      output = self.markov_chain.impute(data_expanded, sample_b, nb_imputation = self.nb_imputation).cuda()
+      output = self.markov_chain.impute(data_expanded, sample_b, nb_imputation = nb_imputation).cuda()
     
   
     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+
+    # print("out expanded", data_expanded.shape)
+    # print("output", output.shape)
     output = output.reshape(data_expanded.shape)
     new_data = output.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
 
