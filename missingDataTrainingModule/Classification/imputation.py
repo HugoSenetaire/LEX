@@ -124,10 +124,10 @@ class Imputation():
       string +=f"_rate_{self.rate}"
     return string
 
-  def imputation_reconstruction(self, data_expanded, data_imputed, sample_b):
+  def imputation_reconstruction(self, data_expanded, data_imputed, sample_b, index = None):
     loss_reconstruction = torch.zeros((1)).cuda()
     if self.reconstruction_reg is not None :
-      data_imputed = self.imputation_function(data_expanded, sample_b)
+      data_imputed = self.imputation_function(data_expanded, sample_b, index = index)
       for process in self.reconstruction_reg :
           loss_reconstruction += process(data_expanded, data_imputed, sample_b)
     return loss_reconstruction
@@ -141,10 +141,10 @@ class Imputation():
     return torch.cat([data_imputed, sample_b_aux], axis =1)
 
 
-  def post_process(self, data_expanded, data_imputed, sample_b):
+  def post_process(self, data_expanded, data_imputed, sample_b, index = None):
     if self.post_process_regularization is not None :
       for process in self.post_process_regularization:
-        data_imputed, data_expanded, sample_b = process(data_expanded, data_imputed, sample_b)
+        data_imputed, data_expanded, sample_b = process(data_expanded, data_imputed, sample_b, index = index)
     if self.add_mask:
       data_imputed = self.add_mask_method(data_imputed, sample_b)
     return data_imputed
@@ -165,14 +165,13 @@ class Imputation():
   def imputation_function(self, data_expanded, sample_b):
     raise NotImplementedError
 
-  def impute(self,data_expanded, sample_b):
-
+  def impute(self,data_expanded, sample_b, index = None):
     sample_b = self.round_sample(sample_b)
     loss_reconstruction = self.imputation_reconstruction(data_expanded, None, sample_b)
     sample_b = self.sample_b_regularization(data_expanded, sample_b)
     data_imputed = self.imputation_function(data_expanded, sample_b)
 
-    data_imputed = self.post_process(data_expanded, data_imputed, sample_b)
+    data_imputed = self.post_process(data_expanded, data_imputed, sample_b, index = index)
 
     return data_imputed, loss_reconstruction
 

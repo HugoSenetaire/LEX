@@ -132,14 +132,14 @@ class ClassificationModule():
         return sample_b
 
 
-    def __call__(self, data, sample_b = None):
+    def __call__(self, data, sample_b = None, index = None):
 
         if sample_b is not None :
             sample_b = self.prepare_mask(data, sample_b)
         if self.imputation is not None and sample_b is None :
             raise AssertionError("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
         elif self.imputation is not None and sample_b is not None :
-            x_imputed, loss_reconstruction = self.imputation.impute(data, sample_b)
+            x_imputed, loss_reconstruction = self.imputation.impute(data, sample_b, index)
             
             # x_imputed_aux = x_imputed.cpu().detach().numpy()
             # fig, (ax1, ax2, ax3)= plt.subplots(1,3)

@@ -57,7 +57,7 @@ class NetworkBasedPostProcess(BaseMethod):
   def parameters(self):
     return self.network.parameters()
 
-  def __call__(self, data_expanded, data_imputed, sample_b):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None):
     raise NotImplementedError
 
 
@@ -161,7 +161,7 @@ class AutoEncoderReconstructionRegularization(NetworkBasedPostProcess):
   def __init__(self, network, to_train = False, use_cuda=False, deepcopy = False):
     super().__init__(network = network, to_train = to_train, use_cuda= use_cuda, deepcopy = deepcopy)
   
-  def __call__(self, data_expanded, data_imputed, sample_b):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
     data_reconstruced = self.network(data_imputed)
     loss =  torch.nn.functional.mse_loss(data_reconstruced, data_expanded)
     return loss
@@ -172,7 +172,7 @@ class NetworkTransform(NetworkBasedPostProcess):
   def __init__(self, network, to_train = False, use_cuda=False, deepcopy = False):
     super().__init__(network = network, to_train = to_train, use_cuda= use_cuda, deepcopy = deepcopy)
 
-  def __call__(self, data_expanded, data_imputed, sample_b):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
     data_reconstructed = self.network(data_imputed)
     return data_reconstructed, data_expanded, sample_b
   
@@ -182,7 +182,7 @@ class NetworkAdd(NetworkBasedPostProcess):
     super().__init__(network = network, to_train = to_train, use_cuda= use_cuda, deepcopy = deepcopy)
 
 
-  def __call__(self, data_expanded, data_imputed, sample_b):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
     data_reconstructed = self.network(data_imputed)
     data_imputed = torch.cat([data_imputed,data_reconstructed],axis = 1)
     return data_reconstructed, data_expanded, sample_b
@@ -193,17 +193,20 @@ class NetworkTransformMask(NetworkBasedPostProcess):
   def __init__(self, network, to_train = False, use_cuda=False, deepcopy = False):
     super().__init__(network = network, to_train = to_train, use_cuda= use_cuda, deepcopy = deepcopy)
 
-  def __call__(self, data_expanded, data_imputed, sample_b):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
     data_reconstructed = data_imputed * (1-sample_b) + self.network(data_imputed) * sample_b 
     return data_reconstructed, data_expanded, sample_b
 
-def expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation):
+def expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation, index = None):
     wanted_transform = tuple(np.insert(-np.ones(len(data_expanded.shape),dtype = int),1, nb_imputation))
     data_imputed_expanded = data_imputed.unsqueeze(1).expand(wanted_transform).flatten(0,1)
     data_expanded_imputation = data_expanded.unsqueeze(1).expand(wanted_transform).flatten(0,1) # N_expectation, batch_size, channels, size:...
     mask_expanded = sample_b.unsqueeze(1).expand(wanted_transform).flatten(0,1)
-    
-    return data_imputed_expanded, data_expanded_imputation, mask_expanded
+    if index is not None :
+      index_expanded = index.unsqueeze(1).expand(wanted_transform[0],nb_imputation).flatten(0,1)
+    else:
+      index_expanded = None
+    return data_imputed_expanded, data_expanded_imputation, mask_expanded, index_expanded
 
 
 
@@ -221,22 +224,23 @@ class DatasetBasedImputation(MultipleImputation):
     
       
 
-  def __call__(self, data_expanded, data_imputed, sample_b):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
     if self.exist :
       if not self.eval_mode :
+        dataset_type = "Train"
         imputation_number = self.nb_imputation
       else :
         imputation_number = 1
+        dataset_type = "Test"
 
-
-      data_imputed, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, imputation_number)
+      data_imputed, data_expanded, sample_b, index = expand_for_imputations(data_imputed, data_expanded, sample_b, imputation_number, index)
       data_expanded = data_expanded.flatten(0,1)
       if len(data_expanded.shape)>2:
         data_imputed = data_imputed.flatten(0,1)
-      if len(sample_b.shape)>2:
-        sample_b = sample_b.flatten(0,1)
+      # if len(sample_b.shape)>2:
+        # sample_b = sample_b.flatten(0,1)
 
-      imputed_output = self.dataset.impute_result(mask = sample_b.clone().detach(),value =  data_imputed.clone().detach())
+      imputed_output = self.dataset.impute_result(mask = sample_b.clone().detach(), value = data_imputed.clone().detach(), index = index, dataset_type = dataset_type)
       return imputed_output, data_expanded, sample_b
     else :
       return data_imputed, data_expanded, sample_b
@@ -277,7 +281,7 @@ def load_VAEAC(path_model):
 #     self.sampler = sampler
 #     self.multiple_imputation = True
 #     raise NotImplementedError
-#   def __call__(self, data_expanded, data_imputed, sample_b):
+#   def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
 #     batch = data_imputed
 #     masks = 1-sample_b
 #     init_shape = batch.shape[0]
@@ -304,7 +308,7 @@ def load_VAEAC(path_model):
 
 
     
-#     _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+#     _, data_expanded, sample_b, _ = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
 
 #     new_data = img_samples *  (1-mask_expanded) + data_expanded * mask_expanded 
 #     new_data = new_data.flatten(0,1)
@@ -319,7 +323,7 @@ class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
     
 
 
-  def __call__(self, data_expanded, data_imputed, sample_b, show_output = False):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None, show_output = False):
     batch = data_imputed
     masks = 1-sample_b
     init_shape = batch.shape[0]
@@ -351,7 +355,7 @@ class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
 
 
     
-    _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+    _, data_expanded, sample_b, _ = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
     new_data = img_samples.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
     # if np.random.rand()<0.01:
     #   fig, axs = plt.subplots(3,2)
@@ -374,7 +378,7 @@ class VAEAC_Imputation_Renormalized(NetworkBasedMultipleImputation):
     
 
 
-  def __call__(self, data_expanded, data_imputed, sample_b, show_output = False):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None, show_output = False):
     batch = data_imputed
     masks = 1-sample_b
     init_shape = batch.shape[0]
@@ -406,7 +410,7 @@ class VAEAC_Imputation_Renormalized(NetworkBasedMultipleImputation):
       img_samples = (img_samples * 255. -  0.1307)/0.3081
 
     
-    _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+    _, data_expanded, sample_b, _ = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
     new_data = img_samples.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
     return new_data, data_expanded, sample_b
 
@@ -420,7 +424,7 @@ class MICE_imputation(MultipleImputation):
     self.network = network
 
 
-  def __call__(self, data_expanded, data_imputed, sample_b):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
 
     if not self.eval_mode :
       nb_imputation = self.nb_imputation
@@ -440,7 +444,7 @@ class MICE_imputation(MultipleImputation):
 
     data_imputed_output = torch.cat(data_imputed_output, axis=1).flatten(0,1)
 
-    _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+    _, data_expanded, sample_b, _ = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
     
     new_data = data_imputed_output.cuda() *  (1-sample_b) + data_expanded * sample_b 
     new_data = new_data
@@ -453,7 +457,7 @@ class MICE_imputation_pretrained(MultipleImputation):
     super().__init__(nb_imputation = nb_imputation)
     self.network = network
 
-  def __call__(self, data_expanded, data_imputed, sample_b):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
     
     if not self.eval_mode :
       nb_imputation = self.nb_imputation
@@ -473,7 +477,7 @@ class MICE_imputation_pretrained(MultipleImputation):
 
     data_imputed_output = torch.cat(data_imputed_output, axis=1).flatten(0,1)
 
-    _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+    _, data_expanded, sample_b, _ = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
 
     new_data = data_imputed_output.cuda() *  (1-sample_b) + data_expanded * sample_b 
     new_data = new_data
@@ -576,7 +580,7 @@ class MarkovChainImputation(MultipleImputation):
     self.markov_chain = markov_chain    
 
 
-  def __call__(self, data_expanded, data_imputed, sample_b, show_output = False):
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None, show_output = False):
 
     # print("init expanded", data_expanded.shape)
     # print("init imputed", data_imputed.shape)
@@ -589,7 +593,7 @@ class MarkovChainImputation(MultipleImputation):
       output = self.markov_chain.impute(data_expanded, sample_b, nb_imputation = nb_imputation).cuda()
     
   
-    _, data_expanded, sample_b = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+    _, data_expanded, sample_b, _ = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
 
     # print("out expanded", data_expanded.shape)
     # print("output", output.shape)
@@ -597,3 +601,4 @@ class MarkovChainImputation(MultipleImputation):
     new_data = output.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
 
     return new_data, data_expanded, sample_b
+

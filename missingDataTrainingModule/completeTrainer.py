@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 
 class ordinaryTraining():
-    def __init__(self, classification_module, use_cuda = True, feature_extractor = None, kernel_patch = (1,1), stride_patch=(1,1)):
+    def __init__(self, classification_module, use_cuda = True, feature_extractor = None, kernel_patch = (1,1), stride_patch=(1,1), give_index = False):
         if use_cuda == True and not torch.cuda.is_available() :
             print("CUDA not found, using cpu instead")
             self.use_cuda = False
@@ -24,6 +24,7 @@ class ordinaryTraining():
         self.kernel_patch= kernel_patch
         self.stride_patch = stride_patch        
         self.feature_extractor = feature_extractor
+        self.give_index = give_index
         if self.feature_extractor is None :
             self.need_feature = False
         else : 
@@ -60,15 +61,15 @@ class ordinaryTraining():
         if self.need_feature :
             self.feature_extractor.zero_grad()
 
-    def _predict(self, data):
-        log_y_hat, loss_reconstruction = self.classification_module(data)
+    def _predict(self, data, index = None):
+        log_y_hat, loss_reconstruction = self.classification_module(data, index)
         return log_y_hat, loss_reconstruction
 
-    def _train_step(self, data, target, dataset):
+    def _train_step(self, data, target, dataset, index = None):
         self.zero_grad()
 
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
-        log_y_hat, _ = self._predict(data)
+        log_y_hat, _ = self._predict(data, index = index)
 
         neg_likelihood = F.nll_loss(log_y_hat, target)
         mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1))
@@ -89,8 +90,13 @@ class ordinaryTraining():
             else :
                 self.feature_extractor.train()
 
-        for batch_idx, (data, target) in enumerate(dataset.train_loader):
-            dic = self._train_step(data,target,dataset)
+        for batch_idx, data_aux in enumerate(dataset.train_loader):
+            if self.give_index:
+                data, target, index = data_aux
+            else :
+                data, target = data_aux
+                index = None
+            dic = self._train_step(data, target, dataset, index=index)
             optim_classifier.step()
             if self.need_feature :
                 optim_feature_extractor.step()
@@ -104,9 +110,9 @@ class ordinaryTraining():
 
 
 
-    def _test_step(self, data, target, dataset):
+    def _test_step(self, data, target, dataset, index):
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
-        log_y_hat, _ = self.classification_module(data)
+        log_y_hat, _ = self.classification_module(data, index)
         
         
         neg_likelihood = F.nll_loss(log_y_hat, target)
@@ -124,7 +130,12 @@ class ordinaryTraining():
         correct = 0
         with torch.no_grad():
             for data, target in dataset.test_loader:
-                log_y_hat, neg_likelihood, mse_current = self._test_step(data, target, dataset)
+                if self.give_index:
+                    data, target, index = data_aux
+                else :
+                    data, target = data_aux
+                    index = None
+                log_y_hat, neg_likelihood, mse_current = self._test_step(data, target, dataset, index)
                 test_loss += mse_current
                 pred = log_y_hat.data.max(1, keepdim=True)[1]
                 correct_current = pred.eq(target.cuda().data.view_as(pred)).sum()
@@ -206,13 +217,10 @@ class noVariationalTraining(ordinaryTraining):
         pi_list, loss_reg = self.destruction_module(data)
         pi_list = pi_list.clamp(1e-8, 1.0)
         return pi_list, loss_reg
-
-
     
     def _sample_z_test(self, pi_list, sampling_distribution, Nexpectation):
         p_z = sampling_distribution(pi_list)
         z = p_z.sample((Nexpectation,))
-        
         return z, p_z
 
     def _destructive_test(self, data, sampling_distribution, Nexpectation):
@@ -235,12 +243,12 @@ class noVariationalTraining(ordinaryTraining):
         z, p_z = self._sample_z_train(pi_list, sampling_distribution, Nexpectation)
         return pi_list, loss_reg, z, p_z
 
-    def _predict(self, data, sampling_distribution, dataset, Nexpectation = 10, complete_output = False):
-        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten = prepare_data_augmented(data, None, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
+    def _predict(self, data, sampling_distribution, dataset, Nexpectation = 10, complete_output = False, index = None):
+        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, None, index=index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
 
         pi_list, loss_reg, z, p_z = self._destructive_test(data, sampling_distribution, Nexpectation)
 
-        y_hat, _ = self.classification_module(data_expanded_flatten, z.flatten(0,1))
+        y_hat, _ = self.classification_module(data_expanded_flatten, z.flatten(0,1), index_expanded)
         y_hat = y_hat.reshape(Nexpectation, -1, dataset.get_category())
         y_hat_mean = torch.logsumexp(y_hat,0)
 
@@ -249,14 +257,16 @@ class noVariationalTraining(ordinaryTraining):
 
         
 
-    def _train_step(self, data, target, dataset, optim_classifier, optim_destruction, sampling_distribution, optim_baseline = None, optim_feature_extractor= None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
+    def _train_step(self, data, target, dataset, optim_classifier, optim_destruction, sampling_distribution, index = None, optim_baseline = None, optim_feature_extractor= None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
         self.zero_grad()
-        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
+        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
+        
+        
         # Destructive module :
         pi_list, loss_reg, z, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
         
         # Classification module :
-        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1))
+        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1), index_expanded)
         Nexpectation_multiple_imputation = Nexpectation * self.classification_module.imputation.nb_imputation
         nb_imputation = self.classification_module.imputation.nb_imputation
         _, _, _, one_hot_target_expanded_multiple_imputation, _, _ = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation = Nexpectation_multiple_imputation)
@@ -300,10 +310,14 @@ class noVariationalTraining(ordinaryTraining):
 
         total_dic = {}
 
-        for batch_idx, (data, target) in enumerate(dataset.train_loader):
+        for batch_idx, data_aux in enumerate(dataset.train_loader):
+            if len(data_aux)==3 :
+                data, target, index = data_aux
+            else :
+                data, target = data_aux
+                index = None
             
-            
-            dic = self._train_step(data, target,dataset, optim_classifier, optim_destruction, sampling_distribution, optim_baseline =optim_baseline, optim_feature_extractor = optim_feature_extractor, lambda_reg = lambda_reg, Nexpectation = Nexpectation, lambda_reconstruction= lambda_reconstruction)
+            dic = self._train_step(data, target,dataset, optim_classifier, optim_destruction, sampling_distribution, index=index, optim_baseline =optim_baseline, optim_feature_extractor = optim_feature_extractor, lambda_reg = lambda_reg, Nexpectation = Nexpectation, lambda_reconstruction= lambda_reconstruction)
 
             if batch_idx % 100 == 0:
                 print_dic(epoch, batch_idx, dic, dataset)
@@ -334,13 +348,21 @@ class noVariationalTraining(ordinaryTraining):
 
         pi_list_total = []
         with torch.no_grad():
-            for data, target in dataset.test_loader:
+            for aux in dataset.test_loader:
+                if len(aux)==3 :
+                    data, target, index = aux
+                else :
+                    data, target = aux
+                    index = None
+                
+
+                
                 batch_size = data.shape[0]
-                data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten  = prepare_data_augmented(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda, Nexpectation=Nexpectation)
+                data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
                 pi_list, _, z, p_z = self._destructive_test(data, sampling_distribution, Nexpectation)
                 pi_list_total.append(pi_list.cpu().numpy())
 
-                log_y_hat, _ = self.classification_module(data_expanded_flatten, z)
+                log_y_hat, _ = self.classification_module(data_expanded_flatten, z, index_expanded)
 
                 log_y_hat = log_y_hat.reshape(Nexpectation, batch_size, dataset.get_category())
                 log_y_hat_iwae = torch.logsumexp(log_y_hat,0)
@@ -371,24 +393,24 @@ class noVariationalTraining(ordinaryTraining):
 
 
 
-    def MCMC(self, dataset, data, target, sampling_distribution, Niter, Nexpectation = 1,  eps = 1e-6, burn = 1000, jump = 50, return_pred = False):
+    def MCMC(self, dataset, data, target, sampling_distribution, Niter, index = None, Nexpectation = 1,  eps = 1e-6, burn = 1000, jump = 50, return_pred = False):
         self.eval()
         with torch.no_grad():
             sample_list = []
             sample_list_readable = []
             y_hat_list = []
-            data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten  = prepare_data_augmented(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda, Nexpectation=Nexpectation)
+            data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
 
 
             pi_list, _, previous_z, pz = self._destructive_test(data, sampling_distribution, Nexpectation)
-            log_y_hat, _ = self.classification_module(data_expanded_flatten, previous_z)
+            log_y_hat, _ = self.classification_module(data_expanded_flatten, previous_z, index_expanded)
             log_y_hat_iwae = torch.logsumexp(log_y_hat, 0)
             previous_log_py = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
 
             for k in range(Niter):
                 z, p_z = self._sample_z_test(pi_list, sampling_distribution, Nexpectation)
 
-                log_y_hat, _  = self.classification_module(data_expanded_flatten, z)
+                log_y_hat, _  = self.classification_module(data_expanded_flatten, z, index_expanded)
                 log_y_hat = log_y_hat.reshape(Nexpectation, -1, dataset.get_category())
                 log_y_hat_iwae = torch.logsumexp(log_y_hat, 0)
 
@@ -403,7 +425,7 @@ class noVariationalTraining(ordinaryTraining):
                 mask_acceptance = u<proba_acceptance
                 mask_acceptance = mask_acceptance.unsqueeze(1).expand((-1,z.shape[-1]))
                 previous_z = torch.where(mask_acceptance, z, previous_z)
-                log_y_hat, _  = self.classification_module(data_expanded_flatten, previous_z)
+                log_y_hat, _  = self.classification_module(data_expanded_flatten, previous_z, index_expanded)
                 log_y_hat = log_y_hat.reshape(Nexpectation, -1, dataset.get_category())
                 log_y_hat_iwae = torch.logsumexp(log_y_hat, 0)
                 previous_log_py = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
@@ -444,7 +466,7 @@ class AllZTraining(noVariationalTraining):
         z = p_z.sample((Nexpectation,))
         return z, p_z
 
-    def _train_step(self, data, target, dataset, optim_classifier, optim_destruction, sampling_distribution, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
+    def _train_step(self, data, target, dataset,optim_classifier, optim_destruction, sampling_distribution,  index = None, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
         
         dim_total = np.prod(data.shape[1:])
         batch_size = data.shape[0]
@@ -457,7 +479,7 @@ class AllZTraining(noVariationalTraining):
 
         
         z = self.z.unsqueeze(1).expand(-1, batch_size, -1).detach().cuda()
-        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
+        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
         # Destructive module :
         pi_list, loss_reg, aux_z, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
 
@@ -467,11 +489,11 @@ class AllZTraining(noVariationalTraining):
 
 
         # Classification module :
-        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z)
+        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z, index_expanded)
         
         
         Nexpectation_multiple_imputation = Nexpectation * nb_imputation
-        _, _, _, one_hot_target_expanded_multiple_imputation, _, _ = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation = Nexpectation_multiple_imputation)
+        _, _, _, _, one_hot_target_expanded_multiple_imputation, _, _ = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation = Nexpectation_multiple_imputation)
 
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category()) + log_prob_pz
         log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(1./torch.tensor(nb_imputation)) + torch.log(1./torch.tensor(Nexpectation))
@@ -576,7 +598,7 @@ class REBAR(noVariationalTraining):
         dic = super()._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction)
         dic["variance_grad"] = variance.detach().cpu().item()
         if self.update_temperature :
-            dic["temperature"] = torch.exp(self.temperature_lambda)
+            dic["temperature"] = torch.exp(self.temperature_lambda).detach().cpu().item()
 
         eta_mean = 0
         for k, key in enumerate(self.eta_destruction.keys()):
@@ -594,11 +616,11 @@ class REBAR(noVariationalTraining):
 
 
 
-    def _train_step(self, data, target, dataset, optim_classifier, optim_destruction, sampling_distribution, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
+    def _train_step(self, data, target, dataset,  optim_classifier, optim_destruction, sampling_distribution, index = None, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
         
         nb_imputation = self.classification_module.imputation.nb_imputation
         batch_size = data.shape[0]
-        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
+        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
         
         self.zero_grad()
 
@@ -635,20 +657,20 @@ class REBAR(noVariationalTraining):
 
 
         # Classification module hard :
-        log_y_hat, _ = self.classification_module(data_expanded_flatten, z.detach())
+        log_y_hat, _ = self.classification_module(data_expanded_flatten, z.detach(), index)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
         log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked_hard_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
 
         # Classification module relaxed:
-        log_y_hat, _ = self.classification_module(data_expanded_flatten,  soft_concrete_rebar_tilde_z)
+        log_y_hat, _ = self.classification_module(data_expanded_flatten,  soft_concrete_rebar_tilde_z, index_expanded)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
         log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked_soft_tilde_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
 
 
         # Classification module relaxed_2 :
-        log_y_hat, _ = self.classification_module(data_expanded_flatten, soft_concrete_rebar_z)
+        log_y_hat, _ = self.classification_module(data_expanded_flatten, soft_concrete_rebar_z, index_expanded)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
         log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked_soft_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
@@ -745,16 +767,17 @@ class REINFORCE(noVariationalTraining):
     def _create_dic(self, loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction = None, variance = None ):
         dic = super()._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction = None)
         if variance is not None :
-            dic["variance"] = variance
+            dic["variance"] = variance.detach().cpu().numpy()
         return dic
 
 
-    def _train_step(self, data, target, dataset, optim_classifier, optim_destruction, sampling_distribution, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
+    def _train_step(self, data, target, dataset, optim_classifier, optim_destruction, sampling_distribution, index = None, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
         
         nb_imputation = self.classification_module.imputation.nb_imputation
         batch_size = data.shape[0]
-        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
-        
+        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
+
+
         self.zero_grad()
         if self.baseline is not None:
             log_y_hat_baseline = self.baseline(data)
@@ -765,8 +788,9 @@ class REINFORCE(noVariationalTraining):
         pi_list, loss_reg, z, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
         loss_reg = lambda_reg * loss_reg
 
+
         # Classification module :
-        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1))
+        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1), index_expanded)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
         log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
@@ -852,10 +876,10 @@ class variationalTraining(noVariationalTraining):
         return torch.mean(torch.logsumexp(log_prob_y+log_prob_pz-log_prob_qz,0))
 
 
-    def _train_step(self, data, target, dataset, sampling_distribution, sampling_distribution_var, optim_classifier, optim_destruction, optim_destruction_var, optim_feature_extractor = None, optim_baseline = None, lambda_reg = 0.0, lambda_reg_var= 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
+    def _train_step(self, data, target, dataset, sampling_distribution, sampling_distribution_var, optim_classifier, optim_destruction, optim_destruction_var, index = None, optim_feature_extractor = None, optim_baseline = None, lambda_reg = 0.0, lambda_reg_var= 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
         self.zero_grad()
         batch_size = data.shape[0]
-        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten  = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
+        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
 
         pi_list, loss_reg = self.destruction_module(data)
         pi_list_var, loss_reg_var = self.destruction_module_var(data, one_hot_target = one_hot_target)
@@ -868,7 +892,7 @@ class variationalTraining(noVariationalTraining):
         
         z = qz.rsample((Nexpectation,))
         
-        y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1))
+        y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1), index = None,)
         y_hat = y_hat.reshape((Nexpectation,batch_size, dataset.get_category()))
         loss_reconstruction = lambda_reconstruction * loss_reconstruction
         y_hat_mean = torch.mean(y_hat, 0) # TODO CHANGE THIS
@@ -931,7 +955,12 @@ class variationalTraining(noVariationalTraining):
     def train_epoch(self, epoch, dataset, optim_classifier, optim_destruction, optim_destruction_var, sampling_distribution, sampling_distribution_var, optim_baseline = None, optim_feature_extractor = None, lambda_reg = 0.0, lambda_reg_var= 0.0, Nexpectation = 10, lambda_reconstruction = 0.0, save_dic = False):
         self.train()
         total_dic = {}
-        for batch_idx, (data, target) in enumerate(dataset.train_loader):
+        for batch_idx, data_aux in enumerate(dataset.train_loader):
+            if self.give_index:
+                data, target, index = data_aux
+            else :
+                data, target = data_aux
+                index = None
 
             dic = self._train_step(
                 data, target, dataset,
@@ -939,6 +968,7 @@ class variationalTraining(noVariationalTraining):
                 optim_classifier,
                 optim_destruction,
                 optim_destruction_var,
+                index = index,
                 optim_baseline = optim_baseline,
                 optim_feature_extractor = optim_feature_extractor,
                 lambda_reg = lambda_reg, lambda_reg_var= lambda_reg_var,
@@ -969,9 +999,16 @@ class variationalTraining(noVariationalTraining):
         with torch.no_grad():
             pi_list_total = []
             pi_list_var_total = []
-            for data, target in dataset.test_loader:
+            for aux in dataset.test_loader:
+                if self.give_index :
+                    data, target, index = aux
+                else :
+                    data, target = aux
+                    index = None
+                    
+                    
                 batch_size = data.shape[0]
-                data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten  = prepare_data_augmented(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
+                data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
 
                 pi_list, _= self.destruction_module(data, test=True)
                 pi_list_var, _ = self.destruction_module_var(data, one_hot_target=one_hot_target, test=True)
@@ -983,7 +1020,7 @@ class variationalTraining(noVariationalTraining):
 
                 z = qz.sample()
 
-                y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1))
+                y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1), index_expanded)
                 y_hat_squeeze = y_hat.squeeze()
 
                 test_loss_likelihood = self._likelihood_var(y_hat,one_hot_target_expanded,z,pz,qz)
@@ -1014,7 +1051,7 @@ class variationalTraining(noVariationalTraining):
             sample_list = []
             sample_list_readable = []
 
-            data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten  = prepare_data_augmented(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
+            data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
             batch_size = data.shape[0]
             input_size = data.shape[1] * data.shape[2] * data.shape[3]
 

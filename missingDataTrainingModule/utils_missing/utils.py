@@ -30,10 +30,14 @@ def get_extended_data(data, Nexpectation):
 
     return data_expanded, data_expanded_flatten
     
-def prepare_data_augmented(data, target, num_classes=10, Nexpectation = 1, use_cuda = False):
+def prepare_data_augmented(data, target, index=None, num_classes=10, Nexpectation = 1, use_cuda = False):
+    if index is not None :
+        index_expanded = index.unsqueeze(0).expand(Nexpectation, -1).flatten(0,1)
+    else :
+        index_expanded = None
+    
     if use_cuda:
         data =data.cuda()
-
         if target is not None :
             target = target.cuda()
     if target is not None :
@@ -53,7 +57,7 @@ def prepare_data_augmented(data, target, num_classes=10, Nexpectation = 1, use_c
 
     wanted_shape_flatten = data_expanded_flatten.shape
 
-    return data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten
+    return data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded
 
 def print_dic(epoch, batch_idx, dic, dataset):
     percent = 100. * batch_idx / len(dataset.train_loader)

@@ -78,8 +78,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
     ### Datasets :
 
-
-
+    dataset = partial(dataset, give_index = args_dataset["give_index"])
     loader = args_dataset["loader"](dataset, root_dir = args_dataset["root_dir"], batch_size_test=args_dataset["batch_size_test"], batch_size_train=args_dataset["batch_size_train"])
 
 

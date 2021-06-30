@@ -120,7 +120,7 @@ class CircleDataset():
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
 
 
-    def impute_result(self, mask, value):
+    def impute_result(self, mask, value, index = None , dataset_type= None):
         mask_aux = mask.detach()
         value_aux = value.detach()
         ratio = torch.tensor(self.factor)
@@ -215,7 +215,7 @@ class CircleDatasetAndNoise():
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
 
 
-    def impute_result(self, mask, value):
+    def impute_result(self, mask, value, index = None, dataset_type=None):
         mask_aux = mask.detach()
         value_aux = value.detach()
         ratio = torch.tensor(self.factor).cuda()
