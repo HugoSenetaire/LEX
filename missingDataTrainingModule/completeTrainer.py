@@ -61,15 +61,15 @@ class ordinaryTraining():
         if self.need_feature :
             self.feature_extractor.zero_grad()
 
-    def _predict(self, data, index = None):
-        log_y_hat, loss_reconstruction = self.classification_module(data, index)
-        return log_y_hat, loss_reconstruction
+    def _predict(self, data, sampling_distribution = None, dataset = None, Nexpectation = 1, complete_output = False, index = None):
+        log_y_hat, _ = self.classification_module(data, index)
+        return log_y_hat
 
     def _train_step(self, data, target, dataset, index = None):
         self.zero_grad()
 
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
-        log_y_hat, _ = self._predict(data, index = index)
+        log_y_hat = self._predict(data, index = index)
 
         neg_likelihood = F.nll_loss(log_y_hat, target)
         mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1))
@@ -129,7 +129,7 @@ class ordinaryTraining():
         test_loss = 0
         correct = 0
         with torch.no_grad():
-            for data, target in dataset.test_loader:
+            for data_aux in dataset.test_loader:
                 if self.give_index:
                     data, target, index = data_aux
                 else :
@@ -269,7 +269,7 @@ class noVariationalTraining(ordinaryTraining):
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1), index_expanded)
         Nexpectation_multiple_imputation = Nexpectation * self.classification_module.imputation.nb_imputation
         nb_imputation = self.classification_module.imputation.nb_imputation
-        _, _, _, one_hot_target_expanded_multiple_imputation, _, _ = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation = Nexpectation_multiple_imputation)
+        _, _, _, one_hot_target_expanded_multiple_imputation, _, _, _ = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation = Nexpectation_multiple_imputation)
         log_y_hat = log_y_hat.reshape(Nexpectation_multiple_imputation, -1, dataset.get_category())
         log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./Nexpectation)) + torch.log(torch.tensor(1./nb_imputation))
 

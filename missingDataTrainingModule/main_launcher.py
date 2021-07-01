@@ -168,7 +168,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
     ##### ============ Modules initialisation for ordinary training ============:
 
-    if args_complete_trainer["complete_trainer"] is [postHocTraining, ordinaryTraining] or args_train["nb_epoch_pretrain"]>0 :
+    if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_train["nb_epoch_pretrain"]>0 :
         if args_complete_trainer["feature_extractor"] is not None :
             optim_feature_extractor = args_complete_trainer["feature_extractor"]()
         else :
@@ -177,11 +177,26 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
 
         trainer_var = ordinaryTraining(vanilla_classification_module, feature_extractor=feature_extractor)
-        for epoch in range(args_train["nb_epoch_pretrain"]):
-            trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor)
-            trainer_var.test(loader)
+        if args_complete_trainer["complete_trainer"] is ordinaryTraining :
+            nb_epoch = args_train["nb_epoch"]
+        else :
+            nb_epoch = args_train["nb_epoch_pretrain"]
+
+        total_dic_train = {}
+        total_dic_test = {}
+        for epoch in range(nb_epoch):
+            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor, save_dic = True)
+            dic_test = trainer_var.test(loader)
+
+        
+        total_dic_train = fill_dic(total_dic_train, dic_train)
+        total_dic_test = fill_dic(total_dic_test, dic_test)
+            
+        save_dic(os.path.join(final_path,"train"), total_dic_train)
+        save_dic(os.path.join(final_path,"test"), total_dic_test)
+        return final_path, trainer_var, loader
          
-  
+    
 
     ##### ============  Modules initialisation for complete training ===========:
     if args_complete_trainer["complete_trainer"] is not ordinaryTraining :
@@ -218,7 +233,6 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                 feature_extractor=feature_extractor,
                 use_cuda = use_cuda,
             )
-        
         else :
             trainer_var = args_complete_trainer["complete_trainer"](
                 classification_module,
