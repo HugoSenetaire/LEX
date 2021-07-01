@@ -596,7 +596,10 @@ class REBAR(noVariationalTraining):
 
     def _create_dic(self, loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction = None, variance = None):
         dic = super()._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction)
-        dic["variance_grad"] = variance.detach().cpu().item()
+        if variance is not None :
+            dic["variance_grad"] = variance.detach().cpu().item()
+        else :
+            dic["variance_grad"] = variance
         if self.update_temperature :
             dic["temperature"] = torch.exp(self.temperature_lambda).detach().cpu().item()
 
