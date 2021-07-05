@@ -661,7 +661,7 @@ class REBAR(noVariationalTraining):
         log_y_hat, _ = self.classification_module(data_expanded_flatten, z.detach(), index_expanded)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
         log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./Nexpectation))
-        log_y_hat_iwae = torch.mean(log_y_hat_iwae)
+        log_y_hat_iwae = torch.mean(log_y_hat_iwae,0)
         # log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked_hard_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
 
@@ -669,7 +669,7 @@ class REBAR(noVariationalTraining):
         log_y_hat, _ = self.classification_module(data_expanded_flatten,  soft_concrete_rebar_tilde_z, index_expanded)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
         log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./Nexpectation))
-        log_y_hat_iwae = torch.mean(log_y_hat_iwae)
+        log_y_hat_iwae = torch.mean(log_y_hat_iwae,0)
         # log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked_soft_tilde_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
 
@@ -678,7 +678,7 @@ class REBAR(noVariationalTraining):
         log_y_hat, _ = self.classification_module(data_expanded_flatten, soft_concrete_rebar_z, index_expanded)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
         log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./Nexpectation))
-        log_y_hat_iwae = torch.mean(log_y_hat_iwae)
+        log_y_hat_iwae = torch.mean(log_y_hat_iwae,0)
         # log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked_soft_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
 
