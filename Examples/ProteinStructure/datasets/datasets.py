@@ -182,7 +182,8 @@ class cullpdb_6133_8classes_nosides():
             noisy: bool = False,
             noise_function = None,
             cnn_width = 19,
-            give_index = False
+            give_index = False,
+            sampling_imputation = True,
     ) :
         if noisy == True :
             assert(noise_function is not None)
@@ -197,6 +198,7 @@ class cullpdb_6133_8classes_nosides():
         self.noisy = noisy
         self.noise_function = noise_function
         self.give_index = give_index
+        self.sampling_imputation = sampling_imputation
 
                 
         # path_aux = "D:\\scratch\\hhjs\\dataset\\cullpdb_reduced.npy"
@@ -318,7 +320,19 @@ class cullpdb_6133_8classes_nosides():
             original_value,_,_ = self.dataset_train.__getitem__(index)
         else :
             output, _ = self.dataset_imputation_test.__getitem__(index)
-        new_data = output.cuda() *  (1-mask) + value * mask 
+
+        if self.sampling_imputation :
+            dist = torch.distributions.categorical.Categorical(probs = output.transpose(1,2))
+            imputed_value = torch.nn.functional.one_hot(dist.sample(), num_classes=amino_acid_residues).transpose(-1,-2)
+        else :
+            imputed_value = output
+
+        if value.is_cuda:
+            imputed_value = imputed_value.cuda() 
+        
+
+        new_data = imputed_value *  (1-mask) + value * mask 
+
         return new_data 
 
     def get_data_labels(self, D):

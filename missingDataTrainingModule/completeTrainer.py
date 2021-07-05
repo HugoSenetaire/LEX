@@ -243,7 +243,7 @@ class noVariationalTraining(ordinaryTraining):
         z, p_z = self._sample_z_train(pi_list, sampling_distribution, Nexpectation)
         return pi_list, loss_reg, z, p_z
 
-    def _predict(self, data, sampling_distribution, dataset, Nexpectation = 10, complete_output = False, index = None):
+    def _predict(self, data, sampling_distribution, dataset, Nexpectation = 1, complete_output = False, index = None):
         data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, None, index=index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
 
         pi_list, loss_reg, z, p_z = self._destructive_test(data, sampling_distribution, Nexpectation)
@@ -316,7 +316,6 @@ class noVariationalTraining(ordinaryTraining):
             else :
                 data, target = data_aux
                 index = None
-            
             dic = self._train_step(data, target,dataset, optim_classifier, optim_destruction, sampling_distribution, index=index, optim_baseline =optim_baseline, optim_feature_extractor = optim_feature_extractor, lambda_reg = lambda_reg, Nexpectation = Nexpectation, lambda_reconstruction= lambda_reconstruction)
 
             if batch_idx % 100 == 0:
@@ -624,7 +623,7 @@ class REBAR(noVariationalTraining):
         nb_imputation = self.classification_module.imputation.nb_imputation
         batch_size = data.shape[0]
         data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
-        
+
         self.zero_grad()
 
 
@@ -632,7 +631,6 @@ class REBAR(noVariationalTraining):
         pi_list, loss_reg, z_real_sampled, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
 
         loss_reg = lambda_reg * loss_reg
-
 
         pi_list_extended = torch.cat([pi_list for k in range(Nexpectation)], axis=0)
         # u = torch.FloatTensor(1., batch_size * nb_imputation,  requires_grad=False).uniform_(0, 1) + 1e-9
@@ -660,22 +658,28 @@ class REBAR(noVariationalTraining):
 
 
         # Classification module hard :
-        log_y_hat, _ = self.classification_module(data_expanded_flatten, z.detach(), index)
+        log_y_hat, _ = self.classification_module(data_expanded_flatten, z.detach(), index_expanded)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
-        log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
+        log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./Nexpectation))
+        log_y_hat_iwae = torch.mean(log_y_hat_iwae)
+        # log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked_hard_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
 
         # Classification module relaxed:
         log_y_hat, _ = self.classification_module(data_expanded_flatten,  soft_concrete_rebar_tilde_z, index_expanded)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
-        log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
+        log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./Nexpectation))
+        log_y_hat_iwae = torch.mean(log_y_hat_iwae)
+        # log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked_soft_tilde_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
 
 
         # Classification module relaxed_2 :
         log_y_hat, _ = self.classification_module(data_expanded_flatten, soft_concrete_rebar_z, index_expanded)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
-        log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
+        log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./Nexpectation))
+        log_y_hat_iwae = torch.mean(log_y_hat_iwae)
+        # log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
         log_y_hat_iwae_masked_soft_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
 
         # Loss calculation
@@ -778,8 +782,8 @@ class REINFORCE(noVariationalTraining):
         
         nb_imputation = self.classification_module.imputation.nb_imputation
         batch_size = data.shape[0]
-        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
 
+        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
 
         self.zero_grad()
         if self.baseline is not None:
@@ -791,11 +795,11 @@ class REINFORCE(noVariationalTraining):
         pi_list, loss_reg, z, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
         loss_reg = lambda_reg * loss_reg
 
-
         # Classification module :
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1), index_expanded)
         log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
-        log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./Nexpectation)) # Need verification of this with the masked version
+        log_y_hat_iwae = torch.logsumexp(log_y_hat, 0) + torch.log(torch.tensor(1./Nexpectation))
+        log_y_hat_iwae = torch.mean(log_y_hat_iwae, axis = 0)
         log_y_hat_iwae_masked = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
 
         loss_reconstruction = lambda_reconstruction * loss_reconstruction

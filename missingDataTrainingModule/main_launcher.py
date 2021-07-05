@@ -121,8 +121,8 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         post_proc_regul = post_process_regularization(args_classification["nb_imputation"])
     elif args_classification["post_process_regularization"] is MarkovChainImputation :
         print("Training Markov Chain")
-        markov_chain = MarkovChain(loader.train_loader)
-        post_proc_regul = post_process_regularization(markov_chain, args_classification["nb_imputation"])
+        markov_chain = MarkovChain(loader.train_loader, use_cuda=args_train["use_cuda"])
+        post_proc_regul = post_process_regularization(markov_chain, args_classification["nb_imputation"], use_cuda=args_train["use_cuda"])
     elif args_classification["post_process_regularization"] is MICE_imputation_pretrained:
         import miceforest as mf
         import pandas as pd
