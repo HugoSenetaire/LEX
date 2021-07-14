@@ -221,17 +221,20 @@ class cullpdb_6133_8classes_nosides():
 
 
 
-        self.X_train, self.Y_train, self.X_aux_train = self.reshape_data(self.X_train, self.Y_train, self.X_aux_train)
-        self.X_test, self.Y_test, self.X_aux_test = self.reshape_data(self.X_test, self.Y_test, self.X_aux_test)
-        self.X_val, self.Y_val, self.X_aux_val = self.reshape_data(self.X_val, self.Y_val, self.X_aux_val)
+        self.X_train, self.Y_train, self.X_aux_train, self.Y_aux_train = self.reshape_data(self.X_train, self.Y_train, self.X_aux_train)
+        self.X_test, self.Y_test, self.X_aux_test, self.Y_aux_test = self.reshape_data(self.X_test, self.Y_test, self.X_aux_test)
+        self.X_val, self.Y_val, self.X_aux_val, self.Y_aux_val = self.reshape_data(self.X_val, self.Y_val, self.X_aux_val)
 
         self.X_train = torch.tensor(self.X_train)
         self.Y_train = torch.tensor(self.Y_train, dtype= torch.int64)
         self.X_aux_train = torch.tensor(self.X_aux_train)
+        self.Y_aux_train = torch.tensor(self.Y_aux_train)
+
 
         self.X_test = torch.tensor(self.X_test)
         self.Y_test = torch.tensor(self.Y_test, dtype= torch.int64)
         self.X_aux_test = torch.tensor(self.X_aux_test)
+        self.Y_aux_test = torch.tensor(self.Y_aux_test)
 
         self.X_val = torch.tensor(self.X_val)
         self.Y_val = torch.tensor(self.Y_val, dtype= torch.int64)
@@ -246,9 +249,15 @@ class cullpdb_6133_8classes_nosides():
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, noisy = noisy, noise_function = noise_function, give_index =self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, noisy= noisy, noise_function = noise_function, give_index = self.give_index)
 
+        # print(self.Y_train.shape)
+        # print(self.X_train.shape)
         if self.give_index:
-            self.dataset_imputation_train = TensorDatasetAugmented(self.X_aux_train, self.Y_train, noisy = noisy, noise_function = noise_function, give_index =False)
-            self.dataset_imputation_test = TensorDatasetAugmented(self.X_aux_test, self.Y_test, noisy= noisy, noise_function = noise_function, give_index = False)
+            # print(self.X_aux_train.shape)
+            # print(self.Y_aux_train.shape)
+            self.dataset_imputation_train = TensorDatasetAugmented(self.X_aux_train, self.Y_aux_train, noisy = noisy, noise_function = noise_function, give_index =False)
+            self.dataset_imputation_test = TensorDatasetAugmented(self.X_aux_test, self.Y_aux_test, noisy= noisy, noise_function = noise_function, give_index = False)
+            # self.dataset_evaluation_train = TensorDatasetAugmented(self.Y_aux_train, self.Y_train, noisy = noisy, noise_function = noise_function, give_index =False)
+            # self.dataset_evaluation_test = TensorDatasetAugmented(self.Y_aux_test, self.Y_test, noisy= noisy, noise_function = noise_function, give_index = False)
 
 
     def reshape_data(self, X, labels, X_aux):
@@ -259,6 +268,9 @@ class cullpdb_6133_8classes_nosides():
         padding = np.zeros((X_aux.shape[0],X_aux.shape[2],int(self.cnn_width/2)))
         X_aux = np.dstack((padding, np.swapaxes(X_aux, 1, 2), padding))
         X_aux = np.swapaxes(X_aux, 1, 2)
+        labels_padding = np.zeros((labels.shape[0], labels.shape[2], int(self.cnn_width/2)))
+        padded_labels = np.dstack((labels_padding, np.swapaxes(labels, 1, 2), labels_padding))
+        padded_labels = np.swapaxes(padded_labels, 1, 2)
         Y = np.reshape(labels, (labels.shape[0]*labels.shape[1], labels.shape[2]))
 
 
@@ -266,22 +278,26 @@ class cullpdb_6133_8classes_nosides():
 
         res = np.zeros((X.shape[0], X.shape[1] - self.cnn_width + 1, self.cnn_width, amino_acid_residues+1))
         res_aux = np.zeros((X_aux.shape[0], X_aux.shape[1] - self.cnn_width + 1, self.cnn_width, amino_acid_residues))
+        output_y = np.zeros((X_aux.shape[0], X_aux.shape[1] - self.cnn_width + 1, self.cnn_width, labels.shape[2]))
 
 
         for i in range(X.shape[1] - self.cnn_width + 1):            
                 res[:, i, :, :] = X[:, i:i+self.cnn_width, :]
-                
                 res_aux[:,i,:,:] = X_aux[:, i:i+self.cnn_width, :]
-                
+                # print(output_y.shape)
+                # print(labels[:, i:i+self.cnn_width, :].shape)
+                output_y[:, i, :, :] = padded_labels[:, i:i+self.cnn_width, :]
 
         res = np.reshape(res, (np.shape(res)[0]*np.shape(res)[1], self.cnn_width, amino_acid_residues+1))
         res_aux = np.reshape(res_aux, (np.shape(res_aux)[0]*np.shape(res_aux)[1], self.cnn_width, amino_acid_residues))
+        output_y = np.reshape(output_y, (labels.shape[0]*labels.shape[1], self.cnn_width, labels.shape[2],))
         res = res[:,:,:-1]
 
 
         index_delete_res_aux = np.reshape(np.any(np.sum(res_aux, axis=-1)== 0, axis=-1),(-1,1))
         index_delete_res = np.reshape(np.any(np.sum(res, axis=-1)==0,axis=-1),(-1,1))
         index_delete_Y = np.reshape(np.sum(Y, axis=-1)==0,(-1,1))
+        
 
         index_to_delete = np.concatenate([
                             index_delete_res,
@@ -296,6 +312,7 @@ class cullpdb_6133_8classes_nosides():
         Y = Y[            ~index_to_delete]
         res_aux = res_aux[~index_to_delete]
         res = res[        ~index_to_delete]
+        output_y=output_y[~index_to_delete]
 
         
         res = np.transpose(res, (0,2,1))
@@ -310,11 +327,18 @@ class cullpdb_6133_8classes_nosides():
         auxY1 = np.sum(Y,axis=-1)
         print("problem with 0 Y", len(np.where(auxY1 ==0)[0]))
 
-        return res, Y, res_aux
+        return res, Y, res_aux, output_y
 
+    def get_sequence_output(self, index, dataset_type = "Train"):
+        if dataset_type == "Train":
+            _, sequence_output = self.dataset_imputation_train.__getitem__(index)
+        else :
+            _, sequence_output = self.dataset_imputation_test.__getitem__(index)
+
+        return sequence_output
 
     def impute_result(self, mask, value, index, dataset_type = "Train"):
-        index = index.flatten(0)
+        # index = index.flatten(0)
         if dataset_type == "Train":
             output, _ = self.dataset_imputation_train.__getitem__(index)
             original_value,_,_ = self.dataset_train.__getitem__(index)
@@ -330,7 +354,6 @@ class cullpdb_6133_8classes_nosides():
         if value.is_cuda:
             imputed_value = imputed_value.cuda() 
         
-
         new_data = imputed_value *  (1-mask) + value * mask 
 
         return new_data 
