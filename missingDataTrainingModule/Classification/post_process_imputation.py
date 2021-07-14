@@ -514,7 +514,8 @@ class MarkovChain():
     self.init_probability = np.zeros((self.output_dim))
     self.transition_probability = np.zeros((self.output_dim, self.output_dim))
     
-    for element, _ in iter(train_loader):
+    for aux in iter(train_loader):
+      element, _, _ = aux
       for sequence in element :
         sequence = sequence.transpose(0,1)
         self.init_probability += sequence[0].numpy()
