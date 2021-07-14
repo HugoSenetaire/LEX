@@ -234,7 +234,6 @@ class DatasetBasedImputation(MultipleImputation):
         imputation_number = 1
         dataset_type = "Test"
 
-
       data_imputed, data_expanded, sample_b, index = expand_for_imputations(data_imputed, data_expanded, sample_b, imputation_number, index)
       data_expanded = data_expanded.flatten(0,1)
       if len(data_expanded.shape)>2:
@@ -492,7 +491,12 @@ class MICE_imputation_pretrained(MultipleImputation):
 
 class MarkovChain():
   def __init__(self, train_loader, total_init_probability = None, total_transfer_probability = None, use_cuda = False):
-    example_x, target = next(iter(train_loader))
+    aux = next(iter(train_loader))
+    if len(aux) == 3 :
+      example_x, target, index = aux
+    else :
+      example_x, target = aux
+    # example_x, target = next(iter(train_loader))
     batch_size, output_dim, sequence_len = example_x.shape
     self.sequence_len = sequence_len
     self.output_dim = output_dim
