@@ -630,8 +630,14 @@ class MarkovChainImputation(MultipleImputation):
 import tqdm
 class HMM():
   def __init__(self, train_loader, hidden_dim, total_init_probability = None, total_transfer_probability = None, emission_probability = None, nb_iter = 10, use_cuda = False):
-    example_x, target = next(iter(train_loader))
-    batch_size, output_dim, sequence_len = example_x.shape
+    aux = next(iter(train_loader))
+    if len(aux) == 3:
+      data, target, index = aux
+    else :
+      data, target = aux
+      index = None
+      
+    batch_size, output_dim, sequence_len = data.shape
     self.sequence_len = sequence_len
     self.output_dim = output_dim
     self.hidden_dim = hidden_dim
