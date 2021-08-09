@@ -891,7 +891,8 @@ class HMM():
       log_likelihood = torch.tensor(0.)
       if self.use_cuda :
         log_likelihood = log_likelihood.cuda()
-      for batch_number, (element, _) in enumerate(iter(train_loader)):
+      for batch_number, aux in enumerate(iter(train_loader)):
+        element = aux[0]
         masks = torch.ones(element.shape)
         if self.use_cuda :
           element = element.cuda()
