@@ -637,7 +637,11 @@ class HMM():
       data, target = aux
       index = None
       
+<<<<<<< HEAD
     batch_size, output_dim, sequence_len = data.shape
+=======
+    batch_size, output_dim, sequence_len = example_x.shape
+>>>>>>> 4303f91654ef72b3c8a828a2df05d7d85bb7fe9e
     self.sequence_len = sequence_len
     self.output_dim = output_dim
     self.hidden_dim = hidden_dim
