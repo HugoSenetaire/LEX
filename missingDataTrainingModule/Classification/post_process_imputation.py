@@ -620,3 +620,382 @@ class MarkovChainImputation(MultipleImputation):
     new_data = output.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
     return new_data, data_expanded, sample_b
 
+
+
+
+
+## HMM Imputation :
+
+
+import tqdm
+class HMM():
+  def __init__(self, train_loader, hidden_dim, total_init_probability = None, total_transfer_probability = None, emission_probability = None, nb_iter = 10, use_cuda = False):
+    example_x, target = next(iter(train_loader))
+    batch_size, output_dim, sequence_len = example_x.shape
+    self.sequence_len = sequence_len
+    self.output_dim = output_dim
+    self.hidden_dim = hidden_dim
+    self.nb_iter = nb_iter
+    self.use_cuda = use_cuda
+
+    if total_transfer_probability is None or total_init_probability is None or emission_probability is None:
+       self.train(train_loader, nb_iter=self.nb_iter)
+    else :
+       self.init_probability = total_init_probability.type(torch.float32)
+       self.transition_probability = total_transfer_probability.type(torch.float32)
+       self.emission_probability = emission_probability.type(torch.float32)
+
+    if self.use_cuda :
+      self.init_probability = self.init_probability.cuda()
+      self.transition_probability = self.transition_probability.cuda()
+      self.emission_probability = self.emission_probability.cuda()
+
+    # self.log_init_probability = torch.log(self.init_probability)
+    # self.log_transition_probability = torch.log(self.transition_probability)
+    # self.log_emission_probability = torch.log(self.emission_probability)
+
+
+  def forward(self, data, masks):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+    masks_expanded = masks[:, 0, :].unsqueeze(-1).expand((-1, -1, self.hidden_dim))
+    message = torch.zeros((batch_size, self.sequence_len, self.hidden_dim))
+    if self.use_cuda :
+      message = message.cuda()
+    emission_probability_transpose = self.emission_probability.transpose(0,1)
+
+    auxiliary_ones =  torch.ones(message[:,0,:].shape, dtype = torch.float32)
+    if self.use_cuda :
+      auxiliary_ones = auxiliary_ones.cuda()
+
+    # Forward :
+    message[:, 0, :] = self.init_probability.unsqueeze(0).expand(batch_size,-1)
+    emission_message = torch.matmul(data[:,:,0], emission_probability_transpose)
+    message[:, 0, :] *= torch.where(masks_expanded[:,0,:] == 1, emission_message, auxiliary_ones) # message I is arriving at i
+    message[:, 0, :] /= torch.sum(message[:,0,:],axis=-1, keepdim = True)
+    for i in range(1, self.sequence_len):
+        message[:, i] = torch.matmul(message[:, i-1], self.transition_probability)
+        emission_message = torch.matmul(data[:,:,i].type(torch.float32), emission_probability_transpose)
+        emission_message_masked = torch.where(masks_expanded[:,i,:] == 1, emission_message, auxiliary_ones)
+        message[:, i] *= emission_message_masked
+        message[:, i] /= torch.sum(message[:,i,:],axis=-1, keepdim = True)
+
+    return message
+
+
+
+  def backward(self, data, masks):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+    masks_expanded = masks[:, 0, :].unsqueeze(-1).expand((-1, -1, self.hidden_dim))
+    message = torch.zeros((batch_size, self.sequence_len, self.hidden_dim), dtype=torch.float32)
+    emission_probability_transpose = self.emission_probability.transpose(0,1)
+    transition_probability_expand = self.transition_probability.unsqueeze(0).expand(batch_size, self.hidden_dim, self.hidden_dim)
+    auxiliary_ones = torch.ones(message[:,0,:].shape)
+    if self.use_cuda :
+      auxiliary_ones = auxiliary_ones.cuda()
+      message = message.cuda()
+
+    # Backward :
+    message[:, -1, :] = torch.ones(message[:,-1].shape)/self.hidden_dim
+  
+    for i in range(self.sequence_len-2, -1, -1):
+      emission_part = torch.matmul(data[:,:,i+1], emission_probability_transpose)
+      emission_part = torch.where(masks_expanded[:,i+1]==1, emission_part, auxiliary_ones)
+      previous_message = (emission_part*message[:,i+1,:]).unsqueeze(-2).expand(-1,self.hidden_dim, -1)
+      message[:, i, :] = torch.sum(transition_probability_expand* previous_message, axis=-1)
+
+    return message
+
+
+
+  def backward_sample_hidden(self, data, masks, message, nb_imputation):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+
+    output_sample = torch.zeros((batch_size, nb_imputation, self.sequence_len))
+    masks_imputation = masks[:, 0, :].unsqueeze(-2).expand((-1, nb_imputation, -1))
+    data_argmax_imputation = data_argmax.unsqueeze(-2).expand((-1, nb_imputation, -1))
+
+    message = message.unsqueeze(2).expand(-1, -1, nb_imputation, -1).clone() # batch size, sequence len, nb_imputation, output_dim
+    dist = torch.distributions.categorical.Categorical(probs = message[:,-1])
+    output_sample[:, :, -1] = dist.sample()
+
+    for i in range(self.sequence_len-2, -1, -1):
+      aux_transition = self.transition_probability.unsqueeze(0).unsqueeze(0).expand(batch_size, nb_imputation, self.hidden_dim, self.hidden_dim)
+      output_sample_masks =  torch.nn.functional.one_hot(output_sample[:, :, i+1].type(torch.int64), num_classes=self.hidden_dim).unsqueeze(-2).expand(-1,-1, self.hidden_dim, -1)>0.5
+      aux_transition = torch.masked_select(aux_transition, output_sample_masks).reshape(batch_size, nb_imputation, self.hidden_dim)
+      message[:,i,:,:] *=aux_transition
+      message[:,i,:,:] /= torch.sum(message[:,i,:,:], axis=-1).unsqueeze(-1).expand(-1,-1, self.hidden_dim)
+      dist = torch.distributions.categorical.Categorical(probs=message[:,i,:,:])
+      output_sample[:, :, i] = dist.sample()
+    return output_sample
+
+  def backward_maximum(self, data, masks, message):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+    nb_imputation = 1
+
+    output_sample = torch.zeros((batch_size, nb_imputation, self.sequence_len))
+    masks_imputation = masks[:,0,:].unsqueeze(-2).expand((-1, nb_imputation, -1))
+    data_argmax_imputation = data_argmax.unsqueeze(-2).expand((-1, nb_imputation, -1))
+    
+    message = message.unsqueeze(2).expand(-1, -1, nb_imputation, -1).clone() # batch size, sequence len, nb_imputation, output_dim
+    dist = torch.distributions.categorical.Categorical(probs = message[:,-1])
+    output_sample[:, :, -1] = torch.argmax(message[:,-1], axis=-1)
+
+    for i in range(self.sequence_len-2, -1, -1):
+      aux_transition = self.transition_probability.unsqueeze(0).unsqueeze(0).expand(batch_size, nb_imputation, self.hidden_dim, self.hidden_dim)
+      output_sample_masks =  torch.nn.functional.one_hot(output_sample[:, :, i+1].type(torch.int64), num_classes=self.hidden_dim).unsqueeze(-2).expand(-1,-1, self.hidden_dim, -1)>0.5
+      aux_transition = torch.masked_select(aux_transition, output_sample_masks).reshape(batch_size, nb_imputation, self.hidden_dim)
+      message[:,i,:,:] *=aux_transition
+      message[:,i,:,:] /= torch.sum(message[:,i,:,:], axis=-1).unsqueeze(-1).expand(-1,-1, self.hidden_dim)
+      output_sample[:, :, i] = torch.argmax(message[:,i,:,:], axis=-1)
+    return output_sample
+
+
+
+  def sample_observation(self, data, mask, latent):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+    nb_imputation = latent.shape[1]
+
+    output_sample_latent = torch.nn.functional.one_hot(latent.type(torch.int64), num_classes=self.hidden_dim)
+    if self.use_cuda :
+      output_sample_latent = output_sample_latent.cuda()
+    probs = torch.matmul(output_sample_latent.type(torch.float32), self.emission_probability)
+
+
+    dist = torch.distributions.categorical.Categorical(probs=probs)
+    observations = dist.sample()
+
+    return observations
+
+
+  def train_stupid(self, train_loader, nb_iter):
+    self.init_probability = torch.rand((self.hidden_dim))
+    self.transition_probability = torch.rand((self.hidden_dim, self.hidden_dim))
+    self.emission_probability = torch.rand((self.hidden_dim, self.output_dim))
+
+    for num_iter in range(nb_iter):
+      current_init = torch.zeros(self.init_probability.shape, dtype=torch.float32)
+      current_transition = torch.zeros(self.transition_probability.shape, dtype=torch.float32)
+      current_emission = torch.zeros(self.emission_probability.shape, dtype=torch.float32)
+      for batch_number, (element, _) in enumerate(iter(train_loader)):
+          mask = torch.zeros(element.shape)
+          message = self.forward(element, mask)
+          max_latent_sample = self.backward_maximum(element, mask, message)[:,0]
+          max_latent_sample_one_hot = torch.nn.functional.one_hot(max_latent_sample.type(torch.int64), num_classes = self.hidden_dim)
+          for k in range(element.shape[0]):
+            
+
+            current_init += max_latent_sample_one_hot[k,0]
+            for i in range(1, self.sequence_len):
+              current_transition[max_latent_sample[k, i-1].type(torch.int64)] += max_latent_sample_one_hot[k, i]
+              current_emission[max_latent_sample[k, i].type(torch.int64)] += element[k, :, i]
+      
+
+      self.init_probability = current_init/torch.sum(current_init, axis=-1)
+      for k in range(self.hidden_dim):
+        self.transition_probability[k] = current_transition[k]/torch.sum(current_transition[k],axis=-1)
+      for k in range(self.hidden_dim):
+        self.emission_probability[k] = current_emission[k]/torch.sum(current_emission[k], axis=-1)
+
+
+
+  def train(self, train_loader, nb_iter=25, nb_start = 5):
+    dic_best = {}
+    dic_best["likelihood"] = -float("inf")
+    dic_best["init"] = None 
+    dic_best["transition"] = None
+    dic_best["emission"] = None
+
+
+    for num_start in range(nb_start):
+      self.init_probability = torch.rand((self.hidden_dim))
+      self.init_probability /=torch.sum(self.init_probability)
+      self.transition_probability = torch.rand((self.hidden_dim, self.hidden_dim))
+      self.transition_probability /=torch.sum(self.transition_probability, axis=-1, keepdim=True)
+      self.emission_probability = torch.rand((self.hidden_dim, self.output_dim))
+      self.emission_probability /=torch.sum(self.emission_probability, axis=-1, keepdim=True)
+
+      if self.use_cuda :
+        self.init_probability =self.init_probability.cuda()
+        self.transition_probability = self.transition_probability.cuda()
+        self.emission_probability = self.emission_probability.cuda()
+
+      for num_iter in tqdm.tqdm(range(nb_iter)):
+        total_element = 0
+        gamma = torch.zeros((self.sequence_len, self.hidden_dim), dtype=torch.float32)
+        gamma_aux = torch.zeros((self.sequence_len, self.hidden_dim, self.output_dim), dtype=torch.float32)
+        zeta = torch.zeros((self.sequence_len-1, self.hidden_dim,self.hidden_dim), dtype=torch.float32)
+        gamma_limited = torch.zeros((self.sequence_len-1, self.hidden_dim), dtype = torch.float32)
+
+        if self.use_cuda :
+          gamma = gamma.cuda()
+          gamma_aux = gamma_aux.cuda()
+          zeta = zeta.cuda()
+          gamma_limited = gamma_limited.cuda()
+
+        for batch_number, (element, _) in enumerate(iter(train_loader)):
+            batch_size, _, _ = element.shape
+            mask = torch.ones(element.shape)
+            if self.use_cuda :
+              mask = mask.cuda()
+              element = element.cuda()
+            element_transpose = element.transpose(1,2) # batch_size, sequence_len, num_hidden
+
+            message_forward = self.forward(element, mask)
+            message_forward = message_forward.unsqueeze(-1).expand(batch_size, self.sequence_len, self.hidden_dim, self.hidden_dim)
+            message_forward_limited = message_forward[:,:-1]
+
+            emission_message = torch.matmul(element_transpose, self.emission_probability.transpose(-1,-2)).unsqueeze(-2).expand(batch_size, self.sequence_len, self.hidden_dim, self.hidden_dim)
+            emission_message_limited = emission_message[:,1:]
+
+            transition_expanded = self.transition_probability.unsqueeze(0).unsqueeze(0).expand(batch_size, self.sequence_len-1, self.hidden_dim, self.hidden_dim)
+            message_backward = self.backward(element, mask).unsqueeze(-2).expand(batch_size, self.sequence_len, self.hidden_dim, self.hidden_dim)
+            message_backward_limited = message_backward[:,1:]
+
+
+            zeta_aux =  message_forward_limited* emission_message_limited * transition_expanded * message_backward_limited
+            zeta += torch.sum(zeta_aux, axis=0)
+            gamma_limited += torch.sum(torch.sum(zeta_aux, axis=-1),axis=0)
+
+            gamma_current = torch.sum(message_forward*emission_message*message_backward, axis=-1)
+            gamma += torch.sum(gamma_current, axis=0)
+
+
+            element_transpose_expanded = element_transpose.unsqueeze(-2).expand(batch_size, self.sequence_len, self.hidden_dim, self.output_dim)
+            gamma_aux += torch.sum(element_transpose_expanded*gamma_current.unsqueeze(-1).expand(-1,-1,-1,self.output_dim), axis=0)
+            total_element+=batch_size
+        
+
+
+
+
+        # gamma_limited = gamma[:-1]
+        self.transition_probability = torch.sum(zeta, axis=0)/torch.sum(gamma_limited, axis=0).unsqueeze(-1).expand(self.hidden_dim, self.hidden_dim)
+        self.init_probability = gamma[0]/torch.sum(gamma[0],axis=0,keepdim=True)
+        self.emission_probability = torch.sum(gamma_aux, axis=0)/torch.sum(gamma,axis=0).unsqueeze(-1).expand(self.hidden_dim, self.output_dim)
+
+
+     
+
+      log_likelihood = torch.tensor(0.)
+      if self.use_cuda :
+        log_likelihood = log_likelihood.cuda()
+      for batch_number, (element, _) in enumerate(iter(train_loader)):
+        masks = torch.ones(element.shape)
+        if self.use_cuda :
+          element = element.cuda()
+          masks = masks.cuda()
+        log_likelihood += torch.sum(torch.log(self.calculate_likelihood(element, masks) + 1e-8))
+      # print(f"\n Likelihood after iteration {num_start} is {log_likelihood}")
+
+      # print("Dictionnary init", dic_best["init"])
+      # print("Dictionnary transition", dic_best["transition"])
+      # print("Dictionnary emission", dic_best["emission"])
+
+      # print("Init After", self.init_probability)
+      # print("Transition After", self.transition_probability)
+      # print("Emission after", self.emission_probability)
+
+      if log_likelihood > dic_best["likelihood"]:
+        dic_best["likelihood"] = log_likelihood
+        dic_best["init"] = self.init_probability.clone()
+        dic_best["transition"] = self.transition_probability.clone()
+        dic_best["emission"] = self.emission_probability.clone()
+
+
+
+
+
+
+
+    # print("=================================")   
+    # print(dic_best["init"])
+    # print(log_likelihood)
+    self.init_probability = dic_best["init"].clone()
+    self.transition_probability = dic_best["transition"].clone()
+    self.emission_probability = dic_best["emission"].clone()
+
+
+
+    
+  def calculate_likelihood(self, data, masks):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+    masks_expanded = masks[:,0,:].unsqueeze(-1).expand((-1, -1, self.hidden_dim))
+    message = torch.zeros((batch_size, self.sequence_len, self.hidden_dim))
+    emission_probability_transpose = self.emission_probability.transpose(0,1)
+    auxiliary_ones = torch.ones(message[:,0,:].shape, dtype = torch.float32)/self.hidden_dim
+    if self.use_cuda :
+      auxiliary_ones = auxiliary_ones.cuda()
+      message = message.cuda()
+
+
+    # Forward :
+    current_message = self.init_probability.unsqueeze(0).expand(batch_size,-1).clone()
+    # print(data, emission_probability_transpose)
+    # print(masks)
+    emission_message = torch.matmul(data[:,:,0], emission_probability_transpose)
+    current_message *= torch.where(masks_expanded[:,0,:] == 1, emission_message, auxiliary_ones) # message I is arriving at i
+    # message[:, 0, :] /= torch.sum(message[:,0,:],axis=-1, keepdim = True)
+    # print("calculate LIKELIHOOD init proba", self.init_probability)
+    for i in range(1, self.sequence_len):
+        previous_message = current_message
+        current_message = torch.matmul(previous_message, self.transition_probability)
+        emission_message = torch.matmul(data[:,:,i].type(torch.float32), emission_probability_transpose)
+        emission_message_masked = torch.where(masks_expanded[:,i,:] == 1, emission_message, auxiliary_ones)
+        current_message *= emission_message_masked
+        # message[:, i] /= torch.sum(message[:,i,:],axis=-1, keepdim = True)
+
+    proba = current_message.sum(axis=-1)
+    # print("Proba", proba)
+
+    return proba    
+
+
+
+  def impute(self, data, masks, nb_imputation):
+    message_forward = self.forward(data, masks)
+    # print("message_forward", message_forward.shape)
+    latent = self.backward_sample_hidden(data, masks, message_forward, nb_imputation)
+    # print("latent shape", latent.shape)
+    output_total = self.sample_observation(data, masks, latent)
+    # print("output total shape", output_total.shape)
+    output_total = torch.nn.functional.one_hot(output_total.squeeze(),self.output_dim).transpose(-1,-2)
+    # print("output total shape", output_total.shape)
+    return output_total
+
+
+
+class HMMimputation(MultipleImputation):
+  def __init__(self, hmm, nb_imputation = 10, to_train = False, use_cuda = False, deepcopy= False):
+    super().__init__(nb_imputation=nb_imputation)
+    self.hmm = hmm    
+    self.use_cuda = use_cuda
+
+
+  def __call__(self, data_expanded, data_imputed, sample_b, index = None, show_output = False):
+
+    if not self.eval_mode :
+      nb_imputation = self.nb_imputation
+    else :
+      nb_imputation = 1
+
+    with torch.no_grad():
+
+      output = self.hmm.impute(data_expanded, sample_b, nb_imputation = nb_imputation)
+
+      if self.use_cuda == True :
+        output = output.cuda()
+
+  
+    _, data_expanded, sample_b, _ = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
+
+    # print(data_expanded.shape)
+    # print(output.shape)
+    output = output.reshape(data_expanded.shape)
+    new_data = output.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
+    return new_data, data_expanded, sample_b

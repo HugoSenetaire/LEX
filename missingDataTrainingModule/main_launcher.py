@@ -123,6 +123,11 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         print("Training Markov Chain")
         markov_chain = MarkovChain(loader.train_loader, use_cuda=args_train["use_cuda"])
         post_proc_regul = post_process_regularization(markov_chain, args_classification["nb_imputation"], use_cuda=args_train["use_cuda"])
+    elif args_classification["post_process_regularization"] is HMMimputation:
+        print("Train HMM")
+        hmm = HMM(loader.train_loader, hidden_dim = args_classification["hidden_state_hmm"], use_cuda=args_train["use_cuda"])
+        post_proc_regul = post_process_regularization(hmm, args_classification["nb_imputation"], use_cuda = args_train["use_cuda"])
+        print("End Training HMM")
     elif args_classification["post_process_regularization"] is MICE_imputation_pretrained:
         import miceforest as mf
         import pandas as pd

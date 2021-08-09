@@ -49,15 +49,16 @@ def prepare_data_augmented(data, target, index=None, num_classes=10, Nexpectatio
     
     shape = data.shape
     data_unsqueezed = data.unsqueeze(0)
-
-
     wanted_transform = tuple(np.insert(-np.ones(len(shape),dtype = int),0,Nexpectation))
+
+     
     data_expanded = data_unsqueezed.expand(wanted_transform) # N_expectation, batch_size, channels, size:...
     data_expanded_flatten = data_expanded.flatten(0,1)
 
     wanted_shape_flatten = data_expanded_flatten.shape
 
     return data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded
+
 
 def print_dic(epoch, batch_idx, dic, dataset):
     percent = 100. * batch_idx / len(dataset.train_loader)
