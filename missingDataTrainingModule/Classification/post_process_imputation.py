@@ -843,7 +843,8 @@ class HMM():
           zeta = zeta.cuda()
           gamma_limited = gamma_limited.cuda()
 
-        for batch_number, (element, _) in enumerate(iter(train_loader)):
+        for batch_number, aux in enumerate(iter(train_loader)):
+            element = aux[0]
             batch_size, _, _ = element.shape
             mask = torch.ones(element.shape)
             if self.use_cuda :
