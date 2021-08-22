@@ -515,7 +515,8 @@ class MarkovChain():
     self.transition_probability = np.zeros((self.output_dim, self.output_dim))
     
     for aux in iter(train_loader):
-      element, _, _ = aux
+      
+      element = aux[0]
       for sequence in element :
         sequence = sequence.transpose(0,1)
         self.init_probability += sequence[0].numpy()
@@ -553,8 +554,8 @@ class MarkovChain():
 
     # Backward : 
     output_sample = torch.zeros((batch_size, nb_imputation, self.sequence_len))
-    masks_imputation = masks[:,:,0].unsqueeze(-2).expand((-1, nb_imputation, -1))
-    data_argmax_imputation = data_argmax.unsqueeze(-2).expand((-1, nb_imputation, -1))
+    masks_imputation = masks[:,0,:].unsqueeze(-2).expand((batch_size, nb_imputation, self.sequence_len))
+    data_argmax_imputation = data_argmax.unsqueeze(-2).expand((batch_size, nb_imputation, self.sequence_len))
 
     message = message.unsqueeze(2).expand(-1, -1, nb_imputation, -1).clone() # batch size, sequence len, nb_imputation, output_dim
     dist = torch.distributions.categorical.Categorical(probs = message[:,-1])
