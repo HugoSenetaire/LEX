@@ -363,6 +363,21 @@ class cullpdb_6133_8classes_nosides():
         Y = D[:, :, amino_acid_residues+1:amino_acid_residues+1 + self.num_classes]
         X_aux = D[:,:, amino_acid_residues+1 + self.num_classes:]
         return X, Y, X_aux
+
+
+class cullpdb_6133_8classes_nosides_longer():
+    def __init__(self,
+            root: str,
+            download: bool = False,
+            noisy: bool = False,
+            noise_function = None,
+            cnn_width = 41,
+            give_index = False,
+            sampling_imputation = True,
+    ) :
+        super().__init__(root=root, download = download, noisy = noisy, noise_function = noise_function, cnn_width = cnn_width, give_index = give_index, sampling_imputation = sampling_imputation)
+
+
 ##### ENCAPSULATION :
 
 
