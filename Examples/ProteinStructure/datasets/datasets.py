@@ -365,7 +365,7 @@ class cullpdb_6133_8classes_nosides():
         return X, Y, X_aux
 
 
-class cullpdb_6133_8classes_nosides_longer():
+class cullpdb_6133_8classes_nosides_longer(cullpdb_6133_8classes_nosides):
     def __init__(self,
             root: str,
             download: bool = False,
