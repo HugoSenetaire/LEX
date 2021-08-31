@@ -579,7 +579,6 @@ class MarkovChain():
       
       message[:,i,:,:] = torch.where(aux_message, message[:,i,:,:], replace_vector)
       dist = torch.distributions.categorical.Categorical(probs=message[:,i,:,:])
-      
       output_sample[:, :, i] = torch.where(masks_imputation[:,:,i] == 1, data_argmax_imputation[:,:,i],dist.sample())
     
     output_sample = torch.nn.functional.one_hot(output_sample.type(torch.int64),num_classes=self.output_dim).transpose(-1, -2)
@@ -665,7 +664,7 @@ class HMM():
   def forward(self, data, masks):
     batch_size = data.shape[0]
     data_argmax = torch.argmax(data, axis=-2)
-    masks_expanded = masks[:, 0, :].unsqueeze(-1).expand((-1, -1, self.hidden_dim))
+    masks_expanded = masks.unsqueeze(-1).expand((-1, -1, self.hidden_dim))
     message = torch.zeros((batch_size, self.sequence_len, self.hidden_dim))
     if self.use_cuda :
       message = message.cuda()
@@ -694,7 +693,7 @@ class HMM():
   def backward(self, data, masks):
     batch_size = data.shape[0]
     data_argmax = torch.argmax(data, axis=-2)
-    masks_expanded = masks[:, 0, :].unsqueeze(-1).expand((-1, -1, self.hidden_dim))
+    masks_expanded = masks.unsqueeze(-1).expand((-1, -1, self.hidden_dim))
     message = torch.zeros((batch_size, self.sequence_len, self.hidden_dim), dtype=torch.float32)
     emission_probability_transpose = self.emission_probability.transpose(0,1)
     transition_probability_expand = self.transition_probability.unsqueeze(0).expand(batch_size, self.hidden_dim, self.hidden_dim)
@@ -721,10 +720,10 @@ class HMM():
     data_argmax = torch.argmax(data, axis=-2)
 
     output_sample = torch.zeros((batch_size, nb_imputation, self.sequence_len))
-    masks_imputation = masks[:, 0, :].unsqueeze(-2).expand((-1, nb_imputation, -1))
+    masks_imputation = masks.unsqueeze(-2).expand((-1, nb_imputation, -1))
     data_argmax_imputation = data_argmax.unsqueeze(-2).expand((-1, nb_imputation, -1))
 
-    message = message.unsqueeze(2).expand(-1, -1, nb_imputation, -1).clone() # batch size, sequence len, nb_imputation, output_dim
+    message = message.unsqueeze(2).expand(-1, -1, nb_imputation, -1).clone() # batch size, sequence len, nb_imputation, hidden_dim ?
     dist = torch.distributions.categorical.Categorical(probs = message[:,-1])
     output_sample[:, :, -1] = dist.sample()
 
@@ -763,54 +762,27 @@ class HMM():
 
 
   def sample_observation(self, data, mask, latent):
+    """ Given latent, data and mask, this function will sample the observations according to the latent state and the emission probability if mask == 1 or will put the data instead
+        
+        mask : torch.tensor Shape (batch_size, sequence_len)
+        data : torch.tensor Shape (batch_size, output_dim, sequence_len)
+        latent: torch.tensor Shape (batch_size, nb_imputation, sequence_len)     
+    """
     batch_size = data.shape[0]
-    data_argmax = torch.argmax(data, axis=-2)
     nb_imputation = latent.shape[1]
+    output_sample_latent = torch.nn.functional.one_hot(latent.type(torch.int64), num_classes=self.hidden_dim) # Shape (batch_size, nb_imputation, sequence_len, hidden_dim)
+    data_expanded = data.unsqueeze(1).expand(-1, latent.shape[1], -1, -1).transpose(-1,-2) # Shape (batch_size, nb_imputation, sequence_len, output_dim)
+    mask_expanded = mask.unsqueeze(1).unsqueeze(-1).expand(data_expanded.shape) # Shape (batch_size, nb_imputation, sequence_len, output_dim)
 
-    output_sample_latent = torch.nn.functional.one_hot(latent.type(torch.int64), num_classes=self.hidden_dim)
-    if self.use_cuda :
-      output_sample_latent = output_sample_latent.cuda()
     probs = torch.matmul(output_sample_latent.type(torch.float32), self.emission_probability)
-
-
+    probs = torch.where(mask_expanded == 1, data_expanded, probs)
     dist = torch.distributions.categorical.Categorical(probs=probs)
     observations = dist.sample()
 
     return observations
 
 
-  def train_stupid(self, train_loader, nb_iter):
-    self.init_probability = torch.rand((self.hidden_dim))
-    self.transition_probability = torch.rand((self.hidden_dim, self.hidden_dim))
-    self.emission_probability = torch.rand((self.hidden_dim, self.output_dim))
-
-    for num_iter in range(nb_iter):
-      current_init = torch.zeros(self.init_probability.shape, dtype=torch.float32)
-      current_transition = torch.zeros(self.transition_probability.shape, dtype=torch.float32)
-      current_emission = torch.zeros(self.emission_probability.shape, dtype=torch.float32)
-      for batch_number, (element, _) in enumerate(iter(train_loader)):
-          mask = torch.zeros(element.shape)
-          message = self.forward(element, mask)
-          max_latent_sample = self.backward_maximum(element, mask, message)[:,0]
-          max_latent_sample_one_hot = torch.nn.functional.one_hot(max_latent_sample.type(torch.int64), num_classes = self.hidden_dim)
-          for k in range(element.shape[0]):
-            
-
-            current_init += max_latent_sample_one_hot[k,0]
-            for i in range(1, self.sequence_len):
-              current_transition[max_latent_sample[k, i-1].type(torch.int64)] += max_latent_sample_one_hot[k, i]
-              current_emission[max_latent_sample[k, i].type(torch.int64)] += element[k, :, i]
-      
-
-      self.init_probability = current_init/torch.sum(current_init, axis=-1)
-      for k in range(self.hidden_dim):
-        self.transition_probability[k] = current_transition[k]/torch.sum(current_transition[k],axis=-1)
-      for k in range(self.hidden_dim):
-        self.emission_probability[k] = current_emission[k]/torch.sum(current_emission[k], axis=-1)
-
-
-
-  def train(self, train_loader, nb_iter=25, nb_start = 5):
+  def train(self, train_loader, nb_iter=25, nb_start = 1):
     dic_best = {}
     dic_best["likelihood"] = -float("inf")
     dic_best["init"] = None 
@@ -847,7 +819,7 @@ class HMM():
         for batch_number, aux in enumerate(iter(train_loader)):
             element = aux[0]
             batch_size, _, _ = element.shape
-            mask = torch.ones(element.shape)
+            mask = torch.ones(torch.argmax(element,axis=1).shape)
             if self.use_cuda :
               mask = mask.cuda()
               element = element.cuda()
@@ -901,13 +873,7 @@ class HMM():
         log_likelihood += torch.sum(torch.log(self.calculate_likelihood(element, masks) + 1e-8))
       # print(f"\n Likelihood after iteration {num_start} is {log_likelihood}")
 
-      # print("Dictionnary init", dic_best["init"])
-      # print("Dictionnary transition", dic_best["transition"])
-      # print("Dictionnary emission", dic_best["emission"])
 
-      # print("Init After", self.init_probability)
-      # print("Transition After", self.transition_probability)
-      # print("Emission after", self.emission_probability)
 
       if log_likelihood > dic_best["likelihood"]:
         dic_best["likelihood"] = log_likelihood
@@ -921,9 +887,6 @@ class HMM():
 
 
 
-    # print("=================================")   
-    # print(dic_best["init"])
-    # print(log_likelihood)
     self.init_probability = dic_best["init"].clone()
     self.transition_probability = dic_best["transition"].clone()
     self.emission_probability = dic_best["emission"].clone()
@@ -950,7 +913,6 @@ class HMM():
     emission_message = torch.matmul(data[:,:,0], emission_probability_transpose)
     current_message *= torch.where(masks_expanded[:,0,:] == 1, emission_message, auxiliary_ones) # message I is arriving at i
     # message[:, 0, :] /= torch.sum(message[:,0,:],axis=-1, keepdim = True)
-    # print("calculate LIKELIHOOD init proba", self.init_probability)
     for i in range(1, self.sequence_len):
         previous_message = current_message
         current_message = torch.matmul(previous_message, self.transition_probability)
@@ -968,13 +930,9 @@ class HMM():
 
   def impute(self, data, masks, nb_imputation):
     message_forward = self.forward(data, masks)
-    # print("message_forward", message_forward.shape)
     latent = self.backward_sample_hidden(data, masks, message_forward, nb_imputation)
-    # print("latent shape", latent.shape)
     output_total = self.sample_observation(data, masks, latent)
-    # print("output total shape", output_total.shape)
     output_total = torch.nn.functional.one_hot(output_total.squeeze(),self.output_dim).transpose(-1,-2)
-    # print("output total shape", output_total.shape)
     return output_total
 
 
@@ -1003,8 +961,7 @@ class HMMimputation(MultipleImputation):
   
     _, data_expanded, sample_b, _ = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
 
-    # print(data_expanded.shape)
-    # print(output.shape)
+
     output = output.reshape(data_expanded.shape)
     new_data = output.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
     return new_data, data_expanded, sample_b
