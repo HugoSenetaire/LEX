@@ -629,7 +629,7 @@ class MarkovChainImputation(MultipleImputation):
 
 import tqdm
 class HMM():
-  def __init__(self, train_loader, hidden_dim, total_init_probability = None, total_transfer_probability = None, emission_probability = None, nb_iter = 10, use_cuda = False):
+  def __init__(self, train_loader, hidden_dim, total_init_probability = None, total_transfer_probability = None, emission_probability = None, nb_iter = 10, nb_start= 5, use_cuda = True):
     aux = next(iter(train_loader))
     if len(aux) == 3:
       data, target, index = aux
@@ -642,10 +642,11 @@ class HMM():
     self.output_dim = output_dim
     self.hidden_dim = hidden_dim
     self.nb_iter = nb_iter
+    self.nb_start = nb_start
     self.use_cuda = use_cuda
 
     if total_transfer_probability is None or total_init_probability is None or emission_probability is None:
-       self.train(train_loader, nb_iter=self.nb_iter)
+       self.train(train_loader, nb_iter=self.nb_iter, nb_start=self.nb_start)
     else :
        self.init_probability = total_init_probability.type(torch.float32)
        self.transition_probability = total_transfer_probability.type(torch.float32)
@@ -726,6 +727,8 @@ class HMM():
     message = message.unsqueeze(2).expand(-1, -1, nb_imputation, -1).clone() # batch size, sequence len, nb_imputation, hidden_dim ?
     dist = torch.distributions.categorical.Categorical(probs = message[:,-1])
     output_sample[:, :, -1] = dist.sample()
+    if self.use_cuda:
+      output_sample = output_sample.cuda()
 
     for i in range(self.sequence_len-2, -1, -1):
       aux_transition = self.transition_probability.unsqueeze(0).unsqueeze(0).expand(batch_size, nb_imputation, self.hidden_dim, self.hidden_dim)
