@@ -50,7 +50,8 @@ def get_imputation_method(args_class):
         return partial(args_class["imputation"], add_mask = args_class["add_mask"])
     elif args_class["imputation"] is NoiseImputation :
         return partial(args_class["imputation"], add_mask = args_class["add_mask"])
-
+    else :
+        return partial(args_class["imputation"], add_mask = args_class["add_mask"])
 
 def experiment(args_dataset, args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output):
     
@@ -125,7 +126,8 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         post_proc_regul = post_process_regularization(markov_chain, args_classification["nb_imputation"], use_cuda=args_train["use_cuda"])
     elif args_classification["post_process_regularization"] is HMMimputation:
         print("Train HMM")
-        hmm = HMM(loader.train_loader, hidden_dim = args_classification["hidden_state_hmm"], use_cuda=args_train["use_cuda"])
+        hmm = HMM(loader.train_loader, hidden_dim = args_classification["hidden_state_hmm"],
+                 nb_iter = args_classification["nb_iter_hmm"], nb_start = args_classification["nb_start_hmm"], use_cuda=args_train["use_cuda"])
         post_proc_regul = post_process_regularization(hmm, args_classification["nb_imputation"], use_cuda = args_train["use_cuda"])
         print("End Training HMM")
     elif args_classification["post_process_regularization"] is MICE_imputation_pretrained:

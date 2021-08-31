@@ -51,7 +51,11 @@ def get_default():
     args_classification["train_postprocess"] = False # If true, free the parameters of autoencoder during the training (loss guided by classification)
     args_classification["train_reconstruction_regularization"] = False # If true, free the parameters of autoencoder during the training (loss guided by a reconstruction loss)
     args_classification["noise_function"] = None # Noise used to pretrain the autoencoder
-    args_classification["nb_imputation"] = 3
+    args_classification["nb_imputation"] = 1
+    args_classification["hidden_state_hmm"] = 50
+    args_classification["nb_iter_hmm"] = 10
+    args_classification["nb_start_hmm"] = 5
+
 
     args_destruct = {}
     args_destruct["input_size_destructor"] = (21,19)
