@@ -126,8 +126,17 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         post_proc_regul = post_process_regularization(markov_chain, args_classification["nb_imputation"], use_cuda=args_train["use_cuda"])
     elif args_classification["post_process_regularization"] is HMMimputation:
         print("Train HMM")
-        hmm = HMM(loader.train_loader, hidden_dim = args_classification["hidden_state_hmm"],
-                 nb_iter = args_classification["nb_iter_hmm"], nb_start = args_classification["nb_start_hmm"], use_cuda=args_train["use_cuda"])
+        if args_classification["log_hmm"] :
+            hmm = HMMLog(loader.train_loader, hidden_dim = args_classification["hidden_state_hmm"],
+                    nb_iter = args_classification["nb_iter_hmm"], nb_start = args_classification["nb_start_hmm"], use_cuda=args_train["use_cuda"],
+                    train_hmm= args_classification["train_hmm"], save_weights=args_classification["save_hmm"], path_weights=args_classification["path_hmm"],
+                    )
+        else :
+            hmm = HMM(loader.train_loader, hidden_dim = args_classification["hidden_state_hmm"],
+                    nb_iter = args_classification["nb_iter_hmm"], nb_start = args_classification["nb_start_hmm"], use_cuda=args_train["use_cuda"],
+                    train_hmm= args_classification["train_hmm"], save_weights=args_classification["save_hmm"], path_weights=args_classification["path_hmm"],
+                    )
+                    
         post_proc_regul = post_process_regularization(hmm, args_classification["nb_imputation"], use_cuda = args_train["use_cuda"])
         print("End Training HMM")
     elif args_classification["post_process_regularization"] is MICE_imputation_pretrained:

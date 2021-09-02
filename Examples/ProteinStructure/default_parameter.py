@@ -55,6 +55,10 @@ def get_default():
     args_classification["hidden_state_hmm"] = 50
     args_classification["nb_iter_hmm"] = 10
     args_classification["nb_start_hmm"] = 5
+    args_classification["log_hmm"] = False
+    args_classification["train_hmm"] = False
+    args_classification["save_hmm"] = True
+    args_classification["path_hmm"] = os.path.join(os.path.join(args_output["path"], args_dataset["dataset"].__name__),"HMM_weights")
 
 
     args_destruct = {}

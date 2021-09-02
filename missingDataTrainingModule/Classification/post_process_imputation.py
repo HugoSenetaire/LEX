@@ -629,7 +629,9 @@ class MarkovChainImputation(MultipleImputation):
 
 import tqdm
 class HMM():
-  def __init__(self, train_loader, hidden_dim, total_init_probability = None, total_transfer_probability = None, emission_probability = None, nb_iter = 10, nb_start= 5, use_cuda = True):
+  def __init__(self, train_loader, hidden_dim, nb_iter = 10, nb_start= 5, use_cuda = True, 
+               train_hmm = True, save_weights=True, path_weights = None,
+               ):
     aux = next(iter(train_loader))
     if len(aux) == 3:
       data, target, index = aux
@@ -644,22 +646,55 @@ class HMM():
     self.nb_iter = nb_iter
     self.nb_start = nb_start
     self.use_cuda = use_cuda
+    self.name = f"HMM_{self.output_dim}_{self.hidden_dim}_{self.sequence_len}"
+    self.save_weights = save_weights
+    self.train_hmm = train_hmm
+    self.path_weights = path_weights
 
-    if total_transfer_probability is None or total_init_probability is None or emission_probability is None:
-       self.train(train_loader, nb_iter=self.nb_iter, nb_start=self.nb_start)
+    
+    if self.path_weights is not None :
+      self.complete_path_weights = os.path.join(self.path_weights, self.name)
+      self.path_init_weights = os.path.join(self.complete_path_weights, "init_weights.pt")
+      self.path_transition_weights = os.path.join(self.complete_path_weights, "transition_weights.pt")
+      self.path_emission_weights = os.path.join(self.complete_path_weights, "emission_weights.pt")
+
     else :
-       self.init_probability = total_init_probability.type(torch.float32)
-       self.transition_probability = total_transfer_probability.type(torch.float32)
-       self.emission_probability = emission_probability.type(torch.float32)
+      if self.save_weights :
+        print(f"No path to save weights for {self.name}")
+        self.save_weights = False
 
-    if self.use_cuda :
-      self.init_probability = self.init_probability.cuda()
-      self.transition_probability = self.transition_probability.cuda()
-      self.emission_probability = self.emission_probability.cuda()
 
-    # self.log_init_probability = torch.log(self.init_probability)
-    # self.log_transition_probability = torch.log(self.transition_probability)
-    # self.log_emission_probability = torch.log(self.emission_probability)
+
+    if not (os.path.exists(self.path_init_weights) and os.path.exists(self.path_transition_weights) and os.path.exists(self.path_emission_weights)):
+      if not self.train_hmm:
+        print("Need_training because no weights are stored there")
+      self.init_probability = None
+      self.transition_probability = None
+      self.emission_probability = None
+      self.train_hmm = True
+    else :
+      self.init_probability = torch.load(self.path_init_weights)
+      self.transition_probability = torch.load(self.path_transition_weights)
+      self.emission_probability = torch.load(self.path_emission_weights)
+      self.train_hmm = train_hmm
+      if self.use_cuda :
+        self.init_probability = self.init_probability.cuda()
+        self.transition_probability = self.transition_probability.cuda()
+        self.emission_probability = self.emission_probability.cuda()
+
+    if self.train_hmm:
+      self.train(train_loader, nb_iter=self.nb_iter, nb_start=self.nb_start)
+    else :
+      self.save_weights = False
+    
+    if self.save_weights :
+      print(f"Weights will be saved at {self.complete_path_weights}")
+      if not os.path.exists(self.complete_path_weights):
+        os.makedirs(self.complete_path_weights)
+      torch.save(self.init_probability, self.path_init_weights)
+      torch.save(self.transition_probability, self.path_transition_weights)
+      torch.save(self.emission_probability, self.path_emission_weights)
+
 
 
   def forward(self, data, masks):
@@ -785,13 +820,16 @@ class HMM():
     return observations
 
 
-  def train(self, train_loader, nb_iter=25, nb_start = 1):
+  def train(self, train_loader, nb_iter=10, nb_start = 5):
     dic_best = {}
-    dic_best["likelihood"] = -float("inf")
-    dic_best["init"] = None 
-    dic_best["transition"] = None
-    dic_best["emission"] = None
-
+    dic_best["init"] = self.init_probability 
+    dic_best["transition"] = self.transition_probability
+    dic_best["emission"] = self.emission_probability
+    if self.init_probability is None or self.transition_probability is None or self.emission_probability is None :
+      dic_best["likelihood"] = -float("inf")
+    else :
+      log_likelihood = self.likelihood_total(train_loader)
+      dic_best["likelihood"] = log_likelihood
 
     for num_start in range(nb_start):
       self.init_probability = torch.rand((self.hidden_dim))
@@ -864,17 +902,8 @@ class HMM():
 
      
 
-      log_likelihood = torch.tensor(0.)
-      if self.use_cuda :
-        log_likelihood = log_likelihood.cuda()
-      for batch_number, aux in enumerate(iter(train_loader)):
-        element = aux[0]
-        masks = torch.ones(element.shape)
-        if self.use_cuda :
-          element = element.cuda()
-          masks = masks.cuda()
-        log_likelihood += torch.sum(torch.log(self.calculate_likelihood(element, masks) + 1e-8))
-      # print(f"\n Likelihood after iteration {num_start} is {log_likelihood}")
+      log_likelihood = self.likelihood_total(train_loader)
+      print(f"\n Likelihood after iteration {num_start} is {log_likelihood}")
 
 
 
@@ -900,7 +929,7 @@ class HMM():
   def calculate_likelihood(self, data, masks):
     batch_size = data.shape[0]
     data_argmax = torch.argmax(data, axis=-2)
-    masks_expanded = masks[:,0,:].unsqueeze(-1).expand((-1, -1, self.hidden_dim))
+    masks_expanded = masks.unsqueeze(-1).expand((-1, -1, self.hidden_dim))
     message = torch.zeros((batch_size, self.sequence_len, self.hidden_dim))
     emission_probability_transpose = self.emission_probability.transpose(0,1)
     auxiliary_ones = torch.ones(message[:,0,:].shape, dtype = torch.float32)/self.hidden_dim
@@ -928,7 +957,24 @@ class HMM():
     # print("Proba", proba)
 
     return proba    
-
+  
+  def likelihood_total(self, train_loader):
+      log_likelihood = torch.tensor(0.)
+      nb_element = torch.tensor(0.)
+      if self.use_cuda :
+        log_likelihood = log_likelihood.cuda()
+      for batch_number, aux in enumerate(iter(train_loader)):
+        batch_size, output_dim, sequence_len = aux[0].shape
+        element = aux[0]
+        masks = torch.ones(torch.argmax(element,-2).shape)
+        if self.use_cuda :
+          element = element.cuda()
+          masks = masks.cuda()
+        log_likelihood += torch.sum(torch.log(self.calculate_likelihood(element, masks) + 1e-8))
+        nb_element += batch_size
+      
+      log_likelihood -= torch.log(nb_element)
+      return log_likelihood
 
 
   def impute(self, data, masks, nb_imputation):
