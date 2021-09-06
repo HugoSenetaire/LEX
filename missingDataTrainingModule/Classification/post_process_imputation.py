@@ -490,7 +490,7 @@ class MICE_imputation_pretrained(MultipleImputation):
 
 
 class MarkovChain():
-  def __init__(self, train_loader, total_init_probability = None, total_transfer_probability = None, use_cuda = False):
+  def __init__(self, train_loader, total_init_probability = None, total_transition_probability = None, use_cuda = True):
     aux = next(iter(train_loader))
     if len(aux) == 3 :
       example_x, target, index = aux
@@ -501,35 +501,44 @@ class MarkovChain():
     self.sequence_len = sequence_len
     self.output_dim = output_dim
     self.use_cuda=use_cuda
-    if total_transfer_probability is None or total_init_probability is None :
+    if total_transition_probability is None or total_init_probability is None :
       self.train(train_loader)
     else :
        self.init_probability = total_init_probability
-       self.transition_probability = total_transfer_probability
+       self.transition_probability = total_transition_probability
+
+    if self.use_cuda :
+      self.init_probability = self.init_probability.cuda()
+      self.transition_probability = self.transition_probability.cuda()
 
     self.log_init_probability = torch.log(self.init_probability)
     self.log_transition_probability = torch.log(self.transition_probability)
 
   def train(self, train_loader):
-    self.init_probability = np.zeros((self.output_dim))
-    self.transition_probability = np.zeros((self.output_dim, self.output_dim))
+    self.init_probability = torch.zeros((self.output_dim))
+    self.transition_probability = torch.zeros((self.output_dim, self.output_dim))
+    if self.use_cuda :
+      self.init_probability = self.init_probability.cuda()
+      self.transition_probability = self.transition_probability.cuda()
     
     for aux in iter(train_loader):
       
       element = aux[0]
+      if self.use_cuda :
+        element=element.cuda()
       for sequence in element :
         sequence = sequence.transpose(0,1)
-        self.init_probability += sequence[0].numpy()
+        self.init_probability += sequence[0]
 
         for k in range(1,len(sequence)):
-          self.transition_probability[torch.argmax(sequence[k-1]).item()] += sequence[k].numpy()
+          self.transition_probability[torch.argmax(sequence[k-1]).item()] += sequence[k]
     if self.use_cuda :
-      self.init_probability = torch.tensor(self.init_probability/(np.sum(self.init_probability) + 1e-8)).cuda()
+      self.init_probability = torch.tensor(self.init_probability/(torch.sum(self.init_probability) + 1e-8)).cuda()
     else : 
-      self.init_probability = torch.tensor(self.init_probability/(np.sum(self.init_probability) + 1e-8))
+      self.init_probability = torch.tensor(self.init_probability/(torch.sum(self.init_probability) + 1e-8))
 
     for k in range(self.output_dim):
-      self.transition_probability[k] /= (np.sum(self.transition_probability[k]) + 1e-8)
+      self.transition_probability[k] /= (torch.sum(self.transition_probability[k]) + 1e-8)
     if self.use_cuda :
       self.transition_probability = torch.tensor(self.transition_probability, dtype = torch.float32).cuda()
     else :
@@ -544,17 +553,22 @@ class MarkovChain():
       message = torch.zeros((batch_size, self.sequence_len, self.output_dim))
 
 
+    masks_expanded = masks.unsqueeze(-1).expand(-1,self.sequence_len, self.output_dim)
+
+
     # Forward :
-    message[:, 0, :] = torch.where(masks[:,:,0] == 1, data[:, :, 0].type(torch.double), self.init_probability.unsqueeze(0).expand(batch_size,-1)) # message I is arriving at i
+
+    message[:, 0, :] = torch.where(masks_expanded[:,0,:].type(torch.double) == 1, data[:, :, 0].type(torch.double), self.init_probability.type(torch.double).unsqueeze(0).expand(batch_size,-1)) # message I is arriving at i
     for i in range(1, self.sequence_len):
         message_previous = torch.matmul(message[:, i-1], self.transition_probability)
-        message[:, i] = torch.where(masks[:,:,i] == 1, data[:, :, i], message_previous)
+       
+        message[:, i] = torch.where(masks_expanded[:,i,:] == 1, data[:, :,i], message_previous)
         message[:, i] = message[:, i]/(torch.sum(message[:, i], axis = -1, keepdim =True)+ 1e-8)
 
 
     # Backward : 
     output_sample = torch.zeros((batch_size, nb_imputation, self.sequence_len))
-    masks_imputation = masks[:,0,:].unsqueeze(-2).expand((batch_size, nb_imputation, self.sequence_len))
+    masks_imputation = masks.unsqueeze(-2).expand((batch_size, nb_imputation, self.sequence_len))
     data_argmax_imputation = data_argmax.unsqueeze(-2).expand((batch_size, nb_imputation, self.sequence_len))
 
     message = message.unsqueeze(2).expand(-1, -1, nb_imputation, -1).clone() # batch size, sequence len, nb_imputation, output_dim
@@ -567,6 +581,9 @@ class MarkovChain():
 
       
       output_sample_masks =  torch.nn.functional.one_hot(output_sample[:, :, i+1].type(torch.int64), num_classes=self.output_dim).unsqueeze(-2).expand(-1,-1, self.output_dim, -1)>0.5
+      if self.use_cuda :
+        output_sample_masks = output_sample_masks.cuda()
+
       aux_transition = torch.masked_select(aux_transition, output_sample_masks).reshape(batch_size, nb_imputation, self.output_dim)
       message[:,i,:,:] *=aux_transition
       message[:,i,:,:] /= (torch.sum(message[:,i,:,:], axis=-1).unsqueeze(-1).expand(-1,-1, self.output_dim)+1e-8)
