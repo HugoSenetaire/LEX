@@ -29,13 +29,13 @@ class AbstractDestructor(nn.Module):
       self.kernel_patch = 1
       self.stride_patch = 1
       try :
-        self.nb_patch_x, self.nb_patch_y = int(self.input_size), None
+        self.nb_patch_x, self.nb_patch_y = int(self.input_size), 1
       except :
-        self.nb_patch_x, self.nb_patch_y = int(self.input_size[1]), None
+        self.nb_patch_x, self.nb_patch_y = int(self.input_size[1]), 1
     elif len(self.input_size)==2: # For protein like example (1D CNN) #TODO: really implement that ?
         self.kernel_patch = kernel_patch
         self.stride_patch = stride_patch
-        self.nb_patch_x, self.nb_patch_y = int(self.input_size[1]), None 
+        self.nb_patch_x, self.nb_patch_y = int(self.input_size[1]), 1 
 
     else :
       assert(kernel_patch[0]>= stride_patch[0])
@@ -51,7 +51,84 @@ class AbstractDestructor(nn.Module):
     raise NotImplementedError
 
 
+class DestructorLinear(AbstractDestructor):
+    def __init__(self,input_size = (1,28,28)):
+      super().__init__(input_size = input_size)
+        
+    def kernel_update(self, kernel_patch, stride_patch):
+      super().kernel_update( kernel_patch, stride_patch)
 
+      self.pi = nn.Linear(np.prod(self.input_size), self.nb_patch_x*self.nb_patch_y)
+      self.logsigmoid = nn.LogSigmoid()
+
+    def __call__(self, x):
+        assert(self.kernel_updated)
+        x = x.flatten(1) # Batch_size, Channels* SizeProduct
+        return self.logsigmoid(self.pi(x))
+
+class DestructorLVL1(AbstractDestructor):
+    def __init__(self,input_size = (1,28,28)):
+      super().__init__(input_size = input_size)
+        
+    def kernel_update(self, kernel_patch, stride_patch):
+      super().kernel_update( kernel_patch, stride_patch)
+
+      self.fc1 = nn.Linear(np.prod(self.input_size),50)
+      self.pi = nn.Linear(50, self.nb_patch_x*self.nb_patch_y)
+      self.logsigmoid = nn.LogSigmoid()
+
+
+    def __call__(self, x):
+        assert(self.kernel_updated)
+        x = x.flatten(1) # Batch_size, Channels* SizeProduct
+        x = F.elu(self.fc1(x))
+        return self.logsigmoid(self.pi(x))
+  
+
+class DestructorLVL2(AbstractDestructor):
+    def __init__(self,input_size = (1,28,28)):
+      super().__init__(input_size = input_size)
+        
+    def kernel_update(self, kernel_patch, stride_patch):
+      super().kernel_update( kernel_patch, stride_patch)
+
+      self.fc1 = nn.Linear(np.prod(self.input_size),50)
+      self.fc2 = nn.Linear(50,50)
+      self.pi = nn.Linear(50, self.nb_patch_x*self.nb_patch_y)
+      self.logsigmoid = nn.LogSigmoid()
+
+
+    def __call__(self, x):
+        assert(self.kernel_updated)
+        x = x.flatten(1) # Batch_size, Channels* SizeProduct
+        x = F.elu(self.fc1(x))
+        x = F.elu(self.fc2(x))
+        return self.logsigmoid(self.pi(x))
+  
+
+class DestructorLVL3(AbstractDestructor):
+    def __init__(self,input_size = (1,28,28)):
+      super().__init__(input_size = input_size)
+        
+    def kernel_update(self, kernel_patch, stride_patch):
+      super().kernel_update( kernel_patch, stride_patch)
+
+      self.fc1 = nn.Linear(np.prod(self.input_size),50)
+      self.fc2 = nn.Linear(50,50)
+      self.fc3 = nn.Linear(50,50)
+      self.fc4 = nn.Linear(50,50)
+      self.pi = nn.Linear(50, self.nb_patch_x*self.nb_patch_y)
+      self.logsigmoid = nn.LogSigmoid()
+
+
+    def __call__(self, x):
+        assert(self.kernel_updated)
+        x = x.flatten(1) # Batch_size, Channels* SizeProduct
+        x = F.elu(self.fc1(x))
+        x = F.elu(self.fc2(x))
+        x = F.elu(self.fc3(x))
+        x = F.elu(self.fc4(x))
+        return self.logsigmoid(self.pi(x))
   
 
 class Destructor(AbstractDestructor):
@@ -64,20 +141,21 @@ class Destructor(AbstractDestructor):
       self.fc1 = nn.Linear(np.prod(self.input_size),200)
       self.fc2 = nn.Linear(200,100)
       self.pi = nn.Linear(100, self.nb_patch_x*self.nb_patch_y)
-        
+      self.logsigmoid = nn.LogSigmoid()
 
 
     def __call__(self, x):
         assert(self.kernel_updated)
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         x = F.elu(self.fc1(x))
-        pi = F.elu(self.fc2(x))
-        return torch.sigmoid(self.pi(pi))
+        x = F.elu(self.fc2(x))
+        return self.logsigmoid(self.pi(x))
 
 class DestructorSimilar(AbstractDestructor):
     def __init__(self,input_size = (1,28,28), bias = True):
       super().__init__(input_size = input_size)
       self.bias = bias
+      self.logsigmoid = nn.LogSigmoid()
         
     def kernel_update(self, kernel_patch, stride_patch):
       super().kernel_update( kernel_patch, stride_patch)
@@ -95,12 +173,13 @@ class DestructorSimilar(AbstractDestructor):
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
         pi = F.elu(self.fc3(x))
-        return torch.sigmoid(self.pi(pi))
+        return self.logsigmoid(self.pi(pi))
 
 class DestructorSimple(AbstractDestructor):
     def __init__(self,input_size = (1,28,28), bias = True):
       super().__init__(input_size = input_size)
       self.bias = bias
+      self.logsigmoid = nn.LogSigmoid()
         
     def kernel_update(self, kernel_patch, stride_patch):
       super().kernel_update( kernel_patch, stride_patch)
@@ -115,12 +194,13 @@ class DestructorSimple(AbstractDestructor):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         x = F.elu(self.fc1(x))
         # x = F.elu(self.fc2(x))
-        return torch.sigmoid(self.pi(x))
+        return self.logsigmoid(self.pi(x))
 
 class DestructorSimpleV2(AbstractDestructor):
     def __init__(self,input_size = (1,28,28), bias = True):
       super().__init__(input_size = input_size)
       self.bias = bias
+      self.logsigmoid = nn.LogSigmoid()
         
     def kernel_update(self, kernel_patch, stride_patch):
       super().kernel_update( kernel_patch, stride_patch)
@@ -135,7 +215,7 @@ class DestructorSimpleV2(AbstractDestructor):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
-        return torch.sigmoid(self.pi(x))
+        return self.logsigmoid(self.pi(x))
 
 
 
@@ -144,6 +224,7 @@ class DestructorSimpleV2(AbstractDestructor):
     def __init__(self,input_size = (1,28,28), bias = True):
       super().__init__(input_size = input_size)
       self.bias = bias
+      self.logsigmoid = nn.LogSigmoid()
         
     def kernel_update(self, kernel_patch, stride_patch):
       super().kernel_update( kernel_patch, stride_patch)
@@ -158,12 +239,13 @@ class DestructorSimpleV2(AbstractDestructor):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
-        return torch.sigmoid(self.pi(x))
+        return self.logsigmoid(self.pi(x))
 
 class DestructorSimpleV3(AbstractDestructor):
     def __init__(self,input_size = (1,28,28), bias = True):
       super().__init__(input_size = input_size)
       self.bias = bias
+      self.logsigmoid = nn.LogSigmoid()
         
     def kernel_update(self, kernel_patch, stride_patch):
       super().kernel_update( kernel_patch, stride_patch)
@@ -178,7 +260,7 @@ class DestructorSimpleV3(AbstractDestructor):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
-        return torch.sigmoid(self.pi(x))
+        return self.logsigmoid(self.pi(x))
 
 
 class DestructorUNET(AbstractDestructor):
@@ -188,6 +270,7 @@ class DestructorUNET(AbstractDestructor):
       self.w = self.input_size[1]
       self.h = self.input_size[2]
       self.bilinear = bilinear
+      self.logsigmoid = nn.LogSigmoid()
 
 
     def kernel_update(self, kernel_patch, stride_patch):
@@ -206,7 +289,7 @@ class DestructorUNET(AbstractDestructor):
     def __call__(self, x):
       x = self.getconfiguration(x)
       x = self.UNET(x)
-      pi = torch.sigmoid(x)
+      pi = self.logsigmoid(x)
       return pi
 
 class DestructorUNET1D(AbstractDestructor):
@@ -215,6 +298,7 @@ class DestructorUNET1D(AbstractDestructor):
       self.channels = self.input_size[0]
       self.w = self.input_size[1]
       self.bilinear = bilinear
+      self.logsigmoid = nn.LogSigmoid()
 
 
     def kernel_update(self, kernel_patch = 1, stride_patch = 1):
@@ -233,7 +317,7 @@ class DestructorUNET1D(AbstractDestructor):
     def __call__(self, x):
       x = self.getconfiguration(x)
       x = self.UNET(x)
-      pi = torch.sigmoid(x)
+      pi = self.logsigmoid(x)
       return pi
 
 
@@ -242,6 +326,7 @@ class DestructorSimilarVar(AbstractDestructor):
     def __init__(self,input_size = (1,28,28), nb_category = 10):
       super().__init__(input_size = input_size)
       self.nb_category = nb_category
+      self.logsigmoid = nn.LogSigmoid()
         
     def kernel_update(self, kernel_patch, stride_patch):
       super().kernel_update( kernel_patch, stride_patch)
@@ -262,7 +347,7 @@ class DestructorSimilarVar(AbstractDestructor):
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
         pi = F.elu(self.fc3(x))
-        return torch.sigmoid(self.pi(pi))
+        return self.logsigmoid(self.pi(pi))
 
 
 
@@ -270,6 +355,7 @@ class DestructorFromFeature(AbstractDestructor):
     def __init__(self,feature_size = [200, 500], input_size = (1,28,28)):
       super().__init__(input_size = input_size)
       self.feature_size = feature_size
+      self.logsigmoid = nn.LogSigmoid()
         
     def kernel_update(self, kernel_patch, stride_patch):
       super().kernel_update( kernel_patch, stride_patch)
@@ -287,7 +373,7 @@ class DestructorFromFeature(AbstractDestructor):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         for layer in self.layers :
           x = F.elu(layer(x))
-        return torch.sigmoid(self.pi(x))
+        return self.logsigmoid(self.pi(x))
 
 
 
@@ -296,6 +382,7 @@ class DestructorFromFeatureVar(AbstractDestructor):
       super().__init__(input_size = input_size)
       self.nb_category =nb_category
       self.feature_size = feature_size
+      self.logsigmoid = nn.LogSigmoid()
         
     def kernel_update(self, kernel_patch, stride_patch):
       super().kernel_update( kernel_patch, stride_patch)
@@ -314,7 +401,7 @@ class DestructorFromFeatureVar(AbstractDestructor):
         x = torch.cat([x,y], 1)
         for layer in self.layers :
           x = F.elu(layer(x))
-        return torch.sigmoid(self.pi(x))
+        return self.logsigmoid(self.pi(x))
 
 
       
@@ -327,6 +414,7 @@ class DestructorVariational(AbstractDestructor):
   def __init__(self, input_size = (1,28,28), output_size = 10):
     super().__init__(input_size = input_size)
     self.output_size = output_size
+    self.logsigmoid = nn.LogSigmoid()
     
 
   def kernel_update(self, kernel_patch, stride_patch):
@@ -342,7 +430,7 @@ class DestructorVariational(AbstractDestructor):
     x = torch.cat([x,y],1)
     x = F.elu(self.fc1(x))
     pi = F.elu(self.fc2(x))
-    return torch.sigmoid(self.pi(pi))
+    return self.logsigmoid(self.pi(pi))
 
 
 
@@ -351,6 +439,7 @@ class DestructorVariationalNoY(AbstractDestructor):
   def __init__(self, input_size = (1,28,28), output_size = 10):
     super().__init__(input_size = input_size)
     self.output_size = output_size
+    self.logsigmoid = nn.LogSigmoid()
     
 
   def kernel_update(self, kernel_patch, stride_patch):
@@ -365,7 +454,7 @@ class DestructorVariationalNoY(AbstractDestructor):
     y = y.float()
     x = F.elu(self.fc1(x))
     pi = F.elu(self.fc2(x))
-    return torch.sigmoid(self.pi(pi))
+    return self.logsigmoid(self.pi(pi))
 
 
 
@@ -375,6 +464,8 @@ class DestructorVariationalNoY(AbstractDestructor):
 class ConvDestructor(nn.Module):
     def __init__(self, input_channel, input_size = (1,28,28), output_size= 10):
         super().__init__()
+
+        self.logsigmoid = nn.LogSigmoid()
         self.conv1 = nn.Conv2d(input_channel, input_channel, 3, stride=1, padding=1)
         self.maxpool1 = nn.MaxPool2d(kernel_size=(2,2),stride=1, padding = 1)
         self.conv2 = nn.Conv2d(input_channel, 1, 3, stride=1, padding=1)
@@ -385,11 +476,12 @@ class ConvDestructor(nn.Module):
         x = self.maxpool1(self.conv1(x))
         x = self.maxpool2(self.conv2(x))
         x = torch.flatten(x,1)
-        return torch.sigmoid(self.fc(x)) #N_expectation, Batch_size, Category
+        return self.logsigmoid(self.fc(x)) #N_expectation, Batch_size, Category
 
 class ConvDestructorVar(nn.Module):
   def __init__(self, input_channel, input_size = (1,28,28), output_size= 10):
     super().__init__()
+    self.logsigmoid = nn.LogSigmoid()
     self.conv1 = nn.Conv2d(input_channel, input_channel, 3, stride=1, padding=1)
     self.maxpool1 = nn.MaxPool2d(kernel_size=(2,2),stride=1)
     self.conv2 = nn.Conv2d(input_channel, 1, 3, stride=1, padding=1)
@@ -402,4 +494,4 @@ class ConvDestructorVar(nn.Module):
     x = torch.flatten(x,1)
     y = y.float()
     x = torch.cat([x,y],1)
-    return torch.sigmoid(self.fc(x)) #TODO : No Fully connected layer at the end.
+    return self.logsigmoid(self.fc(x)) #TODO : No Fully connected layer at the end.

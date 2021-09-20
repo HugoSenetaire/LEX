@@ -1,5 +1,7 @@
 import sys
 import os
+
+from torch.nn.modules.activation import ELU
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils_missing import *
 
@@ -24,13 +26,83 @@ class ClassifierModel(nn.Module):
         self.fc2 = nn.Linear(middle_size, int(middle_size/2))
         self.fc3 = nn.Linear(int(middle_size/2),output)
         self.logsoftmax = nn.LogSoftmax(-1)
+        self.elu = nn.ELU()
     
     def __call__(self, x):
 
         x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
-        return self.logsoftmax(self.fc3(x)) #N_expectation * Batch_size, Category
+        return self.logsoftmax(self.elu(self.fc3(x))) #N_expectation * Batch_size, Category
+
+    
+class ClassifierLinear(nn.Module):
+    def __init__(self,input_size = (1,28,28), output = 10, middle_size = 50):
+        super().__init__()
+        self.input_size = input_size
+        self.fc1 = nn.Linear(np.prod(input_size), output)
+        self.logsoftmax = nn.LogSoftmax(-1)
+    
+    def __call__(self, x):
+        x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
+        x = self.fc1(x)
+        return self.logsoftmax(x) #N_expectation * Batch_size, Category
+
+class ClassifierLVL1(nn.Module):
+    def __init__(self,input_size = (1,28,28), output = 10, middle_size = 50):
+        super().__init__()
+        self.input_size = input_size
+        self.fc1 = nn.Linear(np.prod(input_size), middle_size)
+        self.fc2 = nn.Linear(middle_size, output)
+        self.logsoftmax = nn.LogSoftmax(-1)
+    
+    def __call__(self, x):
+
+        x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
+        x = F.elu(self.fc1(x))
+        x = self.fc2(x)
+        return self.logsoftmax(x) #N_expectation * Batch_size, Category
+
+class ClassifierLVL2(nn.Module):
+    def __init__(self,input_size = (1,28,28), output = 10, middle_size = 50):
+        super().__init__()
+        self.input_size = input_size
+        self.fc1 = nn.Linear(np.prod(input_size), middle_size)
+        self.fc2 = nn.Linear(middle_size, middle_size)
+        self.fc3 = nn.Linear(middle_size, output)
+        self.logsoftmax = nn.LogSoftmax(-1)
+    
+    def __call__(self, x):
+
+        x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
+        x = F.elu(self.fc1(x))
+        x = F.elu(self.fc2(x))
+        x = self.fc3(x)
+        return self.logsoftmax(x) #N_expectation * Batch_size, Category
+
+
+class ClassifierLVL3(nn.Module):
+    def __init__(self,input_size = (1,28,28), output = 10, middle_size = 50):
+        super().__init__()
+        self.input_size = input_size
+        self.fc1 = nn.Linear(np.prod(input_size), middle_size)
+        self.fc2 = nn.Linear(middle_size, middle_size)
+        self.fc3 = nn.Linear(middle_size, middle_size)
+        self.fc4 = nn.Linear(middle_size, middle_size)
+        self.fc5 = nn.Linear(middle_size, output)
+        
+        self.logsoftmax = nn.LogSoftmax(-1)
+    
+    def __call__(self, x):
+
+        x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
+        x = F.elu(self.fc1(x))
+        x = F.elu(self.fc2(x))
+        x = F.elu(self.fc3(x))
+        x = F.elu(self.fc4(x))
+        x = self.fc5(x)
+        return self.logsoftmax(x)
+
 
 class FeatureExtraction(nn.Module):
     def __init__(self, input_size = (1,28,28), middle_size = [400,200]):
@@ -58,12 +130,14 @@ class StupidClassifier(nn.Module):
         self.bias = bias
         self.input_size = input_size
         self.fc1 = nn.Linear(np.prod(input_size), output, bias = bias)
+        
         self.logsoftmax = nn.LogSoftmax(-1)
+        self.elu = nn.ELU()
 
 
     def __call__(self, x):
         x = x.flatten(1)
-        return self.logsoftmax(self.fc1(x))
+        return self.logsoftmax(self.elu(self.fc1(x)))
 
 
 class PretrainedVGGPytorch(nn.Module):
@@ -80,15 +154,16 @@ class PretrainedVGGPytorch(nn.Module):
                                 nn.Linear(4096,4096),
                                 nn.ReLU(True),
                                 nn.Dropout(),
-                                nn.Linear(4096, output_size)
+                                nn.Linear(4096, output_size),
                             )
         self.logsoftmax = nn.LogSoftmax(-1)
+        self.elu = nn.ELU()
 
     def __call__(self, x):
         x = self.model.features(x)
         x = self.model.avgpool(x)
         x = self.new_classifier(x)
-        x = self.logsoftmax(x)
+        x = self.logsoftmax(self.elu(x))
         return x
 
 
@@ -129,6 +204,7 @@ class VGGSimilar(nn.Module):
                                 nn.Linear(4096, output_size)
                             )
         self.logsoftmax = nn.LogSoftmax(-1)
+        self.elu = nn.ELU()
 
         
 
@@ -136,7 +212,7 @@ class VGGSimilar(nn.Module):
         x = self.features(x)
         x = self.avg_pool(x)
         x = self.new_classifier(x)
-        x = self.logsoftmax(x)
+        x = self.logsoftmax(self.elu(x))
         return x
 
 class ClassifierFromFeature(nn.Module):
@@ -147,8 +223,9 @@ class ClassifierFromFeature(nn.Module):
         self.output_size = output_size
         self.fc = nn.Linear(input_size, output_size)
         self.logsoftmax = nn.LogSoftmax(-1)
+        self.elu = nn.ELU()
     def __call__(self, x):
-        return self.logsoftmax(self.fc(x))
+        return self.logsoftmax(self.elu(self.fc(x)))
 
 class ConvClassifier(nn.Module):
     def __init__(self, input_size = (1,28,28),output_size = 10):
@@ -159,13 +236,14 @@ class ConvClassifier(nn.Module):
         self.maxpool2 = nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
         self.fc = nn.Linear(int(np.prod(input_size)/16),output_size)
         self.logsoftmax = nn.LogSoftmax(-1)
+        self.elu = nn.ELU()
     
     def __call__(self, x):
         batch_size = x.shape[0]
         x = self.maxpool1(self.conv1(x))
         x = self.maxpool2(self.conv2(x))
         x = torch.flatten(x,1)
-        result = self.logsoftmax(self.fc(x)).reshape(batch_size, -1)
+        result = self.logsoftmax(self.elu(self.fc(x))).reshape(batch_size, -1)
         return result #N_expectation, Batch_size, Category
 
 
@@ -177,13 +255,14 @@ class ConvClassifierV2(nn.Module):
         self.fc1 = nn.Linear(int(np.prod(input_size)/4)*nb_filters, 100)
         self.fc2 = nn.Linear(100,output_size)
         self.logsoftmax = nn.LogSoftmax(-1)
+        self.elu = nn.ELU()
     
     def __call__(self, x):
         batch_size = x.shape[0]
         x = self.maxpool1(self.conv1(x))
         x = torch.flatten(x,1)
         x=F.elu(self.fc1(x), inplace = False)
-        result = self.logsoftmax(self.fc2(x)).reshape(batch_size, -1)
+        result = self.logsoftmax(self.elu(self.fc2(x))).reshape(batch_size, -1)
         return result #N_expectation, Batch_size, Category
 
 

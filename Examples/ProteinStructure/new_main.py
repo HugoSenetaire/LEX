@@ -41,7 +41,7 @@ if __name__ == '__main__' :
 
   
 
-    final_path, trainer_var, loader = experiment(args_dataset,
+    final_path, trainer_var, loader, dic_list = experiment(args_dataset,
                                         args_classification,
                                         args_destruct,
                                         args_complete_trainer,

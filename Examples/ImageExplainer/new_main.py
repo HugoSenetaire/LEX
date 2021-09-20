@@ -94,7 +94,7 @@ if __name__ == '__main__' :
     args_test["temperature_test"] = 0.0
     args_test["Nexpectation_test"] = 10
 
-    final_path, trainer_var, loader = experiment(args_dataset,
+    final_path, trainer_var, loader, dic_list = experiment(args_dataset,
                                         args_classification,
                                         args_destruct,
                                         args_complete_trainer,

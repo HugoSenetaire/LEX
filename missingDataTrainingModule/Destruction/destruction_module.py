@@ -12,10 +12,10 @@ from .regularization import *
 
 class DestructionModule():
 
-    def __init__(self, destructor, regularization = None, feature_extractor = None):
+    def __init__(self, destructor, regularization = None, feature_extractor = None, use_cuda = False):
         self.destructor = destructor
         self.regularization = regularization
-
+        self.use_cuda = use_cuda
 
         self.feature_extractor = feature_extractor
         if self.feature_extractor is None :
@@ -70,7 +70,11 @@ class DestructionModule():
 
         else :
             pi_list = self.destructor(data_expanded)
-            loss_reg = torch.zeros((1)).cuda()
+            
+            loss_reg = torch.zeros((1))
+            if self.use_cuda :
+                loss_reg = loss_reg.cuda()
+            
             if not test and self.regularization is not None :
                 for reg in self.regularization :
                     loss_reg += reg(pi_list)

@@ -11,10 +11,11 @@ from .imputation import *
 
 class ClassificationModule():
 
-    def __init__(self, classifier, imputation = None, imputation_reg = None, feature_extractor = None):
+    def __init__(self, classifier, imputation = None, imputation_reg = None, feature_extractor = None, use_cuda = False):
         self.classifier = classifier
         self.classifier_fixed = False
         self.imputation = imputation
+        self.use_cuda = use_cuda
         if self.imputation is None :
             self.need_imputation = False
         else :
@@ -133,14 +134,15 @@ class ClassificationModule():
 
 
     def __call__(self, data, sample_b = None, index = None):
-
         if sample_b is not None :
             sample_b = self.prepare_mask(data, sample_b)
-        if self.imputation is not None and sample_b is None :
-            raise AssertionError("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
-        elif self.imputation is not None and sample_b is not None :
+        # if self.imputation is not None and sample_b is None :
+            # print("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
+            # raise AssertionError("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
+        
+    
+        if self.imputation is not None and sample_b is not None :
             x_imputed, loss_reconstruction = self.imputation.impute(data, sample_b, index)
-            
             # x_imputed_aux = x_imputed.cpu().detach().numpy()
             # fig, (ax1, ax2, ax3)= plt.subplots(1,3)
             # ax1.imshow(data[0].cpu().detach().numpy().reshape((28,28)), cmap='gray')
@@ -156,7 +158,9 @@ class ClassificationModule():
             if self.need_extraction :
                 data = self.feature_extractor(data)
             y_hat = self.classifier(data)
-            loss_reconstruction = torch.zeros((1)).cuda()
+            loss_reconstruction = torch.zeros((1))
+            if self.use_cuda :
+                loss_reconstruction = loss_reconstruction.cuda()
         return y_hat, loss_reconstruction
 
 

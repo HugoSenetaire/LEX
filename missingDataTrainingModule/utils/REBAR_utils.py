@@ -59,8 +59,6 @@ def reparam_pz_b(v, b, theta):
 def u_to_v(pi_list, u, eps = 1e-8):
     """Convert u to tied randomness in v."""
     u_prime = F.sigmoid(safe_log_prob(pi_list/(1-pi_list)))  # g(u') = 0
-    # print(u_prime.shape)
-    # print(u.shape)
     v_1 = (u - u_prime) / torch.clamp(1 - u_prime, eps, 1)
     v_1 = torch.clamp(v_1.clone(), 0, 1).detach()
     v_1 = v_1.clone()*(1 - u_prime) + u_prime
