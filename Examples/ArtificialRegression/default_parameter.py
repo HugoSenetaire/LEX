@@ -8,6 +8,7 @@ from interpretation_regression import *
 
 from torch.distributions import *
 from torch.optim import *
+import torch
 from functools import partial
 
 def get_default():
@@ -95,7 +96,7 @@ def get_default():
     args_train["sampling_distribution_train_var"] = Bernoulli
     args_train["temperature_train_init"] = 1.0
     args_train["temperature_decay"] = 0.5
-    args_train["use_cuda"] = False
+    args_train["use_cuda"] = torch.cuda.is_available()
 
 
     args_train["optim_classification"] = partial(Adam, lr=1e-4) #Learning rate for classification module
