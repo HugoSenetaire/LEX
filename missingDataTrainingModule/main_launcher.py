@@ -253,7 +253,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
             recons_regul = None
 
 
-        destruction_module = DestructionModule(destructor, feature_extractor=feature_extractor, regularization=free_regularization, use_cuda = args_train["use_cuda"])
+        destruction_module = DestructionModule(destructor, feature_extractor=feature_extractor, regularization=args_destruction["regularization"], use_cuda = args_train["use_cuda"])
         destruction_module.kernel_update(kernel_patch, stride_patch)
         if args_destruction["destructor_var"] is not None :
             destruction_module_var = DestructionModule(destructor_var, feature_extractor=feature_extractor, regularization= free_regularization)

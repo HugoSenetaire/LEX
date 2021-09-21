@@ -218,14 +218,14 @@ class noVariationalTraining(ordinaryTraining):
         dic = super()._create_dic(loss_total, neg_likelihood, mse_loss)
         dic["loss_rec"] = loss_rec.item()
         dic["loss_reg"] = loss_reg.item()
-        dic["mean_pi"] = torch.mean(torch.mean(pi_list.flatten(1),1)).item()
+        dic["mean_pi_list"] = torch.mean(torch.mean(pi_list.flatten(1),1)).item()
         quantiles = torch.tensor([0.25,0.5,0.75])
         if self.use_cuda: 
             quantiles = quantiles.cuda()
         q = torch.quantile(pi_list.flatten(1),quantiles,dim=1,keepdim = True)
-        dic["median_pi"] = torch.mean(q[1]).item()
-        dic["q1_pi"] = torch.mean(q[0]).item()
-        dic["q2_pi"] = torch.mean(q[2]).item()
+        dic["pi_list_median"] = torch.mean(q[1]).item()
+        dic["pi_list_q1"] = torch.mean(q[0]).item()
+        dic["pi_list_q2"] = torch.mean(q[2]).item()
         if self.classification_module.imputation.has_constant():
             if torch.is_tensor(self.classification_module.imputation.get_constant()):
                 dic["constantLeanarble"]= self.classification_module.imputation.get_constant().item()
@@ -588,7 +588,97 @@ class AllZTraining(noVariationalTraining):
 
         return dic
 
+class AllZTrainingV2(noVariationalTraining):
+    """ Difference betzeen the previous is the way we calculate the multiplication with the loss"""
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), feature_extractor_training = False, use_cuda= True):
+        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda)
+        self.compteur = 0
+        self.computed_combination = False
+        self.z = None
 
+
+    def _sample_z_train(self, pi_list, log_pi_list, sampling_distribution, Nexpectation):
+        p_z = sampling_distribution(pi_list)
+        # p_z = sampling_distribution(logits = log_pi_list)
+        z = p_z.sample((Nexpectation,))
+        return z, p_z
+
+    def _train_step(self, data, target, dataset,optim_classifier, optim_destruction, sampling_distribution,  index = None, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, Nexpectation = 10, lambda_reconstruction = 0.0):
+        self.zero_grad()
+        # from torch import autograd
+        # with autograd.detect_anomaly():
+        dim_total = np.prod(data.shape[1:])
+        batch_size = data.shape[0]
+        Nexpectation = 2**dim_total
+        # Nexpectation = 2
+
+                
+        nb_imputation = self.classification_module.imputation.nb_imputation
+
+        if not self.computed_combination :
+            self.z = get_all_z(dim_total)
+            self.computed_combination = True
+
+
+        z = self.z.unsqueeze(1).expand(Nexpectation, batch_size, dim_total).detach()
+        if self.use_cuda:
+            z = z.cuda()
+        # z = torch.ones((Nexpectation, batch_size, dim_total)).cuda()
+        
+        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
+        
+        
+        
+        # Destructive module :
+        pi_list, log_pi_list, loss_reg, aux_z, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
+        log_prob_pz = torch.sum(p_z.log_prob(z).flatten(2), axis = -1) # TODO : torch.logsumexp ou torch.Sum ?
+        # global save_pz
+        # save_pz = copy.deepcopy(p_z.log_prob(z).detach().cpu().numpy())
+        # log_prob_pz = log_prob_pz.unsqueeze(1).expand((Nexpectation,nb_imputation, batch_size)) # Batch_size*Nexpectation, nb_imputation, nbcategory
+
+        
+        
+        
+        # # Classification module :
+        _, _, _, one_hot_target_expanded_multiple_imputation, _, _, _ = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation = Nexpectation*nb_imputation)
+
+        target_aux = torch.argmax(one_hot_target_expanded_multiple_imputation, axis=-1).flatten().reshape(Nexpectation, nb_imputation, batch_size)
+
+        
+        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z, index = index_expanded)
+        neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
+        neg_likelihood = torch.logsumexp(neg_likelihood, axis=1)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
+        neg_likelihood *= torch.exp(log_prob_pz)
+        neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(Nexpectation).type(torch.float32))
+        neg_likelihood = torch.sum(neg_likelihood)
+        mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target_expanded_multiple_imputation.flatten(0,1))**2,1))
+
+
+
+        loss_total = neg_likelihood + lambda_reg * loss_reg
+
+        dic = self._create_dic(loss_total, neg_likelihood, mse_loss, loss_reconstruction,  lambda_reg *loss_reg, pi_list)
+        loss_total.backward()
+        optim_classifier.step()
+
+        # global grad
+        # global grad_previous
+        # grad_previous = copy.deepcopy(grad)
+        # grad = {}
+
+        # for name, param in self.destruction_module.destructor.named_parameters():
+        #     grad[name] = copy.deepcopy(param.grad)
+        # global global_generator
+        # aux_destruction = copy.deepcopy(self.destruction_module.destructor)
+        
+        # global_generator = aux_destruction.named_parameters()
+
+        optim_destruction.step()
+        
+        if self.need_feature :
+            optim_feature_extractor.step()
+
+        return dic
 
 class REBAR(noVariationalTraining):
     def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), feature_extractor_training = False, use_cuda = True, update_temperature = False, pytorch_relax = False):

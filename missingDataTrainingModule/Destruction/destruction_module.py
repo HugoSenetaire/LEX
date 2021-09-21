@@ -26,6 +26,9 @@ class DestructionModule():
 
         if not self.regularization is list and self.regularization is not None:
            self.regularization = [self.regularization]
+        # if self.use_cuda :
+        #     for regul in self.regularization :
+        #         regul = regul.cuda()
 
 
     def kernel_update(self, kernel_patch, stride_patch):
@@ -60,16 +63,21 @@ class DestructionModule():
             data_expanded = self.feature_extractor(data_expanded)
 
         if one_hot_target is not None :
-            pi_list = self.destructor(data_expanded, one_hot_target)
+            log_pi_list = self.destructor(data_expanded, one_hot_target)
             loss_reg = torch.zeros((1)).cuda()
             if not test and self.regularization is not None :
                 for reg in self.regularization :
-                    loss_reg += reg(pi_list)
 
-            return pi_list, loss_reg
+                    print(torch.exp(log_pi_list[0]))
+                    log_pi_list, loss_reg_aux = reg(log_pi_list)
+                    print(torch.exp(log_pi_list[0]))
+                    loss_reg +=loss_reg_aux
+                    
+
+            return log_pi_list, loss_reg
 
         else :
-            pi_list = self.destructor(data_expanded)
+            log_pi_list = self.destructor(data_expanded)
             
             loss_reg = torch.zeros((1))
             if self.use_cuda :
@@ -77,6 +85,7 @@ class DestructionModule():
             
             if not test and self.regularization is not None :
                 for reg in self.regularization :
-                    loss_reg += reg(pi_list)
-
-            return pi_list, loss_reg
+                    log_pi_list, loss_reg_aux = reg(log_pi_list)
+                    loss_reg +=loss_reg_aux
+                    
+            return log_pi_list, loss_reg
