@@ -37,14 +37,14 @@ class RelaxedSubsetSampling_STE(RelaxedSubsetSampling):
 
 class L2X_Distribution(torch.distributions.RelaxedOneHotCategorical):
   def __init__(self, temperature=1, probs = None, logits = None, subset_size=None, validate_args=None):
-        super(RelaxedTopK, self).__init__(temperature, probs, logits, validate_args)
+        super(L2X_Distribution, self).__init__(temperature, probs, logits, validate_args)
         self.subset_size = subset_size
 
 
   def rsample(self, n_samples):
-        samples = super(RelaxedTopK_STE, self).rsample(n_samples).unsqueeze(0)
+        samples = super(L2X_Distribution, self).rsample(n_samples).unsqueeze(0)
         for k in range(self.subset_size-1):
-            samples = torch.cat((samples, super(RelaxedTopK_STE, self).rsample(n_samples).unsqueeze(0)), 0)
+            samples = torch.cat((samples, super(L2X_Distribution, self).rsample(n_samples).unsqueeze(0)), 0)
         samples = torch.max(samples, dim=0)
         return samples      
 
@@ -77,9 +77,9 @@ class L2X_Distribution_STE(torch.distributions.RelaxedOneHotCategorical):
         self.subset_size = subset_size
 
     def rsample(self, n_samples):
-        samples = super(RelaxedTopK_STE, self).rsample(n_samples).unsqueeze(0)
+        samples = super().rsample(n_samples).unsqueeze(0)
         for k in range(self.subset_size-1):
-            samples = torch.cat((samples, super(RelaxedTopK_STE, self).rsample(n_samples).unsqueeze(0)), 0)
+            samples = torch.cat((samples, super().rsample(n_samples).unsqueeze(0)), 0)
         samples = argmax_STE.apply(samples)
         return samples      
 
