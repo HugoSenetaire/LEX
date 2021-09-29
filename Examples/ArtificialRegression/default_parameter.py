@@ -93,7 +93,7 @@ def get_default():
 
     args_train = {}
     # args_train["nb_epoch"] = 500 # Training the complete model
-    args_train["nb_epoch"] = 1 # Training the complete model
+    args_train["nb_epoch"] = 15 # Training the complete model
 
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training the complete model
     args_train["nb_epoch_pretrain"] = 0 # Training auto encoder
