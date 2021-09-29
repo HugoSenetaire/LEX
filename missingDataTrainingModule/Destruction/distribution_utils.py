@@ -11,8 +11,8 @@ class topK_STE(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, k):
         # ctx.save_for_backward(input, k)
-        _, top_k_indices = input.topk(k, dim=-1, largest=True, sorted=False)
-        output = torch.zeros(input.shape, dtype=input.dtype).scatter_(-1, top_k_indices, 1.0)
+        _, subset_size_indices = input.topk(k, dim=-1, largest=True, sorted=False)
+        output = torch.zeros(input.shape, dtype=input.dtype).scatter_(-1, subset_size_indices, 1.0)
         
         return output
 
@@ -36,14 +36,14 @@ class RelaxedSubsetSampling_STE(RelaxedSubsetSampling):
 
 
 class L2X_Distribution(torch.distributions.RelaxedOneHotCategorical):
-  def __init__(self, temperature=1, probs = None, logits = None, top_k=None, validate_args=None):
+  def __init__(self, temperature=1, probs = None, logits = None, subset_size=None, validate_args=None):
         super(RelaxedTopK, self).__init__(temperature, probs, logits, validate_args)
-        self.top_k = top_k
+        self.subset_size = subset_size
 
 
   def rsample(self, n_samples):
         samples = super(RelaxedTopK_STE, self).rsample(n_samples).unsqueeze(0)
-        for k in range(self.top_k-1):
+        for k in range(self.subset_size-1):
             samples = torch.cat((samples, super(RelaxedTopK_STE, self).rsample(n_samples).unsqueeze(0)), 0)
         samples = torch.max(samples, dim=0)
         return samples      
@@ -72,13 +72,13 @@ class argmax_STE(torch.autograd.Function):
 
 
 class L2X_Distribution_STE(torch.distributions.RelaxedOneHotCategorical):
-    def __init__(self, temperature=1, probs = None, logits = None, top_k=None, validate_args=None):
+    def __init__(self, temperature=1, probs = None, logits = None, subset_size=None, validate_args=None):
         super(L2X_Distribution_STE, self).__init__(temperature, probs, logits, validate_args)
-        self.top_k = top_k
+        self.subset_size = subset_size
 
     def rsample(self, n_samples):
         samples = super(RelaxedTopK_STE, self).rsample(n_samples).unsqueeze(0)
-        for k in range(self.top_k-1):
+        for k in range(self.subset_size-1):
             samples = torch.cat((samples, super(RelaxedTopK_STE, self).rsample(n_samples).unsqueeze(0)), 0)
         samples = argmax_STE.apply(samples)
         return samples      
@@ -140,5 +140,7 @@ def get_distribution(distribution, temperature, args_train):
     
     if distribution in [RelaxedBernoulli_thresholded_STE]:
         current_sampling = partial(current_sampling, threshold = args_train["sampling_threshold"])
+
+
 
     return current_sampling

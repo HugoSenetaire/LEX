@@ -15,7 +15,8 @@ def get_default():
     
 
     args_output = {}
-    args_output["path"] = "D:\\DTU\\firstProject\\MissingDataResults\\TestwithNoise" # Path to results
+    args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
+    args_output["path"] = "/scratch/hhjs/" # Path to results
     args_output["experiment_name"] = "all_z"
 
     args_dataset = {}
@@ -82,7 +83,7 @@ def get_default():
     args_destruct["kernel_patch"] = (1,1)
     args_destruct["stride_patch"] = (1,1)
     # args_destruct["activation"] = torch.nn.LogSigmoid()
-    # args_destruct["activation"] = torch.nn.LogSoftmax(dim=-1)
+    args_destruct["activation"] = torch.nn.LogSoftmax(dim=-1)
 
     
     args_complete_trainer = {}
