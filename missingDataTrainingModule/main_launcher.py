@@ -39,7 +39,7 @@ def save_parameters(path, args_dataset, args_classification, args_destruction, a
     with open(os.path.join(complete_path,"output.txt"), "w") as f:
         f.write(str(args_output))
 
-def get_dataset(args_dataset, args_train):
+def get_dataset(args_dataset, args_train, args_classification, args_destruction):
     if "HypercubeDataset" in str(args_dataset["dataset"]):
         dataset = partial(args_dataset["dataset"],
                          nb_shape = args_dataset["nb_shape"],
@@ -53,13 +53,20 @@ def get_dataset(args_dataset, args_train):
                          centroids_path = args_dataset["centroids_path"],
                          generate_new = args_dataset["generate_new"],
                          use_cuda= args_train["use_cuda"],
-                         save = args_dataset["save"]
+                         save = args_dataset["save"],
+                         generate_each_time = args_dataset["generate_each_time"],
                          )
-
-
+        loader = args_dataset["loader"](dataset, root_dir = args_dataset["root_dir"], batch_size_test=args_dataset["batch_size_test"], batch_size_train=args_dataset["batch_size_train"], nb_sample_train = args_dataset["nb_samples_train"], nb_sample_test = args_dataset["nb_samples_test"])
+        nb_dim = loader.dataset.nb_dim
+        args_classification["input_size_classification_module"] = (1,nb_dim) # Size before imputation
+        args_classification["input_size_classifier"] = (1,nb_dim) # Size after imputation
+        args_classification["input_size_classifier_baseline"] = (1,nb_dim) # Size before imputation (should be size of data)
+        args_destruction["input_size_destructor"] = (1,nb_dim)
+        args_destruction["input_size_autoencoder"] = (1,nb_dim)
     else :
         dataset = partial(args_dataset["dataset"], give_index = args_dataset["give_index"])
-    return dataset
+        loader = args_dataset["loader"](dataset, root_dir = args_dataset["root_dir"], batch_size_test=args_dataset["batch_size_test"], batch_size_train=args_dataset["batch_size_train"])
+    return dataset, loader
 
 
 def get_imputation_method(args_class):
@@ -151,6 +158,19 @@ def get_networks(args_classification, args_destruction, args_complete_trainer, l
 
     return classifier, destructor, classifier_baseline, destructor_var, feature_extractor
 
+
+def check_parameters_compatibility(args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output):
+    sampling_distrib = args_train["sampling_distribution_train"]
+    activation = args_destruction["activation"]
+    # if args_train["sampling_distribution_train"] in [RelaxedSubsetSampling, RelaxedSubsetSampling_STE, L2X_Distribution_STE, L2X_Distribution] \
+    #     and args_destruction["activation"] != torch.nn.LogSoftmax() :
+    #     raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
+    
+    # if args_train["sampling_distribution_train"] in [RelaxedBernoulli_thresholded_STE, RelaxedBernoulli] \
+    #     and args_destruction["activation"] != torch.nn.LogSigmoid() :
+    #     raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
+
+
 def experiment(args_dataset, args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output):
     
     dataset = args_dataset["dataset"]
@@ -175,12 +195,13 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                      args_destruction, args_complete_trainer,
                       args_train, args_test, args_output)
 
+    check_parameters_compatibility(args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output)
+
     ### Datasets :
  
     
-    dataset = get_dataset(args_dataset, args_train)
+    dataset, loader = get_dataset(args_dataset, args_train, args_classification, args_destruction)
         
-    loader = args_dataset["loader"](dataset, root_dir = args_dataset["root_dir"], batch_size_test=args_dataset["batch_size_test"], batch_size_train=args_dataset["batch_size_train"])
 
 
     kernel_patch = args_destruction["kernel_patch"]
@@ -205,7 +226,6 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     classifier, destructor, classifier_baseline, destructor_var, feature_extractor = get_networks(args_classification, args_destruction, args_complete_trainer, loader)
 
 
- 
 
     ##### ============ Modules initialisation for ordinary training ============:
 
@@ -227,8 +247,9 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(nb_epoch):
-            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor, save_dic = True)
-            dic_test = trainer_var.test(loader)
+            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0))
+            if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
+                dic_test = trainer_var.test(loader)
 
         
         total_dic_train = fill_dic(total_dic_train, dic_train)
@@ -253,10 +274,10 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
             recons_regul = None
 
 
-        destruction_module = DestructionModule(destructor, feature_extractor=feature_extractor, regularization=args_destruction["regularization"], use_cuda = args_train["use_cuda"])
+        destruction_module = DestructionModule(destructor, feature_extractor=feature_extractor, activation=args_destruction["activation"], regularization=args_destruction["regularization"], use_cuda = args_train["use_cuda"])
         destruction_module.kernel_update(kernel_patch, stride_patch)
         if args_destruction["destructor_var"] is not None :
-            destruction_module_var = DestructionModule(destructor_var, feature_extractor=feature_extractor, regularization= free_regularization)
+            destruction_module_var = DestructionModule(destructor_var, feature_extractor=feature_extractor, activation=args_destruction["activation"], regularization= free_regularization)
             destruction_module_var.kernel_update(kernel_patch, stride_patch)
         else :
             destruction_module_var = None
@@ -325,13 +346,12 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         total_dic_test_no_var_2 = {}
         total_dic_test_var = {}
         for epoch in range(args_train["nb_epoch"]):
-            current_sampling = get_distribution(sampling_distribution_train, temperature)
-            print("Temperature", temperature)
-            current_sampling_test = get_distribution(sampling_distribution_test, temperature)
+            current_sampling = get_distribution(sampling_distribution_train, temperature, args_train)
+            current_sampling_test = get_distribution(sampling_distribution_test, temperature, args_train)
 
 
             if args_complete_trainer["complete_trainer"] is variationalTraining :
-                current_sampling_var = get_distribution(sampling_distribution_train_var, temperature)
+                current_sampling_var = get_distribution(sampling_distribution_train_var, temperature, args_train)
                 dic_train = trainer_var.train_epoch( 
                     epoch, loader,
                     optim_classification, optim_destruction, optim_destruction_var,
@@ -343,11 +363,13 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                     lambda_reg_var = args_destruction["lambda_regularisation_var"],
                     lambda_reconstruction = args_classification["lambda_reconstruction"],
                     save_dic = True,
-                    Nexpectation=args_train["Nexpectation_train"]
+                    Nexpectation=args_train["Nexpectation_train"],
+                    print_dic_bool = ((epoch+1) % args_train["print_every"] == 0),
                 )
-                dic_test_no_var = trainer_var.test_no_var(loader, current_sampling_test, Nexpectation=args_test["Nexpectation_test"])
-                dic_test_var = trainer_var.test_var(loader, current_sampling_test, current_sampling_test, Nexpectation = args_test["Nexpectation_test"])
-                total_dic_test_var = fill_dic(total_dic_test_var, dic_test_var)
+                if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch ==args_train["nb_epoch"]-1:
+                    dic_test_no_var = trainer_var.test_no_var(loader, current_sampling_test, Nexpectation=args_test["Nexpectation_test"])
+                    dic_test_var = trainer_var.test_var(loader, current_sampling_test, current_sampling_test, Nexpectation = args_test["Nexpectation_test"])
+                    total_dic_test_var = fill_dic(total_dic_test_var, dic_test_var)
             else :   
                 dic_train = trainer_var.train_epoch(
                     epoch, loader,
@@ -358,12 +380,15 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                     lambda_reg = args_destruction["lambda_regularisation"],
                     lambda_reconstruction = args_classification["lambda_reconstruction"],
                     save_dic = True,
-                    Nexpectation=args_train["Nexpectation_train"]
+                    Nexpectation=args_train["Nexpectation_train"],
+                    print_dic_bool = ((epoch+1) % args_train["print_every"] == 0),
                 )
-                dic_test_no_var = trainer_var.test_no_var(loader, current_sampling_test, Nexpectation=args_test["Nexpectation_test"])
 
-            total_dic_train = fill_dic(total_dic_train, dic_train)
-            total_dic_test_no_var = fill_dic(total_dic_test_no_var, dic_test_no_var)
+                if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch ==args_train["nb_epoch"]-1:
+                    dic_test_no_var = trainer_var.test_no_var(loader, current_sampling_test, Nexpectation=args_test["Nexpectation_test"])
+                    total_dic_train = fill_dic(total_dic_train, dic_train)
+                    total_dic_test_no_var = fill_dic(total_dic_test_no_var, dic_test_no_var)
+           
             
             temperature *= args_train["temperature_decay"]
         save_dic(os.path.join(final_path,"train"), total_dic_train)

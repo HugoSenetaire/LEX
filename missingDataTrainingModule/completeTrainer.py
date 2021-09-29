@@ -95,7 +95,7 @@ class ordinaryTraining():
     def train(self):
         self.classification_module.train()
 
-    def train_epoch(self, epoch, dataset, optim_classifier, optim_feature_extractor= None, save_dic = False):
+    def train_epoch(self, epoch, dataset, optim_classifier, optim_feature_extractor= None, save_dic = False, print_dic_bool = False):
         
   
         self.train()
@@ -118,8 +118,9 @@ class ordinaryTraining():
             dic = self._train_step(data, target, dataset, optim_classifier = optim_classifier, optim_feature_extractor = optim_feature_extractor, index=index)
 
 
-            if batch_idx % 100 == 0:
-                print_dic(epoch, batch_idx, dic, dataset)
+            if batch_idx % 100 == 0 :
+                if print_dic_bool :
+                    print_dic(epoch, batch_idx, dic, dataset)
                 if save_dic :
                     total_dic = save_dic_helper(total_dic, dic)
 
@@ -239,7 +240,8 @@ class noVariationalTraining(ordinaryTraining):
         return pi_list, log_pi_list, loss_reg
     
     def _sample_z_test(self, pi_list, log_pi_list, sampling_distribution, Nexpectation):
-        p_z = sampling_distribution(pi_list)
+
+        p_z = sampling_distribution(probs = pi_list)
         # p_z = sampling_distribution(logits = log_pi_list)
         z = p_z.sample((Nexpectation,))
         return z, p_z
@@ -250,9 +252,9 @@ class noVariationalTraining(ordinaryTraining):
         return pi_list, log_pi_list, loss_reg, z, p_z
 
     def _sample_z_train(self, pi_list,  log_pi_list, sampling_distribution, Nexpectation):
-        p_z = sampling_distribution(pi_list)
+        p_z = sampling_distribution(probs = pi_list)
         # p_z = sampling_distribution(logits = log_pi_list)
-        z = p_z.rsample((Nexpectation,))
+        z = p_z.rsample((Nexpectation,))    
         return z, p_z
     
     def _destructive_train(self, data, sampling_distribution, Nexpectation):
@@ -334,7 +336,7 @@ class noVariationalTraining(ordinaryTraining):
         return dic
 
 
-    def train_epoch(self, epoch, dataset, optim_classifier, optim_destruction,  sampling_distribution, optim_baseline = None, optim_feature_extractor=None, lambda_reg = 0.0, Nexpectation=10, save_dic = False, lambda_reconstruction = 0.0):
+    def train_epoch(self, epoch, dataset, optim_classifier, optim_destruction,  sampling_distribution, optim_baseline = None, optim_feature_extractor=None, lambda_reg = 0.0, Nexpectation=10, save_dic = False, lambda_reconstruction = 0.0, print_dic_bool = False):
         self.train()
         if self.need_feature :
             if optim_feature_extractor is None :
@@ -352,8 +354,9 @@ class noVariationalTraining(ordinaryTraining):
                 index = None
             dic = self._train_step(data, target,dataset, optim_classifier, optim_destruction, sampling_distribution, index=index, optim_baseline =optim_baseline, optim_feature_extractor = optim_feature_extractor, lambda_reg = lambda_reg, Nexpectation = Nexpectation, lambda_reconstruction= lambda_reconstruction)
 
-            if batch_idx % 100 == 0:
-                print_dic(epoch, batch_idx, dic, dataset)
+            if batch_idx % 100 == 0 :
+                if print_dic_bool :
+                    print_dic(epoch, batch_idx, dic, dataset)
                 if save_dic :
                     total_dic = save_dic_helper(total_dic, dic)
         return total_dic
@@ -506,7 +509,7 @@ class AllZTraining(noVariationalTraining):
 
 
     def _sample_z_train(self, pi_list, log_pi_list, sampling_distribution, Nexpectation):
-        p_z = sampling_distribution(pi_list)
+        p_z = sampling_distribution(probs = pi_list)
         # p_z = sampling_distribution(logits = log_pi_list)
         z = p_z.sample((Nexpectation,))
         return z, p_z
@@ -598,7 +601,7 @@ class AllZTrainingV2(noVariationalTraining):
 
 
     def _sample_z_train(self, pi_list, log_pi_list, sampling_distribution, Nexpectation):
-        p_z = sampling_distribution(pi_list)
+        p_z = sampling_distribution(probs = pi_list)
         # p_z = sampling_distribution(logits = log_pi_list)
         z = p_z.sample((Nexpectation,))
         return z, p_z
@@ -923,9 +926,9 @@ class REINFORCE(noVariationalTraining):
 
 
     def _destructive_train(self, data, sampling_distribution, Nexpectation):
-        pi_list, loss_reg = self._get_pi(data)
-        z, p_z = self._sample_z_test(pi_list, sampling_distribution, Nexpectation)
-        return pi_list, loss_reg, z, p_z
+        pi_list, log_pi_list, loss_reg = self._get_pi(data)
+        z, p_z = self._sample_z_test(pi_list, log_pi_list, sampling_distribution, Nexpectation)
+        return pi_list, log_pi_list, loss_reg, z, p_z
 
 
     def _create_dic(self, loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction = None, variance = None ):
@@ -946,36 +949,42 @@ class REINFORCE(noVariationalTraining):
         if self.baseline is not None:
             log_y_hat_baseline = self.baseline(data)
             log_y_hat_baseline_masked = torch.masked_select(log_y_hat_baseline, one_hot_target>0.5)
-            loss_baseline = F.nll_loss(log_y_hat_baseline, target, reduction = "mean")
+            loss_baseline = F.nll_loss(log_y_hat_baseline, target, reduce = False)
 
         # Selection module :
-        pi_list, loss_reg, z, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
+        pi_list, log_pi_list, loss_reg, z, p_z = self._destructive_train(data, sampling_distribution, Nexpectation)
+        log_prob_pz = torch.sum(p_z.log_prob(z).flatten(2), axis = -1) # TODO : torch.logsumexp ou torch.Sum ?
+        # global save_pz
+        # save_pz = copy.deepcopy(p_z.log_prob(z).detach().cpu().numpy())
+        log_prob_pz = log_prob_pz.unsqueeze(1).expand((Nexpectation,nb_imputation, batch_size)) # Batch_size*Nexpectation, nb_imputation, nbcategory
         loss_reg = lambda_reg * loss_reg
 
         # Classification module :
-        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.flatten(0,1), index_expanded)
-        log_y_hat = log_y_hat.reshape(Nexpectation, nb_imputation, batch_size, dataset.get_category())
-        log_y_hat_iwae = torch.logsumexp(log_y_hat, 0) + torch.log(torch.tensor(1./Nexpectation))
-        log_y_hat_iwae = torch.mean(log_y_hat_iwae, axis = 0)
-        log_y_hat_iwae_masked = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
+        _, _, _, one_hot_target_expanded_multiple_imputation, _, _, _ = prepare_data_augmented(data, target, num_classes=dataset.get_category(), Nexpectation = Nexpectation*nb_imputation)
+        target_aux = torch.argmax(one_hot_target_expanded_multiple_imputation, axis=-1).flatten().reshape(Nexpectation, nb_imputation, batch_size)
+        
+        log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.detach(), index = index_expanded)
+        neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
+        neg_likelihood_original = neg_likelihood.clone().detach()
+        neg_likelihood *= torch.exp(log_prob_pz).detach()
 
+        neg_likelihood = torch.logsumexp(neg_likelihood, axis=1)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
+        neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(Nexpectation).type(torch.float32))
+        neg_likelihood = torch.sum(neg_likelihood)
+        mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target_expanded_multiple_imputation.flatten(0,1))**2,1))
         loss_reconstruction = lambda_reconstruction * loss_reconstruction
-        neg_likelihood = F.nll_loss(log_y_hat_iwae, target, reduction = "mean")
-        mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat_iwae)-one_hot_target.float())**2,1)) 
-
         loss_classification_module = neg_likelihood
 
         # Destruction module :
-        reward = log_y_hat_iwae_masked.detach()
+        neg_reward = neg_likelihood_original
         if self.baseline is not None :
-            reward = reward - log_y_hat_baseline_masked.detach()
+            neg_reward = neg_reward - log_y_hat_baseline_masked.unsqueeze(0).unsqueeze(1).expand(Nexpectation, nb_imputation, batch_size).detach()
 
-        log_prob_sampled_z = p_z.log_prob(z.detach()).reshape(Nexpectation, batch_size, -1)
-        log_prob_sampled_z = torch.sum(torch.sum(log_prob_sampled_z, axis=0), axis=-1) # Sum here is on all z and also all the multiple imputation
-        loss_hard =  - log_prob_sampled_z*reward
-        loss_destructor = torch.mean(loss_hard)
+        loss_hard =  log_prob_pz*neg_reward
+        loss_destructor = torch.logsumexp(loss_hard, axis=1)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
+        loss_destructor = torch.logsumexp(loss_destructor, axis=0) - torch.log(torch.tensor(Nexpectation).type(torch.float32))
 
-        loss_destructor = loss_destructor 
+        loss_destructor = torch.sum(loss_destructor) 
         if self.baseline is not None :
             loss_total = loss_destructor + loss_classification_module + loss_reg + loss_reconstruction + loss_baseline
         else :
@@ -1007,7 +1016,7 @@ class REINFORCE(noVariationalTraining):
         return dic
 
 class variationalTraining(noVariationalTraining):
-    def __init__(self, classification_module, destruction_module, destruction_module_var,baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1)):
+    def __init__(self, classification_module, destruction_module, destruction_module_var, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1)):
         super().__init__(classification_module, destruction_module,baseline = baseline, feature_extractor = feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch)
         self.destruction_module_var = destruction_module_var
         if self.use_cuda :
@@ -1050,7 +1059,7 @@ class variationalTraining(noVariationalTraining):
         loss_reg = lambda_reg * loss_reg
         loss_reg_var = lambda_reg_var * loss_reg_var
 
-        pz = sampling_distribution(pi_list)
+        pz = sampling_distribution(probs = pi_list)
         qz = sampling_distribution_var(pi_list_var)
         
         
@@ -1116,7 +1125,7 @@ class variationalTraining(noVariationalTraining):
             
             return total_dic
 
-    def train_epoch(self, epoch, dataset, optim_classifier, optim_destruction, optim_destruction_var, sampling_distribution, sampling_distribution_var, optim_baseline = None, optim_feature_extractor = None, lambda_reg = 0.0, lambda_reg_var= 0.0, Nexpectation = 10, lambda_reconstruction = 0.0, save_dic = False):
+    def train_epoch(self, epoch, dataset, optim_classifier, optim_destruction, optim_destruction_var, sampling_distribution, sampling_distribution_var, optim_baseline = None, optim_feature_extractor = None, lambda_reg = 0.0, lambda_reg_var= 0.0, Nexpectation = 10, lambda_reconstruction = 0.0, save_dic = False, print_dic_bool = False):
         self.train()
         total_dic = {}
         for batch_idx, data_aux in enumerate(dataset.train_loader):
@@ -1140,7 +1149,8 @@ class variationalTraining(noVariationalTraining):
                 )
                     
             if batch_idx % 100 == 0:
-                print_dic(epoch, batch_idx, dic, dataset)
+                if print_dic_bool:
+                    print_dic(epoch, batch_idx, dic, dataset)
                 if save_dic :
                     total_dic = save_dic_helper(total_dic, dic)
 
@@ -1179,7 +1189,7 @@ class variationalTraining(noVariationalTraining):
                 pi_list_total.append(pi_list.cpu().numpy())
                 pi_list_var_total.append(pi_list_var.cpu().numpy())
 
-                pz = sampling_distribution(pi_list)
+                pz = sampling_distribution(probs = pi_list)
                 qz = sampling_distribution_var(pi_list_var)
 
                 z = qz.sample()
@@ -1221,7 +1231,7 @@ class variationalTraining(noVariationalTraining):
 
             pi_list, _, _, _ = self.destruction_module(data, test=True)
             pi_list_var, _, _, _ = self.destruction_module_var(data, one_hot_target=one_hot_target, test=True)
-            pz = sampling_distribution(pi_list)
+            pz = sampling_distribution(probs = pi_list)
             qz = sampling_distribution_var(pi_list_var)
             previous_z = qz.sample()
      

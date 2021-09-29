@@ -7,15 +7,16 @@ from collections.abc import Iterable
 
 from .destructive_network import *
 from .regularization import *
-
+import torch
 
 
 class DestructionModule():
 
-    def __init__(self, destructor, regularization = None, feature_extractor = None, use_cuda = False):
+    def __init__(self, destructor, activation = torch.nn.LogSigmoid(), regularization = None, feature_extractor = None, use_cuda = False):
         self.destructor = destructor
         self.regularization = regularization
         self.use_cuda = use_cuda
+        self.activation = activation
 
         self.feature_extractor = feature_extractor
         if self.feature_extractor is None :
@@ -63,7 +64,8 @@ class DestructionModule():
             data_expanded = self.feature_extractor(data_expanded)
 
         if one_hot_target is not None :
-            log_pi_list = self.destructor(data_expanded, one_hot_target)
+            log_pi_list = self.activation(self.destructor(data_expanded, one_hot_target))
+
             loss_reg = torch.zeros((1)).cuda()
             if not test and self.regularization is not None :
                 for reg in self.regularization :
@@ -77,7 +79,7 @@ class DestructionModule():
             return log_pi_list, loss_reg
 
         else :
-            log_pi_list = self.destructor(data_expanded)
+            log_pi_list = self.activation(self.destructor(data_expanded))
             
             loss_reg = torch.zeros((1))
             if self.use_cuda :

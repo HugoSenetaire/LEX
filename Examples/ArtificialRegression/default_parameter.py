@@ -23,21 +23,22 @@ def get_default():
     args_dataset["dataset"] = CircleDataset
     args_dataset["loader"] = LoaderArtificial
     args_dataset["root_dir"] = None
-    args_dataset["batch_size_train"] = 128
-    args_dataset["batch_size_test"] = 64
+    args_dataset["batch_size_train"] = 512
+    args_dataset["batch_size_test"] = 512
 
     # Case for numerical point :
-    args_dataset["nb_shape"] = 10
-    args_dataset["nb_dim"] = 4
+    args_dataset["nb_shape"] = None
+    args_dataset["nb_dim"] = None
     args_dataset["ratio_sigma"] = 0.5
     args_dataset["sigma"] = 1.0
     args_dataset["prob_simplify"] = 0.5
     args_dataset["give_index"]= True
     args_dataset["nb_samples_train"] = 1000
-    args_dataset["nb_samples_test"] = 200
+    args_dataset["nb_samples_test"] = 1000
     args_dataset["generate_new"] = False
     args_dataset["save"] = False
     args_dataset["centroids_path"] = None
+    args_dataset["generate_each_time"] = False
 
     args_classification = {}
 
@@ -62,7 +63,7 @@ def get_default():
     args_classification["train_postprocess"] = False # If true, free the parameters of autoencoder during the training (loss guided by classification)
     args_classification["train_reconstruction_regularization"] = False # If true, free the parameters of autoencoder during the training (loss guided by a reconstruction loss)
     args_classification["noise_function"] = DropOutNoise(pi = 0.3) # Noise used to pretrain the autoencoder
-    args_classification["nb_imputation"]= 1
+    args_classification["nb_imputation"] = 1
 
     args_destruct = {}
 
@@ -80,22 +81,30 @@ def get_default():
     args_destruct["destructor_var"] = None #DestructorSimilarVar
     args_destruct["kernel_patch"] = (1,1)
     args_destruct["stride_patch"] = (1,1)
+    # args_destruct["activation"] = torch.nn.LogSigmoid()
+    # args_destruct["activation"] = torch.nn.LogSoftmax(dim=-1)
 
     
     args_complete_trainer = {}
     args_complete_trainer["complete_trainer"] = noVariationalTraining # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args_complete_trainer["feature_extractor"] = None
+    args_complete_trainer["save_every_epoch"] = 1
 
     args_train = {}
-    args_train["nb_epoch"] = 15 # Training the complete model
+    # args_train["nb_epoch"] = 500 # Training the complete model
+    args_train["nb_epoch"] = 1 # Training the complete model
+
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training the complete model
     args_train["nb_epoch_pretrain"] = 0 # Training auto encoder
     args_train["Nexpectation_train"] = 10 # Number K in the IWAE-similar loss 
+    args_train["print_every"] = 1
 
-    args_train["sampling_distribution_train"] = Bernoulli # If using reparametrization (ie noVariationalTraining), need rsample
-    args_train["sampling_distribution_train_var"] = Bernoulli
+    args_train["sampling_distribution_train"] = RelaxedSubsetSampling_STE # If using reparametrization (ie noVariationalTraining), need rsample
+    args_train["sampling_subset_size"] = 2 # Sampling size for the subset 
+    args_train["sampling_threshold"] = 0.5 # threshold for the selection
+    args_train["sampling_distribution_train_var"] = SubsetSampling
     args_train["temperature_train_init"] = 1.0
-    args_train["temperature_decay"] = 0.5
+    args_train["temperature_decay"] = 0.999
     args_train["use_cuda"] = torch.cuda.is_available()
 
 
@@ -108,7 +117,7 @@ def get_default():
 
     
     args_test = {}
-    args_test["sampling_distribution_test"] = Bernoulli # Sampling distribution used during test 
+    args_test["sampling_distribution_test"] = SubsetSampling # Sampling distribution used during test 
     args_test["temperature_test"] = 0.001
     args_test["Nexpectation_test"] = 10
 

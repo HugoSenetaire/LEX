@@ -7,6 +7,7 @@ import copy
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
+import sklearn
 
 
 from sklearn import cluster, datasets
@@ -54,9 +55,29 @@ class TensorDatasetAugmented(TensorDataset):
         else :
             return input_tensor, target
 
+class GeneratingTensorDataset(Dataset):
+    def __init__(self, function, len, noisy=False, noise_function=None, give_index = False):
+        super().__init__()
+        self.function = function
+        self.len = len
+        self.give_index = give_index
 
 
+    def __len__(self):
+        return self.len
+    
+    def __getitem__(self, idx):
+        data, y = self.function()
+        input_tensor, target = torch.tensor(data.type(torch.float32)), torch.tensor(y.type(torch.int64))
         
+
+
+
+        if self.give_index :
+            return input_tensor, target, idx
+        else :
+            return input_tensor, target
+
 # from numbers import Number
 
 # import torch
@@ -104,15 +125,15 @@ class TensorDatasetAugmented(TensorDataset):
 
 
 class CircleDataset():
-    def __init__(self, n_samples_train = 40000, n_samples_test=10000, noise = False, factor =.6, noisy = False, noise_function = None):
+    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, noise = False, factor =.6, noisy = False, noise_function = None):
 
-        self.n_samples_train = n_samples_train
-        self.n_samples_test = n_samples_test
+        self.nb_sample_train = nb_sample_train
+        self.nb_sample_test = nb_sample_test
         self.noise = noise
         self.factor = factor
      
-        total_samples = self.n_samples_train + self.n_samples_test
-        test_size = self.n_samples_test/float(total_samples)
+        total_samples = self.nb_sample_train + self.nb_sample_test
+        test_size = self.nb_sample_test/float(total_samples)
 
         self.data, self.targets = datasets.make_circles(n_samples=total_samples, factor=.6,
                                       noise=noise)
@@ -196,15 +217,15 @@ class CircleDataset():
         return complete_output
 
 class CircleDatasetAndNoise():
-    def __init__(self, n_samples_train = 40000, n_samples_test=10000, noise = False, factor =.6, noisy = False, noise_function = None):
+    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, noise = False, factor =.6, noisy = False, noise_function = None):
 
-        self.n_samples_train = n_samples_train
-        self.n_samples_test = n_samples_test
+        self.nb_sample_train = nb_sample_train
+        self.nb_sample_test = nb_sample_test
         self.noise = noise
         self.factor = factor
      
-        total_samples = self.n_samples_train + self.n_samples_test
-        test_size = self.n_samples_test/float(total_samples)
+        total_samples = self.nb_sample_train + self.nb_sample_test
+        test_size = self.nb_sample_test/float(total_samples)
 
         self.data, self.targets = datasets.make_circles(n_samples=total_samples, factor=.6,
                                       noise=noise)
@@ -291,14 +312,14 @@ class CircleDatasetAndNoise():
 
 
 class CircleDatasetNotCentered():
-    def __init__(self, n_samples_train = 40000, n_samples_test=10000, noise = False, shift = [2,2], factor =.6, noisy = False, noise_function = None):
+    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, noise = False, shift = [2,2], factor =.6, noisy = False, noise_function = None):
 
-        self.n_samples_train = n_samples_train
-        self.n_samples_test = n_samples_test
+        self.nb_sample_train = nb_sample_train
+        self.nb_sample_test = nb_sample_test
         self.noise = noise
      
-        total_samples = self.n_samples_train + self.n_samples_test
-        test_size = self.n_samples_test/float(total_samples)
+        total_samples = self.nb_sample_train + self.nb_sample_test
+        test_size = self.nb_sample_test/float(total_samples)
 
         self.data, self.targets = datasets.make_circles(n_samples=total_samples, factor=.6,
                                       noise=noise)
@@ -321,14 +342,14 @@ class CircleDatasetNotCentered():
 
 
 class CircleDatasetNotCenteredAndNoise():
-    def __init__(self, n_samples_train = 40000, n_samples_test=10000, noise = False, shift = [2,2], factor =.6, noisy = False, noise_function = None):
+    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, noise = False, shift = [2,2], factor =.6, noisy = False, noise_function = None):
 
-        self.n_samples_train = n_samples_train
-        self.n_samples_test = n_samples_test
+        self.nb_sample_train = nb_sample_train
+        self.nb_sample_test = nb_sample_test
         self.noise = noise
      
-        total_samples = self.n_samples_train + self.n_samples_test
-        test_size = self.n_samples_test/float(total_samples)
+        total_samples = self.nb_sample_train + self.nb_sample_test
+        test_size = self.nb_sample_test/float(total_samples)
 
         self.data, self.targets = datasets.make_circles(n_samples=total_samples, factor=.6,
                                       noise=noise)
@@ -345,13 +366,13 @@ class CircleDatasetNotCenteredAndNoise():
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
 
 class LinearSeparableDataset():
-    def __init__(self, n_samples_train = 40000, n_samples_test=10000, noise = False, shift = [2,2], factor =.1, noisy = False, noise_function = None):
-        self.n_samples_train = n_samples_train
-        self.n_samples_test = n_samples_test
+    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, noise = False, shift = [2,2], factor =.1, noisy = False, noise_function = None):
+        self.nb_sample_train = nb_sample_train
+        self.nb_sample_test = nb_sample_test
         self.noise = noise
      
-        total_samples = self.n_samples_train + self.n_samples_test
-        test_size = self.n_samples_test/float(total_samples)
+        total_samples = self.nb_sample_train + self.nb_sample_test
+        test_size = self.nb_sample_test/float(total_samples)
 
         self.data, self.targets = datasets.make_blobs(n_samples=total_samples,centers=2, cluster_std=.1)
         self.data -= np.mean(self.data)
@@ -497,9 +518,9 @@ def generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_sampl
     
     return X,Y, new_S_reshaped
 
-def generate_distribution(centroids_X, centroids_Y, new_S, sigma, nb_samples_train = 20, nb_samples_test = 20):
-  X_train, Y_train, new_S_train = generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_samples_train)
-  X_test, Y_test, new_S_test = generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_samples_test) 
+def generate_distribution(centroids_X, centroids_Y, new_S, sigma, nb_sample_train = 20, nb_sample_test = 20):
+  X_train, Y_train, new_S_train = generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_sample_train)
+  X_test, Y_test, new_S_test = generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_sample_test) 
 
   return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
 
@@ -515,14 +536,22 @@ def redraw_dependency(S, nb_dim):
 
 
 class HypercubeDataset(Dataset):
-    def __init__(self, nb_shape, nb_dim,  sigma=1.0, ratio_sigma = 0.25, prob_simplify=0.2,
-                 nb_sample_train = 20, nb_sample_test = 20, give_index = False, n_samples_train = None,
-                  n_samples_test = None, noisy = None, use_cuda = False, centroids_path = None,
-                  generate_new = False, save = False):
+    def __init__(self, nb_shape = None, nb_dim = None,  sigma=1.0, ratio_sigma = 0.25, prob_simplify=0.2,
+                 nb_sample_train = 20, nb_sample_test = 20, give_index = False, batch_size_train = None,
+                 noisy = None, use_cuda = False, centroids_path = None,
+                 generate_new = False, save = False, generate_each_time = True):
+
+        self.nb_shape = nb_shape
+        self.nb_dim = nb_dim
+        self.sigma = sigma  
         self.use_cuda = use_cuda
-        
-        print(centroids_path)
+        self.prob_simplify = prob_simplify
+        self.ratio_sigma = ratio_sigma
+        self.gaussian_noise = self.sigma * self.ratio_sigma
+
         if generate_new :
+            if nb_shape is None or nb_dim is None :
+                raise ValueError("Can't generate new dataset without information on dim and shapes")
             self.centroids, self.centroids_Y, self.S, self.shapes = gen_multivariate(nb_shape, nb_dim, sigma=sigma, prob_simplify=prob_simplify)
             if save:
                 if centroids_path is None :
@@ -535,9 +564,18 @@ class HypercubeDataset(Dataset):
             if (centroids_path is None) or (not os.path.exists(centroids_path)):
                 raise FileNotFoundError(f"Did not find the file at {centroids_path}")
             self.centroids, self.centroids_Y, self.S, self.shapes = np.load(centroids_path, allow_pickle=True)
-            if nb_shape != len(self.shapes) or nb_dim != np.shape(self.centroids)[-1]:
-                raise ValueError(f"The dataset at {centroids_path} do not have the right number of shape or dimension")
+            nb_shape = len(self.shapes)
+            nb_dim = self.centroids.shape[1]
 
+            if self.nb_shape is not None and  self.nb_shape != nb_shape :
+                raise ValueError(f"The number of shape wanted {self.nb_shape} is different from the number of shape loaded {nb_shape}")
+                
+            if self.nb_dim is not None and  self.nb_dim != nb_dim :
+                raise ValueError(f"The number of dim wanted {self.nb_dim} is different from the number of dim loaded {nb_dim}")
+            
+            print(f"Loaded {nb_shape} shapes with {nb_dim} dimensions")
+        self.nb_shape = nb_shape
+        self.nb_dim = nb_dim
         self.centroids = torch.from_numpy(self.centroids).type(torch.float32)
         self.centroids_Y = torch.from_numpy(self.centroids_Y).type(torch.int64)
 
@@ -545,24 +583,29 @@ class HypercubeDataset(Dataset):
             self.centroids = self.centroids.cuda()
             self.centroids_Y =self.centroids_Y.cuda()
 
-        self.nb_shape = nb_shape
-        self.nb_dim = nb_dim
-        self.sigma = sigma  
-        
-        self.prob_simplify = prob_simplify
-        self.ratio_sigma = ratio_sigma
-        self.gaussian_noise = self.sigma * self.ratio_sigma
+
         self.nb_sample_train = nb_sample_train
         self.nb_sample_test = nb_sample_test
         self.give_index = give_index
+        self.batch_size_train = batch_size_train
+        self.generate_each_time = generate_each_time
 
         self.new_S = redraw_dependency(self.S, self.nb_dim)
         if self.use_cuda :
             self.new_S = self.new_S.cuda()
         self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate_distribution(self.centroids, self.centroids_Y, self.new_S, self.gaussian_noise, self.nb_sample_train, self.nb_sample_test)
-        self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
+        
+        if self.generate_each_time :
+            self.dataset_train = GeneratingTensorDataset(function=self.sample_function, len= self.batch_size_train, give_index = self.give_index)
+        else :
+            self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
 
+    def sample_function(self):
+        index = np.random.randint(low=0, high = len(self.centroids))
+        X = self.centroids[index] + torch.normal(torch.tensor(0.), std = self.gaussian_noise)
+        Y = self.centroids_Y[index]
+        return X, Y
 
 
     def find_hypercube_index(self, index):
@@ -598,12 +641,15 @@ class HypercubeDataset(Dataset):
       
         accuracy = torch.sum(1-torch.abs(true_masks - mask))
         proportion = torch.count_nonzero(torch.all(torch.abs(true_masks - mask) == 0,axis=-1))
-
+        auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
+        auc_score = torch.tensor(auc_score).type(torch.float32)
         if normalized : 
             accuracy = accuracy/self.nb_dim/len(true_masks)
             proportion = proportion/len(true_masks)
+        else :
+            auc_score = auc_score*self.nb_dim*len(true_masks)
 
-        return accuracy, proportion
+        return accuracy, proportion, auc_score
 
     def impute_result(self, mask, value, index = None, dataset_type=None):
         """ On part du principe que la value est complète mais c'est pas le cas encore, à gérer, sinon il faut transmettre l'index"""
@@ -634,13 +680,12 @@ class HypercubeDataset(Dataset):
         return sampled
 
 
-
 ##### ENCAPSULATION :
 
 class LoaderArtificial():
-    def __init__(self, dataset, batch_size_train = 10, batch_size_test = 10, n_samples_train = 100000, n_samples_test=10000, noisy = False, root_dir = None):
+    def __init__(self, dataset, batch_size_train = 512, batch_size_test = 512, nb_sample_train = 10000, nb_sample_test=512*100, noisy = False, root_dir = None):
 
-        self.dataset = dataset(n_samples_train = n_samples_train, n_samples_test = n_samples_test, noisy = noisy)
+        self.dataset = dataset(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, noisy = noisy, batch_size_train = batch_size_train)
         self.dataset_train = self.dataset.dataset_train
         self.dataset_test = self.dataset.dataset_test
         self.batch_size_test = batch_size_test
@@ -660,4 +705,3 @@ class LoaderArtificial():
 
     def get_shape(self):
         return (2)
-
