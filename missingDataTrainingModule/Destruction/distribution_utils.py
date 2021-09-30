@@ -59,9 +59,7 @@ class argmax_STE(torch.autograd.Function):
         # ctx.save_for_backward(input, k)
         if input.is_cuda:
             index = torch.argmax(input, dim=-1, keepdim=True).cuda()
-            print(input.is_cuda)
-            print(index.is_cuda)
-            aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
+            aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype).cuda())
         else:
             aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
         return torch.clamp(torch.sum(aux, dim=0), min=0, max=1) # Clamp is needed to get one-hot vector
