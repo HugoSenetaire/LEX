@@ -57,9 +57,10 @@ class argmax_STE(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input):
         # ctx.save_for_backward(input, k)
-        index = torch.argmax(input, dim=-1, keepdim=True)
+        index = torch.argmax(input, dim=-1, keepdim=True).cuda()
         if input.is_cuda:
-            aux = torch.zeros_like(input).cuda().scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
+            index = torch.argmax(input, dim=-1, keepdim=True).cuda()
+            aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
         else:
             aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
         return torch.clamp(torch.sum(aux, dim=0), min=0, max=1) # Clamp is needed to get one-hot vector
@@ -101,10 +102,15 @@ class threshold_STE(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, ratio):
         # ctx.save_for_backward(input, k)
+
         if input.is_cuda:
+            if not torch.is_tensor(ratio):
+                ratio = torch.tensor(ratio).cuda()
             ratio = ratio.cuda()
             return torch.where(input > ratio, torch.ones(input.shape, dtype=input.dtype).cuda(), torch.zeros(input.shape, dtype=input.dtype).cuda())
         else:
+            if not torch.is_tensor(ratio):
+                ratio = torch.tensor(ratio)
             return torch.where(input > ratio, torch.ones(input.shape, dtype=input.dtype), torch.zeros(input.shape, dtype=input.dtype))
 
     @staticmethod
