@@ -58,10 +58,10 @@ class argmax_STE(torch.autograd.Function):
     def forward(ctx, input):
         # ctx.save_for_backward(input, k)
         index = torch.argmax(input, dim=-1, keepdim=True)
-        
-        aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
         if input.is_cuda:
-            aux = aux.cuda()
+            aux = torch.zeros_like(input).cuda().scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
+        else:
+            aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
         return torch.clamp(torch.sum(aux, dim=0), min=0, max=1) # Clamp is needed to get one-hot vector
 
     @staticmethod
@@ -101,7 +101,11 @@ class threshold_STE(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, ratio):
         # ctx.save_for_backward(input, k)
-        return torch.where(input > ratio, torch.ones(input.shape, dtype=input.dtype), torch.zeros(input.shape, dtype=input.dtype))
+        if input.is_cuda:
+            ratio = ratio.cuda()
+            return torch.where(input > ratio, torch.ones(input.shape, dtype=input.dtype).cuda(), torch.zeros(input.shape, dtype=input.dtype).cuda())
+        else:
+            return torch.where(input > ratio, torch.ones(input.shape, dtype=input.dtype), torch.zeros(input.shape, dtype=input.dtype))
 
     @staticmethod
     def backward(ctx, grad_output):
