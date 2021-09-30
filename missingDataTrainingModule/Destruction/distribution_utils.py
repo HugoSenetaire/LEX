@@ -60,6 +60,8 @@ class argmax_STE(torch.autograd.Function):
         index = torch.argmax(input, dim=-1, keepdim=True)
         
         aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
+        if input.is_cuda:
+            aux = aux.cuda()
         return torch.clamp(torch.sum(aux, dim=0), min=0, max=1) # Clamp is needed to get one-hot vector
 
     @staticmethod
