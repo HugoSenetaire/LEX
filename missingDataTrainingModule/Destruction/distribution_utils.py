@@ -58,7 +58,8 @@ class argmax_STE(torch.autograd.Function):
     def forward(ctx, input):
         # ctx.save_for_backward(input, k)
         index = torch.argmax(input, dim=-1, keepdim=True)
-        aux = torch.zeros(input.shape, dtype=input.dtype).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
+        
+        aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
         return torch.clamp(torch.sum(aux, dim=0), min=0, max=1) # Clamp is needed to get one-hot vector
 
     @staticmethod
