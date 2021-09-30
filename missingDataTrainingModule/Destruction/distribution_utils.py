@@ -57,9 +57,10 @@ class argmax_STE(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input):
         # ctx.save_for_backward(input, k)
-        index = torch.argmax(input, dim=-1, keepdim=True).cuda()
         if input.is_cuda:
             index = torch.argmax(input, dim=-1, keepdim=True).cuda()
+            print(input.is_cuda)
+            print(index.is_cuda)
             aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
         else:
             aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
