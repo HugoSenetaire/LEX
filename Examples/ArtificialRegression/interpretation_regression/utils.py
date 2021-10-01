@@ -96,3 +96,68 @@ def save_interpretation_artificial_bar(path, sample, target, pred):
   
   plt.savefig(os.path.join(path_result, f"box_plot_real_pred.jpg"))
   plt.close(fig)
+
+### SAVINGS FOR HYPERCUDE DATASET
+
+
+global_keys = ["accuracy_selection_pi", "accuracy_selection_z", "accuracy_selection_thresholded_pi","accuracy_selection_thresholded_z", "proportion_pi", "proportion_z", "proportion_thresholded_pi", "proportion_thresholded_z", "accuracy_prediction_no_destruction", "accuracy_prediction_destruction",
+     "mean_pi_list", "pi_list_q1", "pi_list_q2", "pi_list_median","auc_score_pi", "auc_score_z"]
+
+global_keys_to_count_batch_size = ["proportion_pi", "proportion_z", "proportion_thresholded_pi", "proportion_thresholded_z"]
+global_keys_to_count_dim_batch_size = ["accuracy_selection_pi", "accuracy_selection_z", "accuracy_selection_thresholded_pi","accuracy_selection_thresholded_z","auc_score_pi", "auc_score_z"]
+
+
+
+def create_dics(keys, nb_experiments, keys_to_count_batch_size, keys_to_count_dim_batch_size):
+    dic = {}
+    dic_count_batch_size = {}
+    dic_count_dim_batch_size = {}
+    for key in keys :
+        dic[key+"_train"] = np.zeros((nb_experiments),)
+        dic[key+"_test"] = np.zeros((nb_experiments),)
+        if key in keys_to_count_batch_size :
+            dic_count_batch_size[key+"_train"] = np.zeros((nb_experiments),)
+            dic_count_batch_size[key+"_test"] = np.zeros((nb_experiments),)
+        elif key in keys_to_count_dim_batch_size :
+            dic_count_dim_batch_size[key+"_train"] = np.zeros((nb_experiments,),)
+            dic_count_dim_batch_size[key+"_test"] = np.zeros((nb_experiments,),)
+        
+    return dic, dic_count_batch_size, dic_count_dim_batch_size
+
+def get_dic_experiment(output_dic, to_save_dic, experiment_id):
+    to_save_dic["accuracy_prediction_no_destruction_test"][experiment_id] = output_dic["test"]["correct"][-1]
+    to_save_dic["accuracy_prediction_destruction_test"][experiment_id] =  output_dic["test"]["correct_destruction"][-1]
+    to_save_dic["pi_list_median_test"][experiment_id] = output_dic["test"]["pi_list_median"][-1]
+    to_save_dic["mean_pi_list_test"][experiment_id] = output_dic["test"]["mean_pi_list"][-1]
+    to_save_dic["pi_list_q1_test"][experiment_id] = output_dic["test"]["pi_list_q1"][-1]
+    to_save_dic["pi_list_q2_test"][experiment_id] = output_dic["test"]["pi_list_q2"][-1]
+    return to_save_dic
+
+
+def get_evaluation(trainer_var, loader, dic, dic_count_batch_size, dic_count_dim_batch_size, experiment_id, current_sampling_test, args_train, train = False):
+    if train:
+        suffix = "_train"
+        wanted_loader = loader.train_loader
+    else :
+        suffix = "_test"
+        wanted_loader = loader.test_loader
+
+    dataset = loader.dataset
+    for (data, target, index) in iter(wanted_loader):
+        batch_size, dim = data.shape
+        if args_train["use_cuda"]:
+            data = data.cuda()
+        pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
+        z_s = z_s.reshape(data.shape)
+        comparing_dic = dataset.compare_selection(pi_list, index=index, normalized = False, train_dataset = True, sampling_distribution = current_sampling_test)
+        
+
+        for key in comparing_dic.keys():
+            dic[key+suffix][experiment_id] += comparing_dic[key]
+
+        for key in dic_count_batch_size.keys():
+            dic_count_batch_size[key][experiment_id] += batch_size
+        for key in dic_count_dim_batch_size.keys():
+            dic_count_dim_batch_size[key][experiment_id] += dim * batch_size
+
+    return dic, dic_count_batch_size, dic_count_dim_batch_size
