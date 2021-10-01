@@ -625,9 +625,10 @@ class HypercubeDataset(Dataset):
         return list_index
 
     def compare_selection_single(self, dic, mask, true_masks, normalized = False, threshold = 0.5, suffix = "pi"):
-      
-        mask_thresholded = torch.where(mask > threshold, torch.tensor(1.), torch.tensor(0.))
-
+        if mask.is_cuda :
+            mask_thresholded = torch.where(mask > threshold, torch.tensor(1.).cuda(), torch.tensor(0.).cuda())
+        else :
+            mask_thresholded =  torch.where(mask > threshold, torch.tensor(1.), torch.tensor(0.))
         accuracy = torch.sum(1-torch.abs(true_masks - mask))
         accuracy_thresholded = torch.sum(1-torch.abs(true_masks - mask_thresholded))
         proportion = torch.count_nonzero(torch.all(torch.abs(true_masks - mask) == 0,axis=-1))
