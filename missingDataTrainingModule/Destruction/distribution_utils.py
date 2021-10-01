@@ -50,25 +50,24 @@ class L2X_Distribution(torch.distributions.RelaxedOneHotCategorical):
 
 
 
-    
 
 
 class argmax_STE(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input):
-        # ctx.save_for_backward(input, k)
         if input.is_cuda:
             index = torch.argmax(input, dim=-1, keepdim=True).cuda()
             aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype).cuda())
         else:
+            index = torch.argmax(input, dim=-1, keepdim=True)
             aux = torch.zeros_like(input).scatter_(-1, index, torch.ones(input.shape, dtype=input.dtype))
         return torch.clamp(torch.sum(aux, dim=0), min=0, max=1) # Clamp is needed to get one-hot vector
 
     @staticmethod
     def backward(ctx, grad_output):
-        # input, k = ctx.saved_tensors
         # grad_input = grad_output.clone()
         # grad_input[input.topk(k, dim=1, largest=True, sorted=True)[1] == 0] = 0
+        grad_output = grad_output
         return grad_output, None
 
 
@@ -81,8 +80,6 @@ class L2X_Distribution_STE(torch.distributions.RelaxedOneHotCategorical):
 
     def rsample(self, n_samples):
         samples = super().rsample(n_samples).unsqueeze(0)
-        for k in range(self.subset_size-1):
-            samples = torch.cat((samples, super().rsample(n_samples).unsqueeze(0)), 0)
         samples = argmax_STE.apply(samples)
         return samples      
 

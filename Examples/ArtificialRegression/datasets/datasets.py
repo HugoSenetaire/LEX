@@ -624,10 +624,33 @@ class HypercubeDataset(Dataset):
                 list_index.append(index)
         return list_index
 
+    def compare_selection_single(self, dic, mask, true_masks, normalized = False, threshold = 0.5, suffix = "pi"):
+      
+        mask_thresholded = torch.where(mask > threshold, torch.tensor(1.), torch.tensor(0.))
 
+        accuracy = torch.sum(1-torch.abs(true_masks - mask))
+        accuracy_thresholded = torch.sum(1-torch.abs(true_masks - mask_thresholded))
+        proportion = torch.count_nonzero(torch.all(torch.abs(true_masks - mask) == 0,axis=-1))
+        proportion_thresholded = torch.count_nonzero(torch.all(torch.abs(true_masks - mask_thresholded) == 0,axis=-1))
+        auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
+        auc_score = torch.tensor(auc_score).type(torch.float32)
+        if normalized : 
+            accuracy = accuracy/self.nb_dim/len(true_masks)
+            proportion = proportion/len(true_masks)
+        else :
+            auc_score = auc_score*self.nb_dim*len(true_masks)
+
+        dic["accuracy_selection_"+suffix] = accuracy.item()
+        dic["accuracy_selection_thresholded_"+suffix] = accuracy_thresholded.item()
+        dic["proportion_"+suffix] = proportion.item()
+        dic["proportion_thresholded_"+suffix] = proportion_thresholded.item()
+        dic["auc_score_"+suffix] = auc_score.item()
+
+        return dic
  
-    def compare_selection(self, mask, index = None, normalized = False, train_dataset = False):
+    def compare_selection(self, mask, index = None, normalized = False, train_dataset = False, sampling_distribution = None, threshold = 0.5, nb_sample_z = 100):
 
+        dic = {}
         if train_dataset :
           current_S = self.new_S_train
         else :
@@ -638,20 +661,18 @@ class HypercubeDataset(Dataset):
         else :
             true_masks = current_S
 
-      
-        accuracy = torch.sum(1-torch.abs(true_masks - mask))
-        proportion = torch.count_nonzero(torch.all(torch.abs(true_masks - mask) == 0,axis=-1))
-        auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
-        auc_score = torch.tensor(auc_score).type(torch.float32)
-        if normalized : 
-            accuracy = accuracy/self.nb_dim/len(true_masks)
-            proportion = proportion/len(true_masks)
-        else :
-            auc_score = auc_score*self.nb_dim*len(true_masks)
+        dic = self.compare_selection_single(dic, mask, true_masks, normalized = normalized, threshold = threshold, suffix = "pi")
 
-        return accuracy, proportion, auc_score
 
-    def impute_result(self, mask, value, index = None, dataset_type=None):
+        if sampling_distribution is not None :
+            mask_z = sampling_distribution(probs=mask).sample((nb_sample_z,))
+            true_masks_z = true_masks.unsqueeze(0).expand(torch.Size((nb_sample_z,)) + true_masks.shape)
+            dic = self.compare_selection_single(dic, mask_z, true_masks_z, normalized = normalized, threshold = threshold, suffix = "z")
+        
+        
+        return dic
+
+    def impute_result(self, mask, value, index = None, dataset_type=None): 
         """ On part du principe que la value est complète mais c'est pas le cas encore, à gérer, sinon il faut transmettre l'index"""
         batch_size, _ = value.shape
         nb_centroids, dim = self.centroids.shape
