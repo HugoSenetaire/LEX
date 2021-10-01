@@ -12,7 +12,10 @@ class topK_STE(torch.autograd.Function):
     def forward(ctx, input, k):
         # ctx.save_for_backward(input, k)
         _, subset_size_indices = input.topk(k, dim=-1, largest=True, sorted=False)
-        output = torch.zeros(input.shape, dtype=input.dtype).scatter_(-1, subset_size_indices, 1.0)
+        if input.is_cuda:
+            output = torch.zeros(input.shape, dtype=input.dtype).scatter_(-1, subset_size_indices, 1.0)
+        else :
+            output = torch.zeros(input.shape, dtype=input.dtype).scatter_(-1, subset_size_indices, 1.0)
         
         return output
 
