@@ -34,8 +34,8 @@ def get_default():
     args_dataset["sigma"] = 1.0
     args_dataset["prob_simplify"] = 0.5
     args_dataset["give_index"]= True
-    args_dataset["nb_samples_train"] = 1000
-    args_dataset["nb_samples_test"] = 1000
+    args_dataset["nb_samples_train"] = 10000
+    args_dataset["nb_samples_test"] = 10000
     args_dataset["generate_new"] = False
     args_dataset["save"] = False
     args_dataset["centroids_path"] = None
@@ -83,7 +83,7 @@ def get_default():
     args_destruct["kernel_patch"] = (1,1)
     args_destruct["stride_patch"] = (1,1)
     # args_destruct["activation"] = torch.nn.LogSigmoid()
-    args_destruct["activation"] = torch.nn.LogSoftmax(dim=-1)
+    # args_destruct["activation"] = torch.nn.LogSoftmax(dim=-1)
 
     
     args_complete_trainer = {}
@@ -95,8 +95,8 @@ def get_default():
     # args_train["nb_epoch"] = 500 # Training the complete model
     args_train["nb_epoch"] = 15 # Training the complete model
 
-    args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training the complete model
-    args_train["nb_epoch_pretrain"] = 0 # Training auto encoder
+    args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training auto encoder
+    args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
     args_train["Nexpectation_train"] = 10 # Number K in the IWAE-similar loss 
     args_train["print_every"] = 1
 
@@ -105,7 +105,7 @@ def get_default():
     args_train["sampling_threshold"] = 0.5 # threshold for the selection
     args_train["sampling_distribution_train_var"] = SubsetSampling
     args_train["temperature_train_init"] = 1.0
-    args_train["temperature_decay"] = 0.999
+    args_train["temperature_decay"] = 0.9
     args_train["use_cuda"] = torch.cuda.is_available()
 
 
