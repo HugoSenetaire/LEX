@@ -14,7 +14,7 @@ class topK_STE(torch.autograd.Function):
         _, subset_size_indices = input.topk(k, dim=-1, largest=True, sorted=False)
         if input.is_cuda:
             subset_size_indices = subset_size_indices.cuda()
-            output = torch.zeros(input.shape, dtype=input.dtype).scatter_(-1, subset_size_indices, 1.0)
+            output = torch.zeros(input.shape, dtype=input.dtype).scatter_(-1, subset_size_indices, torch.tensor(1.0).cuda())
         else :
             output = torch.zeros(input.shape, dtype=input.dtype).scatter_(-1, subset_size_indices, 1.0)
         
