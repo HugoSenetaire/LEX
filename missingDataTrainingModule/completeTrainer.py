@@ -56,7 +56,7 @@ class ordinaryTraining():
 
     def _create_dic_test(self, correct, neg_likelihood, mse_loss):
         dic = {}
-        dic["correct"] = correct.item()
+        dic["accuracy_prediction_no_destruction"] = correct.item()
         dic["likelihood"] = -neg_likelihood.item()
         dic["mse"] = mse_loss.item()
         return dic
@@ -70,15 +70,17 @@ class ordinaryTraining():
         if self.need_feature :
             self.feature_extractor.zero_grad()
 
-    def _predict(self, data, sampling_distribution = None, dataset = None, Nexpectation = 1, complete_output = False, index = None):
+    def _predict(self, data, sampling_distribution = None, dataset = None, Nexpectation = 1, index = None):
         log_y_hat, _ = self.classification_module(data, index= index)
         return log_y_hat
 
     def _train_step(self, data, target, dataset, optim_classifier, optim_feature_extractor = None, index = None):
         self.zero_grad()
 
+
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
-        log_y_hat = self._predict(data, index = index)
+
+        log_y_hat = self._predict(data, dataset = dataset, index = index)
 
         neg_likelihood = F.nll_loss(log_y_hat, target)
         mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1))
@@ -115,6 +117,7 @@ class ordinaryTraining():
             else :
                 data, target = data_aux
                 index = None
+
             dic = self._train_step(data, target, dataset, optim_classifier = optim_classifier, optim_feature_extractor = optim_feature_extractor, index=index)
 
 
@@ -133,6 +136,7 @@ class ordinaryTraining():
         log_y_hat, _ = self.classification_module(data, index = index)
         
         
+    
         neg_likelihood = F.nll_loss(log_y_hat, target)
         mse_current = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1))
 
@@ -147,7 +151,7 @@ class ordinaryTraining():
         test_loss = 0
         correct = 0
         with torch.no_grad():
-            for data_aux in dataset.test_loader:
+            for batch_index, data_aux in enumerate(dataset.test_loader):
                 if len(data_aux)==3 :
                     data, target, index = data_aux
                 else :
@@ -175,10 +179,28 @@ class ordinaryTraining():
 
 
 
-    
+class trainingWithSelection(ordinaryTraining):
+    def __init__(self, classification_module, feature_extractor = None, use_cuda = True, kernel_patch = (1,1), stride_patch = (1,1)):
+        super().__init__(classification_module, use_cuda = use_cuda, feature_extractor=feature_extractor, kernel_patch= kernel_patch, stride_patch = stride_patch)
+
+    def _predict(self, data, sampling_distribution = None, dataset = None, Nexpectation = 1, index = None, train_dataset = None):
+        true_selection = dataset.dataset.get_true_selection(index = index, train_dataset = True)
+        log_y_hat, _ = self.classification_module(data, sample_b = true_selection, index = index)
+        return log_y_hat
+
+
+    def _test_step(self, data, target, dataset, index):
+        data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
+        log_y_hat, _ = self.classification_module(data, index = index)
+        
+        
+        neg_likelihood = F.nll_loss(log_y_hat, target)
+        mse_current = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1))
+
+        return log_y_hat, neg_likelihood, mse_current
 
 class noVariationalTraining(ordinaryTraining):
-    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, use_cuda = True, kernel_patch = (1,1), stride_patch = (1,1)):
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, use_cuda = True, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False,):
         super().__init__(classification_module, use_cuda = use_cuda, feature_extractor=feature_extractor, kernel_patch= kernel_patch, stride_patch = stride_patch)
         self.destruction_module = destruction_module
         self.baseline = baseline
@@ -188,6 +210,13 @@ class noVariationalTraining(ordinaryTraining):
             self.destruction_module.cuda()
             if self.need_feature :
                 self.feature_extractor.cuda()
+        self.fix_classifier_parameters = fix_classifier_parameters
+        print("INIT RESULT", fix_classifier_parameters)
+        if fix_classifier_parameters :
+            self.classification_module.fix_parameters()
+            if self.need_feature :
+                for param in self.feature_extractor.parameters():
+                    param.requires_grad = False
 
 
     def zero_grad(self):
@@ -258,30 +287,12 @@ class noVariationalTraining(ordinaryTraining):
         return z, p_z
     
     def _destructive_train(self, data, sampling_distribution, Nexpectation):
-        # try :
         pi_list, log_pi_list, loss_reg = self._get_pi(data)
         pi_list = torch.exp(log_pi_list)
         z, p_z = self._sample_z_train(pi_list, log_pi_list, sampling_distribution, Nexpectation)
-        # global complete_list
-        # complete_list = pi_list
-        # except:
-        #     print("current_pi_list", pi_list)
-        #     # print(previous_pi_list)
-        #     print("Previous pi_ list", complete_list)
-        #     print("PZ", save_pz)
-        #     print("neg_likelihood", global_neg_likelihood)
-        #     for name, param in global_generator:
-        #         print(name)
-        #         print("grad",grad[name])
-        #         print("grad_previous",grad_previous[name])
-        #         print(param)
-            # print("====================================================")
-            # for name, param in self.destruction_module.destructor.named_parameters():
-            #     print(name)
-            #     print(param)
         return pi_list, log_pi_list, loss_reg, z, p_z
 
-    def _predict(self, data, sampling_distribution, dataset, Nexpectation = 1, complete_output = False, index = None):
+    def _predict(self, data, sampling_distribution, dataset, Nexpectation = 1, index = None):
         data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, None, index=index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
 
         pi_list, log_pi_list, loss_reg, z, p_z = self._destructive_test(data, sampling_distribution, Nexpectation)
@@ -352,6 +363,7 @@ class noVariationalTraining(ordinaryTraining):
             else :
                 data, target = data_aux
                 index = None
+
             dic = self._train_step(data, target,dataset, optim_classifier, optim_destruction, sampling_distribution, index=index, optim_baseline =optim_baseline, optim_feature_extractor = optim_feature_extractor, lambda_reg = lambda_reg, Nexpectation = Nexpectation, lambda_reconstruction= lambda_reconstruction)
 
             if batch_idx % 100 == 0 :
@@ -365,7 +377,7 @@ class noVariationalTraining(ordinaryTraining):
         total_dic = super()._create_dic_test(correct_no_destruction, neg_likelihood, test_loss)
         treated_pi_list_total = np.concatenate(pi_list_total)
         total_dic["mean_pi_list"] = np.mean(treated_pi_list_total).item()
-        total_dic["correct_destruction"] = correct.item()
+        total_dic["accuracy_prediction_destruction"] = correct.item()
         q = np.quantile(treated_pi_list_total, [0.25,0.5,0.75])
         total_dic["pi_list_q1"] = q[0].item()
         total_dic["pi_list_median"] = q[1].item()
@@ -385,13 +397,12 @@ class noVariationalTraining(ordinaryTraining):
 
         pi_list_total = []
         with torch.no_grad():
-            for aux in dataset.test_loader:
+            for batch_index, aux in enumerate(dataset.test_loader):
                 if len(aux)==3 :
                     data, target, index = aux
                 else :
                     data, target = aux
                     index = None
-                
 
                 
                 batch_size = data.shape[0]
@@ -490,8 +501,8 @@ class noVariationalTraining(ordinaryTraining):
 
 
 class postHocTraining(noVariationalTraining):
-    def __init__(self, classification_module, destruction_module,baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), feature_extractor_training = False, use_cuda = True):
-        super().__init__(classification_module, destruction_module, baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda)
+    def __init__(self, classification_module, destruction_module,baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, feature_extractor_training = False, use_cuda = True):
+        super().__init__(classification_module, destruction_module, baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters)
         self.feature_extractor_training = feature_extractor_training
         self.classification_module.fix_parameters()
         if self.need_feature and feature_extractor_training :
@@ -501,8 +512,8 @@ class postHocTraining(noVariationalTraining):
 
 
 class AllZTraining(noVariationalTraining):
-    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), feature_extractor_training = False, use_cuda= True):
-        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda)
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, feature_extractor_training = False, use_cuda= True):
+        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters)
         self.compteur = 0
         self.computed_combination = False
         self.z = None
@@ -593,8 +604,8 @@ class AllZTraining(noVariationalTraining):
 
 class AllZTrainingV2(noVariationalTraining):
     """ Difference betzeen the previous is the way we calculate the multiplication with the loss"""
-    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), feature_extractor_training = False, use_cuda= True):
-        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda)
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, feature_extractor_training = False, use_cuda= True):
+        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters)
         self.compteur = 0
         self.computed_combination = False
         self.z = None
@@ -602,7 +613,6 @@ class AllZTrainingV2(noVariationalTraining):
 
     def _sample_z_train(self, pi_list, log_pi_list, sampling_distribution, Nexpectation):
         p_z = sampling_distribution(probs = pi_list)
-        # p_z = sampling_distribution(logits = log_pi_list)
         z = p_z.sample((Nexpectation,))
         return z, p_z
 
@@ -662,7 +672,8 @@ class AllZTrainingV2(noVariationalTraining):
 
         dic = self._create_dic(loss_total, neg_likelihood, mse_loss, loss_reconstruction,  lambda_reg *loss_reg, pi_list)
         loss_total.backward()
-        optim_classifier.step()
+        if not self.fix_classifier_parameters :
+            optim_classifier.step()
 
         # global grad
         # global grad_previous
@@ -684,8 +695,8 @@ class AllZTrainingV2(noVariationalTraining):
         return dic
 
 class REBAR(noVariationalTraining):
-    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), feature_extractor_training = False, use_cuda = True, update_temperature = False, pytorch_relax = False):
-        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda)
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, feature_extractor_training = False, use_cuda = True, update_temperature = False, pytorch_relax = False):
+        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters)
         self.compteur = 0
         self.update_temperature = update_temperature
         self.pytorch_relax = pytorch_relax
@@ -919,7 +930,7 @@ class REBAR(noVariationalTraining):
 
 
 class REINFORCE(noVariationalTraining):
-    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), feature_extractor_training = False, use_cuda = True, need_variance = False):
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, feature_extractor_training = False, use_cuda = True, need_variance = False):
         super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda = use_cuda)
         self.compteur = 0
         self.need_variance = need_variance

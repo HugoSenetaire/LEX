@@ -13,18 +13,25 @@ def free_regularization(log_pi_list):
   loss_reg = torch.mean(torch.mean(torch.exp(log_pi_list),-1)).squeeze() 
   return log_pi_list, loss_reg
 
-def squared_regularization(log_pi_list, missing_rate = 0.5):
+def squared_regularization_per_image(log_pi_list, missing_rate = 0.5):
   batch_size = log_pi_list.shape[0]
   channels = log_pi_list.shape[1]
   mean_pi_list = torch.mean(torch.exp(log_pi_list),-1)
   regularizing_vector = torch.ones_like(mean_pi_list) * missing_rate
-  loss_reg = torch.mean((mean_pi_list - regularizing_vector)**2) # Not absolute or squared ? Intger or rate ?
+  loss_reg = torch.mean((mean_pi_list - regularizing_vector)**2) 
   return log_pi_list, loss_reg
 
 
+def squared_regularization_per_batch(log_pi_list, missing_rate = 0.5):
+  batch_size = log_pi_list.shape[0]
+  channels = log_pi_list.shape[1]
+  mean_pi_list = torch.mean(torch.exp(log_pi_list)) # Mean on both batch and instance
+  loss_reg = (mean_pi_list- missing_rate)**2
+  return log_pi_list, loss_reg
+
 def softmax_regularization(log_pi_list, missing_rate = 0.5):
   if missing_rate>1.0 or missing_rate<0.0:
-    raise ValueError("Need a missing rate betzeen 0 and 1.")
+    raise ValueError("Need a missing rate between 0 and 1.")
   
   batch_size = log_pi_list.shape[0]
   channels = log_pi_list.shape[1]
@@ -34,3 +41,4 @@ def softmax_regularization(log_pi_list, missing_rate = 0.5):
   log_pi_list = torch.clamp(log_pi_list, max = 0.0)
   loss_reg = torch.tensor(0.)
   return log_pi_list, loss_reg
+

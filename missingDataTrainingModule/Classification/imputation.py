@@ -248,6 +248,21 @@ class NoDestructionImputation(Imputation):
   def imputation_function(self, data_expanded, sample_b):
     return data_expanded
 
+class SelectionAsInput(Imputation):
+  def __init__(self, input_size = (1,28,28), isRounded = False,
+               reconstruction_reg = None, sample_b_reg = None,
+               add_mask = False, post_process_regularization = None,
+               use_cuda = False):
+    super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
+                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization, use_cuda = use_cuda)
+
+  def has_constant(self):
+    return False
+    
+  def imputation_function(self, data_expanded, sample_b):
+    return sample_b
+
+  
 class ConstantImputation(Imputation):
 
  

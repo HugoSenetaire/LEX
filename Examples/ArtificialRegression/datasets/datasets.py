@@ -400,7 +400,7 @@ def bit_count(bin_subset):
         c += 1
     return c
 
-def gen_multivariate(n, d, max_sel_dim = 2, sigma = 0.25, prob_simplify = 0.2, mix_shape=True):
+def gen_multivariate(n, d, max_sel_dim = 2, sigma = 0.25, prob_simplify = 0.2, mix_shape=True, exact_sel_dim = False):
     '''
     Generates n shapes in d dimensions
     
@@ -424,7 +424,10 @@ def gen_multivariate(n, d, max_sel_dim = 2, sigma = 0.25, prob_simplify = 0.2, m
     used = [0 for i in range(d)]
     for i in range(n):
         # select a ground-truth solution for the shape
-        sel_dim = np.random.randint(1, max_sel_dim + 1)
+        if exact_sel_dim :
+            sel_dim = max_sel_dim
+        else :
+            sel_dim = np.random.randint(1, max_sel_dim + 1)
         sel = sorted(list(np.random.permutation(d)[:sel_dim]))
 
         # allocate some coordinates that do not collide with previous ones
@@ -498,7 +501,7 @@ def gen_multivariate(n, d, max_sel_dim = 2, sigma = 0.25, prob_simplify = 0.2, m
             X_real[i,k] = real_coord[k][X[i][k]]
     Y_real = np.array(Y, dtype='float32')
 
-    # print(X_real)
+
     return X_real, Y_real, S, shapes
 
 def generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_samples = 20):
@@ -539,20 +542,22 @@ class HypercubeDataset(Dataset):
     def __init__(self, nb_shape = None, nb_dim = None,  sigma=1.0, ratio_sigma = 0.25, prob_simplify=0.2,
                  nb_sample_train = 20, nb_sample_test = 20, give_index = False, batch_size_train = None,
                  noisy = None, use_cuda = False, centroids_path = None,
-                 generate_new = False, save = False, generate_each_time = True):
+                 generate_new = False, save = False, generate_each_time = True,
+                 exact_sel_dim = False, max_sel_dim = 2):
 
         self.nb_shape = nb_shape
         self.nb_dim = nb_dim
         self.sigma = sigma  
+        print(f"Given sigma is {sigma}")
         self.use_cuda = use_cuda
         self.prob_simplify = prob_simplify
         self.ratio_sigma = ratio_sigma
-        self.gaussian_noise = self.sigma * self.ratio_sigma
+
 
         if generate_new :
             if nb_shape is None or nb_dim is None :
                 raise ValueError("Can't generate new dataset without information on dim and shapes")
-            self.centroids, self.centroids_Y, self.S, self.shapes = gen_multivariate(nb_shape, nb_dim, sigma=sigma, prob_simplify=prob_simplify)
+            self.centroids, self.centroids_Y, self.S, self.shapes = gen_multivariate(n = nb_shape, d = nb_dim, max_sel_dim= max_sel_dim, sigma=sigma, prob_simplify=prob_simplify, exact_sel_dim=exact_sel_dim)
             if save:
                 if centroids_path is None :
                     raise ValueError("Need a path to save the dataset")
@@ -564,6 +569,7 @@ class HypercubeDataset(Dataset):
             if (centroids_path is None) or (not os.path.exists(centroids_path)):
                 raise FileNotFoundError(f"Did not find the file at {centroids_path}")
             self.centroids, self.centroids_Y, self.S, self.shapes = np.load(centroids_path, allow_pickle=True)
+
             nb_shape = len(self.shapes)
             nb_dim = self.centroids.shape[1]
 
@@ -572,12 +578,35 @@ class HypercubeDataset(Dataset):
                 
             if self.nb_dim is not None and  self.nb_dim != nb_dim :
                 raise ValueError(f"The number of dim wanted {self.nb_dim} is different from the number of dim loaded {nb_dim}")
+        
+        sigma = np.inf
+        for k in range(len(self.centroids)):
+            aux_centroids = np.reshape(self.centroids[k], (1,-1)).repeat(len(self.centroids)-1,axis=0)
+            if k ==0 :
+                sigma = min(self.sigma, np.min(np.max(np.abs(aux_centroids - self.centroids[1:]), axis=-1)))
+            elif k==len(self.centroids)-1:
+                sigma = min(self.sigma, np.min(np.max(np.abs(aux_centroids - self.centroids[:-1]), axis=-1)))
+            else :
+                aux_total = np.concatenate([self.centroids[:k], self.centroids[k+1:]], axis=0)
+                sigma = min(self.sigma, np.min(np.max(np.abs(aux_centroids - aux_total), axis=-1)))
             
-            print(f"Loaded {nb_shape} shapes with {nb_dim} dimensions")
+        self.sigma = sigma
+
         self.nb_shape = nb_shape
         self.nb_dim = nb_dim
+        self.gaussian_noise = self.sigma * self.ratio_sigma
         self.centroids = torch.from_numpy(self.centroids).type(torch.float32)
         self.centroids_Y = torch.from_numpy(self.centroids_Y).type(torch.int64)
+                    
+                    
+        print(f"Loaded {nb_shape} shapes with {nb_dim} dimensions")
+        self.len_dim = np.array(list(map(lambda x: len(x), self.S)))
+
+        print(f"Mean number of dim {np.mean(self.len_dim)}, Std number of dim {np.std(self.len_dim)}")
+        print(f"sigma value is {self.sigma}")
+        print(f"Noise in the dataset is {self.gaussian_noise}")
+
+
 
         if self.use_cuda :
             self.centroids = self.centroids.cuda()
@@ -625,6 +654,7 @@ class HypercubeDataset(Dataset):
         return list_index
 
     def compare_selection_single(self, dic, mask, true_masks, normalized = False, threshold = 0.5, suffix = "pi"):
+        batch_size = len(mask)
         if mask.is_cuda :
             mask_thresholded = torch.where(mask > threshold, torch.tensor(1.).cuda(), torch.tensor(0.).cuda())
         else :
@@ -636,10 +666,11 @@ class HypercubeDataset(Dataset):
         auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
         auc_score = torch.tensor(auc_score).type(torch.float32)
         if normalized : 
-            accuracy = accuracy/self.nb_dim/len(true_masks)
-            proportion = proportion/len(true_masks)
+            accuracy = accuracy/self.nb_dim/batch_size
+            accuracy_thresholded = accuracy_thresholded/self.nb_dim/batch_size
+            proportion = proportion/batch_size
         else :
-            auc_score = auc_score*self.nb_dim*len(true_masks)
+            auc_score = auc_score*self.nb_dim*batch_size
 
         dic["accuracy_selection_"+suffix] = accuracy.item()
         dic["accuracy_selection_thresholded_"+suffix] = accuracy_thresholded.item()
@@ -673,6 +704,34 @@ class HypercubeDataset(Dataset):
         
         return dic
 
+    def get_true_selection(self, index,  train_dataset = True):
+        if not self.give_index :
+            raise AttributeError("You need to give the index in the distribution if you want to use true Selection as input of a model")
+        if train_dataset :
+            true_S = self.new_S_train
+        else :
+            true_S = self.new_S_test
+        true_S_value = true_S[index]
+        return true_S_value
+
+    def get_dependency(self, mask, value, index=None, dataset_type = None):
+        batch_size, _ = value.shape
+        nb_centroids, dim = self.centroids.shape
+        
+        
+        mask_reshape = mask.unsqueeze(1).expand(batch_size, nb_centroids, dim)
+        value_reshape = value.unsqueeze(1).expand(batch_size, nb_centroids, dim)
+        centroids_reshape = self.centroids.unsqueeze(0).expand(batch_size, nb_centroids, dim)
+        sigma = torch.ones_like(value_reshape) * self.gaussian_noise
+
+
+        dependency = (((value_reshape - centroids_reshape)/sigma)**2)/2
+        dependency = torch.where(mask_reshape == 0, torch.ones_like(dependency), dependency)
+        dependency = torch.exp(-torch.prod(dependency, axis=-1))  +1e-8
+        dependency /= torch.sum(dependency, axis=-1, keepdim = True)
+
+        return dependency
+
     def impute_result(self, mask, value, index = None, dataset_type=None): 
         """ On part du principe que la value est complète mais c'est pas le cas encore, à gérer, sinon il faut transmettre l'index"""
         batch_size, _ = value.shape
@@ -699,6 +758,371 @@ class HypercubeDataset(Dataset):
         no_imputation_index = torch.where(torch.all(mask==1,axis=-1), True, False).unsqueeze(-1).expand(batch_size, dim)
         sampled = torch.where(no_imputation_index, value, sampled)
 
+        return sampled
+
+
+class LinearDataset(Dataset):
+    def __init__(self, nb_sample_train = 1000, nb_sample_test = 1000, give_index = False, 
+                 batch_size_train = None, use_cuda = False, noisy = None):
+        super().__init__()
+        self.nb_sample_train = nb_sample_train
+        self.nb_sample_test = nb_sample_test
+        self.give_index = give_index
+        self.batch_size_train = batch_size_train
+        self.use_cuda = use_cuda
+
+        nb_sample = nb_sample_test + nb_sample_train
+        X = scipy.stats.uniform([-2.0,-2.0], [4,4]).rvs((nb_sample,2))
+        Y = np.where(X[:,0]<-X[:,1], np.ones((nb_sample)), np.zeros((nb_sample))).astype(np.int64)
+
+        self.X_train = torch.tensor(X[:nb_sample_train])
+        self.Y_train = torch.tensor(Y[:nb_sample_train], dtype = torch.int64)
+        self.new_S_train = torch.ones_like(self.X_train)
+        
+        self.X_test = torch.tensor(X[nb_sample_train:])
+        self.Y_test = torch.tensor(Y[nb_sample_train:], dtype = torch.int64)
+        self.new_S_test = torch.ones_like(self.X_test)
+
+        print()
+        self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
+    
+    def compare_selection_single(self, dic, mask, true_masks, normalized = False, threshold = 0.5, suffix = "pi"):
+        batch_size = len(mask)
+        if mask.is_cuda :
+            mask_thresholded = torch.where(mask > threshold, torch.tensor(1.).cuda(), torch.tensor(0.).cuda())
+        else :
+            mask_thresholded =  torch.where(mask > threshold, torch.tensor(1.), torch.tensor(0.))
+        accuracy = torch.sum(1-torch.abs(true_masks - mask))
+        accuracy_thresholded = torch.sum(1-torch.abs(true_masks - mask_thresholded))
+        proportion = torch.count_nonzero(torch.all(torch.abs(true_masks - mask) == 0,axis=-1))
+        proportion_thresholded = torch.count_nonzero(torch.all(torch.abs(true_masks - mask_thresholded) == 0,axis=-1))
+        auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
+        auc_score = torch.tensor(auc_score).type(torch.float32)
+        if normalized : 
+            accuracy = accuracy/self.nb_dim/batch_size
+            accuracy_thresholded = accuracy_thresholded/self.nb_dim/batch_size
+            proportion = proportion/batch_size
+        else :
+            auc_score = auc_score*self.nb_dim*batch_size
+
+        dic["accuracy_selection_"+suffix] = accuracy.item()
+        dic["accuracy_selection_thresholded_"+suffix] = accuracy_thresholded.item()
+        dic["proportion_"+suffix] = proportion.item()
+        dic["proportion_thresholded_"+suffix] = proportion_thresholded.item()
+        dic["auc_score_"+suffix] = auc_score.item()
+
+        return dic
+ 
+    def compare_selection(self, mask, index = None, normalized = False, train_dataset = False, sampling_distribution = None, threshold = 0.5, nb_sample_z = 100):
+
+        dic = {}
+        if train_dataset :
+          current_S = self.new_S_train
+        else :
+          current_S = self.new_S_test
+
+        if index is not None :
+            true_masks = current_S[index]
+        else :
+            true_masks = current_S
+
+        dic = self.compare_selection_single(dic, mask, true_masks, normalized = normalized, threshold = threshold, suffix = "pi")
+
+
+        if sampling_distribution is not None :
+            mask_z = sampling_distribution(probs=mask).sample((nb_sample_z,))
+            true_masks_z = true_masks.unsqueeze(0).expand(torch.Size((nb_sample_z,)) + true_masks.shape)
+            dic = self.compare_selection_single(dic, mask_z, true_masks_z, normalized = normalized, threshold = threshold, suffix = "z")
+        
+        
+        return dic
+
+    def get_true_selection(self, index,  train_dataset = True):
+        if not self.give_index :
+            raise AttributeError("You need to give the index in the distribution if you want to use true Selection as input of a model")
+        if train_dataset :
+            true_S = self.new_S_train
+        else :
+            true_S = self.new_S_test
+
+        if index.is_cuda :
+            true_S = true_S.cuda()
+            
+        true_S_value = true_S[index]
+        return true_S_value
+
+    def impute_result(self, mask, value, index = None, dataset_type=None): 
+        uniform = torch.distributions.uniform.Uniform(-2.0,2.0)
+        resampled_value = uniform.sample(value.shape)
+        sampled = torch.where(mask == 1, value, resampled_value)
+        # plt.scatter(value[:,0], value[:,1])
+        # plt.show()
+        # plt.scatter(sampled[:,0], sampled[:,1])
+        # plt.show()
+        return sampled
+
+
+
+## Dataset based on standard gaussian
+
+class StandardGaussianDataset(Dataset):
+    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
+                 batch_size_train = None, use_cuda = False, ):
+        super().__init__()
+        self.sigma = sigma  
+        self.nb_sample_train = nb_sample_train
+        self.nb_sample_test = nb_sample_test
+        self.give_index = give_index
+        self.batch_size_train = batch_size_train
+        self.use_cuda = use_cuda
+
+
+    def compare_selection_single(self, dic, mask, true_masks, normalized = False, threshold = 0.5, suffix = "pi"):
+        batch_size = len(mask)
+        if mask.is_cuda :
+            mask_thresholded = torch.where(mask > threshold, torch.tensor(1.).cuda(), torch.tensor(0.).cuda())
+        else :
+            mask_thresholded =  torch.where(mask > threshold, torch.tensor(1.), torch.tensor(0.))
+        accuracy = torch.sum(1-torch.abs(true_masks - mask))
+        accuracy_thresholded = torch.sum(1-torch.abs(true_masks - mask_thresholded))
+        proportion = torch.count_nonzero(torch.all(torch.abs(true_masks - mask) == 0,axis=-1))
+        proportion_thresholded = torch.count_nonzero(torch.all(torch.abs(true_masks - mask_thresholded) == 0,axis=-1))
+        auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
+        auc_score = torch.tensor(auc_score).type(torch.float32)
+        if normalized : 
+            accuracy = accuracy/self.nb_dim/batch_size
+            accuracy_thresholded = accuracy_thresholded/self.nb_dim/batch_size
+            proportion = proportion/batch_size
+        else :
+            auc_score = auc_score*self.nb_dim*batch_size
+
+        dic["accuracy_selection_"+suffix] = accuracy.item()
+        dic["accuracy_selection_thresholded_"+suffix] = accuracy_thresholded.item()
+        dic["proportion_"+suffix] = proportion.item()
+        dic["proportion_thresholded_"+suffix] = proportion_thresholded.item()
+        dic["auc_score_"+suffix] = auc_score.item()
+
+        return dic
+ 
+    def compare_selection(self, mask, index = None, normalized = False, train_dataset = False, sampling_distribution = None, threshold = 0.5, nb_sample_z = 100):
+
+        dic = {}
+        if train_dataset :
+          current_S = self.new_S_train
+        else :
+          current_S = self.new_S_test
+
+        if index is not None :
+            true_masks = current_S[index]
+        else :
+            true_masks = current_S
+
+        dic = self.compare_selection_single(dic, mask, true_masks, normalized = normalized, threshold = threshold, suffix = "pi")
+
+
+        if sampling_distribution is not None :
+            mask_z = sampling_distribution(probs=mask).sample((nb_sample_z,))
+            true_masks_z = true_masks.unsqueeze(0).expand(torch.Size((nb_sample_z,)) + true_masks.shape)
+            dic = self.compare_selection_single(dic, mask_z, true_masks_z, normalized = normalized, threshold = threshold, suffix = "z")
+        
+        
+        return dic
+
+    def get_true_selection(self, index,  train_dataset = True):
+        if not self.give_index :
+            raise AttributeError("You need to give the index in the distribution if you want to use true Selection as input of a model")
+        if train_dataset :
+            true_S = self.new_S_train
+        else :
+            true_S = self.new_S_test
+
+        if index.is_cuda :
+            true_S = true_S.cuda()
+            
+        true_S_value = true_S[index]
+        return true_S_value
+
+    def impute_result(self, mask, value, index = None, dataset_type=None): 
+        normal_distrib = torch.distributions.normal.Normal(0,sigma)
+        resampled_value = normal_distrib.sample()
+        sampled = torch.where(mask == 1, value, resampled_value)
+        return sampled
+
+
+##=========================== XOR DATASET ========================================
+
+
+
+
+def generate_XOR(sigma, nb_sample_train, nb_sample_test,):
+    normal_distrib = torch.distributions.normal.Normal(0,sigma)
+    X_train = normal_distrib.sample((nb_sample_train, 10,))
+    X_test = normal_distrib.sample((nb_sample_test, 10,))
+    total_X = torch.cat((X_train, X_test), axis=0)
+
+    prob_test = torch.exp(total_X[:,0]*total_X[:,1])
+    prob_test = 1/(1+prob_test)
+
+    Y = torch.Bernoulli(prob_test).sample()
+    Y_train,  Y_test = Y[:nb_sample_train], Y[nb_sample_train:]
+    new_S_train = torch.cat([torch.ones((nb_sample_train, 2)),torch.zeros((nb_sample_train, 8))], axis=1)
+    new_S_test = torch.cat([torch.ones((nb_sample_test, 2)),torch.zeros((nb_sample_test, 8))], axis=1)
+
+
+    return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
+
+class XOR(StandardGaussianDataset):
+    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
+                 batch_size_train = None, use_cuda = False, ):
+
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, 
+                 batch_size_train = batch_size_train, use_cuda = use_cuda, )
+        print(f"Given sigma is {self.sigma}")
+        self.use_cuda = use_cuda
+        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate_XOR(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
+        self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
+
+       
+
+#### =============================== Orange Skin =====================================================
+
+
+
+def generateOrangeSkin(sigma, nb_sample_train, nb_sample_test,):
+    normal_distrib = torch.distributions.normal.Normal(0,sigma)
+    X_train = normal_distrib.sample((nb_sample_train, 10,))
+    X_test = normal_distrib.sample((nb_sample_test, 10,))
+    total_X = torch.cat((X_train, X_test), axis=0)
+
+    prob_test = torch.exp(torch.sum(total_X[:,:4]**2, axis = 1) - 4.0) 
+    prob_test = 1/(1+prob_test)
+
+    Y = torch.Bernoulli(prob_test).sample()
+    Y_train,  Y_test = Y[:nb_sample_train], Y[nb_sample_train:]
+    new_S_train = torch.cat([torch.ones((nb_sample_train, 4)),torch.zeros((nb_sample_train, 6))], axis=1)
+    new_S_test = torch.cat([torch.ones((nb_sample_test, 4)),torch.zeros((nb_sample_test, 6))], axis=1)
+
+
+    return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
+
+class OrangeSkin(StandardGaussianDataset):
+    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
+                 batch_size_train = None, use_cuda = False, ):
+
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, 
+                 batch_size_train = batch_size_train, use_cuda = use_cuda, )
+        print(f"Given sigma is {self.sigma}")
+        self.use_cuda = use_cuda
+        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generateOrangeSkin(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
+        self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
+
+       
+
+#### =============================== Non-Linear Additive model =====================================================
+
+
+
+def generateNonLinearAdditiveModel(sigma, nb_sample_train, nb_sample_test,):
+    normal_distrib = torch.distributions.normal.Normal(0,sigma)
+    X_train = normal_distrib.sample((nb_sample_train, 10,))
+    X_test = normal_distrib.sample((nb_sample_test, 10,))
+    total_X = torch.cat((X_train, X_test), axis=0)
+
+    prob_test = torch.exp(-100 * torch.sin(0.2*total_X[:,0]) + abs(total_X[:,1]) + total_X[:,2] + torch.exp(-total_X[:,3])  - 2.4) # What is written is very different from the paper TODO : check
+    prob_test = 1/(1+prob_test)
+
+    Y = torch.Bernoulli(prob_test).sample()
+    Y_train,  Y_test = Y[:nb_sample_train], Y[nb_sample_train:]
+    new_S_train = torch.cat([torch.ones((nb_sample_train, 2)),torch.zeros((nb_sample_train, 8))], axis=1)
+    new_S_test = torch.cat([torch.ones((nb_sample_test, 2)),torch.zeros((nb_sample_test, 8))], axis=1)
+
+
+    return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
+
+class NonLinearAdditiveModel(StandardGaussianDataset):
+    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
+                 batch_size_train = None, use_cuda = False, ):
+
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, 
+                 batch_size_train = batch_size_train, use_cuda = use_cuda, )
+        print(f"Given sigma is {self.sigma}")
+        self.use_cuda = use_cuda
+        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generateNonLinearAdditiveModel(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
+        self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
+
+
+
+#### =============================== Non-Linear Multiplicative model =====================================================
+  
+def generateSwitchFeature(sigma, nb_sample_train, nb_sample_test,): # In the switch dataset, this is not a mixture of orange skin for the second gaussian, also they use 4th to 8th features TODO : check
+    nb_sample_train_1 = nb_sample_train//2
+    nb_sample_test_1 = nb_sample_test//2
+    nb_sample_train_2 = nb_sample_train - nb_sample_train_1
+    nb_sample_test_2 = nb_sample_test - nb_sample_test_1
+
+    normal_distrib_1 = torch.distributions.normal.Normal(3,sigma)
+    X_train_1 = normal_distrib_1.sample((nb_sample_train_1, 10,))
+    X_test_1 = normal_distrib_1.sample((nb_sample_test_1, 10,))
+    total_X_1 = torch.cat((X_train_1, X_test_1), axis=0)
+    
+    prob_test_1 = torch.exp(torch.sum(total_X_1[:,:4]**2, axis = 1) - 4.0) 
+    prob_test_1 = 1/(1+prob_test_1)
+    
+
+
+    normal_distrib_2 = torch.distributions.normal.Normal(-3,sigma)
+    X_train_2 = normal_distrib_2.sample((nb_sample_train_2, 10,))
+    X_test_2 = normal_distrib_2.sample((nb_sample_test_2, 10,))
+    total_X_2 = torch.cat((X_train_2, X_test_2), axis=0)
+    
+    prob_test_2 = torch.exp(torch.sum(total_X_2[:,4:-1]**2, axis = 1) - 4.0) 
+    prob_test_2 = 1/(1+prob_test_2)
+
+    X_train = torch.cat((X_train_1, X_train_2), axis=0)
+    X_test = torch.cat((X_test_1, X_test_2), axis=0)
+    
+    prob_test = torch.cat((prob_test_1[:nb_sample_train_1], prob_test_2[:nb_sample_train_2],
+                           prob_test_1[nb_sample_train_1:], prob_test_2[nb_sample_train_2:],), axis=0)
+    
+    Y = torch.Bernoulli(prob_test).sample()
+    Y_train,  Y_test = Y[:nb_sample_train], Y[nb_sample_train:]
+    
+    new_S_train= torch.zeros((nb_sample_train, 10))
+    new_S_train[:nb_sample_train_1, :4] = 1
+    new_S_train[nb_sample_train_1:, 4:-1] = 0
+
+    new_S_test= torch.zeros((nb_sample_test, 10))
+    new_S_test[:nb_sample_test_1, :4] = 1
+    new_S_test[nb_sample_test_1:, 4:-1] = 0
+
+    return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
+  
+
+class SwitchFeature(StandardGaussianDataset):
+    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
+                 batch_size_train = None, use_cuda = False, ):
+
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, 
+                 batch_size_train = batch_size_train, use_cuda = use_cuda, )
+        print(f"Given sigma is {self.sigma}")
+        self.use_cuda = use_cuda
+        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generateSwitchFeature(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
+        self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
+    
+    def impute_result(self, mask, value, index = None, dataset_type=None):
+        
+        
+        bern = torch.bernoulli(torch.full(mask.shape, fill_value=torch.tensor(0.5)))
+        mean = bern * 3 + (1 - bern) * -3
+        
+        normal_distrib = torch.distributions.normal.Normal(mean,sigma)
+        resampled_value = normal_distrib.sample()
+        sampled = torch.where(mask == 1, value, resampled_value)
         return sampled
 
 

@@ -40,6 +40,8 @@ def get_default():
     args_dataset["save"] = False
     args_dataset["centroids_path"] = None
     args_dataset["generate_each_time"] = False
+    args_dataset["exact_sel_dim"] = False
+    args_dataset["max_sel_dim"] = 2
 
     args_classification = {}
 
@@ -107,10 +109,11 @@ def get_default():
     args_train["temperature_train_init"] = 1.0
     args_train["temperature_decay"] = 0.9
     args_train["use_cuda"] = torch.cuda.is_available()
+    args_train["fix_classifier_parameters"] = False
 
 
-    args_train["optim_classification"] = partial(Adam, lr=1e-4) #Learning rate for classification module
-    args_train["optim_destruction"] = partial(Adam, lr=1e-4) # Learning rate for destruction module
+    args_train["optim_classification"] = partial(Adam, lr=1e-2) #Learning rate for classification module
+    args_train["optim_destruction"] = partial(Adam, lr=1e-2) # Learning rate for destruction module
     args_train["optim_destruction_var"] = partial(Adam, lr=1e-4) # Learning rate for the variationnal destruction module used in Variationnal Training
     args_train["optim_feature_extractor"] = partial(Adam, lr=1e-4) # Learning rate for the feature extractor if any
     args_train["optim_baseline"] = partial(Adam, lr=1e-4) # Learning rate for the baseline network

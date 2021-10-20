@@ -229,7 +229,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
     ##### ============ Modules initialisation for ordinary training ============:
 
-    if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_train["nb_epoch_pretrain"]>0 :
+    if args_complete_trainer["complete_trainer"] is ordinaryTraining :
         if args_complete_trainer["feature_extractor"] is not None :
             optim_feature_extractor = args_complete_trainer["feature_extractor"]()
         else :
@@ -238,11 +238,9 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
         vanilla_classification_module.kernel_update(kernel_patch, stride_patch)
 
-        trainer_var = ordinaryTraining(vanilla_classification_module, feature_extractor=feature_extractor)
-        if args_complete_trainer["complete_trainer"] is ordinaryTraining :
-            nb_epoch = args_train["nb_epoch"]
-        else :
-            nb_epoch = args_train["nb_epoch_pretrain"]
+        trainer_var = args_complete_trainer["complete_trainer"](vanilla_classification_module, feature_extractor=feature_extractor )
+        nb_epoch = args_train["nb_epoch"]
+
 
         total_dic_train = {}
         total_dic_test = {}
@@ -260,13 +258,78 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
         dic_list["train"] = total_dic_train
         dic_list["test"]  = total_dic_test
-        if args_complete_trainer["complete_trainer"] is ordinaryTraining :
-            return final_path, trainer_var, loader, dic_list
-         
+
+        return final_path, trainer_var, loader, dic_list
+
+
+    if args_complete_trainer["complete_trainer"] is trainingWithSelection :
+        if args_complete_trainer["feature_extractor"] is not None :
+            optim_feature_extractor = args_complete_trainer["feature_extractor"]()
+        else :
+            optim_feature_extractor = None
+        imputation = imputationMethod(input_size= args_classification["input_size_classification_module"], post_process_regularization = post_proc_regul,
+                        reconstruction_reg= None, use_cuda = args_train["use_cuda"])
+        vanilla_classification_module = ClassificationModule(classifier, use_cuda = args_train["use_cuda"],  feature_extractor=feature_extractor, imputation = imputation)
+        optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
+        vanilla_classification_module.kernel_update(kernel_patch, stride_patch)
+
+        trainer_var = args_complete_trainer["complete_trainer"](vanilla_classification_module)
+        nb_epoch = args_train["nb_epoch"]
+
+
+        total_dic_train = {}
+        total_dic_test = {}
+        for epoch in range(nb_epoch):
+            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0))
+            if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
+                dic_test = trainer_var.test(loader)
+
+        
+        total_dic_train = fill_dic(total_dic_train, dic_train)
+        total_dic_test = fill_dic(total_dic_test, dic_test)
+            
+        save_dic(os.path.join(final_path,"train"), total_dic_train)
+        save_dic(os.path.join(final_path,"test"), total_dic_test)
+
+        dic_list["train"] = total_dic_train
+        dic_list["test"]  = total_dic_test
+
+        return final_path, trainer_var, loader, dic_list
+
+
     
+    if args_train["nb_epoch_pretrain"]>0 :
+        if args_complete_trainer["feature_extractor"] is not None :
+            optim_feature_extractor = args_complete_trainer["feature_extractor"]()
+        else :
+            optim_feature_extractor = None
+        vanilla_classification_module = ClassificationModule(classifier, use_cuda = args_train["use_cuda"])
+        optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
+        vanilla_classification_module.kernel_update(kernel_patch, stride_patch)
+
+        trainer_var = ordinaryTraining(vanilla_classification_module, feature_extractor=feature_extractor)
+
+        nb_epoch = args_train["nb_epoch_pretrain"]
+
+        total_dic_train = {}
+        total_dic_test = {}
+        for epoch in range(nb_epoch):
+            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0))
+            if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
+                dic_test = trainer_var.test(loader)
+        
+        total_dic_train = fill_dic(total_dic_train, dic_train)
+        total_dic_test = fill_dic(total_dic_test, dic_test)
+            
+        save_dic(os.path.join(final_path,"train"), total_dic_train)
+        save_dic(os.path.join(final_path,"test"), total_dic_test)
+
+        dic_list["train"] = total_dic_train
+        dic_list["test"]  = total_dic_test
+
 
     ##### ============  Modules initialisation for complete training ===========:
-    if args_complete_trainer["complete_trainer"] is not ordinaryTraining :
+    if args_complete_trainer["complete_trainer"] is not ordinaryTraining and args_complete_trainer["complete_trainer"] is not trainingWithSelection :
         
         if args_classification["reconstruction_regularization"] is not None :
             recons_regul = args_classification["reconstruction_regularization"](args_classification["autoencoder"], to_train = args_classification["train_reconstruction_regularization"])
@@ -301,12 +364,14 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                 use_cuda = use_cuda,
             )
         else :
+            print("BEFORE INIT", args_train["fix_classifier_parameters"])
             trainer_var = args_complete_trainer["complete_trainer"](
                 classification_module,
                 destruction_module,
                 baseline=classifier_baseline,
                 feature_extractor=feature_extractor,
                 use_cuda = use_cuda,
+                fix_classifier_parameters = args_train["fix_classifier_parameters"],
             )
 
 
