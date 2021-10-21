@@ -211,7 +211,7 @@ def plot_destructor_output(destructor, dataset, path, figsize = (15,5)):
   try :
     centroids = dataset.centroids
   except :
-    centroids = False
+    centroids = None
   X = dataset.X_train
   Y = dataset.Y_train
 
@@ -228,6 +228,8 @@ def plot_destructor_output(destructor, dataset, path, figsize = (15,5)):
   xaux2 = grid_y.reshape(1, -1)
   complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
 
+  if destructor.is_cuda:
+    complete_X = complete_X.cuda()
   log_pi_list, _ = destructor(complete_X)
   pi_list = torch.exp(log_pi_list.detach().cpu())
   # First dimension needed :
@@ -251,7 +253,7 @@ def plot_destructor_output(destructor, dataset, path, figsize = (15,5)):
   axs[0].contourf(grid_x, grid_y, selection_firstdim.reshape(grid_x.shape),  vmin=0, vmax=1.0)
   axs[1].contourf(grid_x, grid_y, selection_seconddim.reshape(grid_x.shape), vmin=0, vmax=1.0)
   # qcs = axs[2].contourf(grid_x, grid_y, selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
-  if centroids :
+  if centroids is not None :
     for k in range(2):
       axs[k].scatter(centroids[:,0], centroids[:,1], color = colors[dataset.centroids_Y])
 
@@ -268,7 +270,7 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
   try :
     centroids = dataset.centroids
   except :
-    centroids = False
+    centroids = None
   X = dataset.X_train
   Y = dataset.Y_train
 
@@ -285,36 +287,52 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
   xaux2 = grid_y.reshape(1, -1)
   complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
 
+  try :
+    pi_list, log_pi_list, _, z, p_z = trainer_var._destructive_test(complete_X, sampling_distribution, 1)
+    log_y_hat_destructed, _ = trainer_var.classification_module(complete_X, z, index = None)
+    pred_destruction = torch.exp(log_y_hat_destructed[:,0]).detach().cpu()
+    destructive= True
+  except(AttributeError) :
+    destructive = False
 
-  pi_list, log_pi_list, _, z, p_z = trainer_var._destructive_test(complete_X, sampling_distribution, 1)
+  if trainer_var.classification_module.is_cuda:
+    complete_X = complete_X.cuda()
   log_y_hat, _ = trainer_var.classification_module(complete_X, index = None)
-  log_y_hat_destructed, _ = trainer_var.classification_module(complete_X, z, index = None)
+
 
   pred_classic = torch.exp(log_y_hat[:,0]).detach().cpu()
-  pred_destruction = torch.exp(log_y_hat_destructed[:,0]).detach().cpu()
+
 
 
   # All dim needed :
   # aux = torch.cat([selection_firstdim.reshape(1,-1), selection_seconddim.reshape(1, -1)], dim=0) # Get true selection, 1 means selection; 0 means it's not necessary
   # selection_alldim = 1 - torch.max(aux, dim=0)[0]
 
-  fig, axs = plt.subplots(nrows =1, ncols = 2, figsize = (10,5))
   colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
-                                             '#f781bf', '#a65628', '#984ea3',
-                                             '#999999', '#e41a1c', '#dede00']),
-                                  int(max(Y) + 1))))
+                                        '#f781bf', '#a65628', '#984ea3',
+                                        '#999999', '#e41a1c', '#dede00']),
+                                    int(max(Y) + 1))))
+  if destructive :
+    fig, axs = plt.subplots(nrows =1, ncols = 2, figsize = (10,5))
+    axs[0].contourf(grid_x, grid_y, pred_classic.reshape(grid_x.shape),  vmin=0, vmax=1.0)
+    axs[1].contourf(grid_x, grid_y, pred_destruction.reshape(grid_x.shape), vmin=0, vmax=1.0)
+    # qcs = axs[2].contourf(grid_x, grid_y, selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
+    if centroids is not None:
+      for k in range(2):
+        axs[k].scatter(centroids[:,0], centroids[:,1], color = colors[dataset.centroids_Y])
 
-  axs[0].contourf(grid_x, grid_y, pred_classic.reshape(grid_x.shape),  vmin=0, vmax=1.0)
-  axs[1].contourf(grid_x, grid_y, pred_destruction.reshape(grid_x.shape), vmin=0, vmax=1.0)
-  # qcs = axs[2].contourf(grid_x, grid_y, selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
-  if centroids :
-    for k in range(2):
-      axs[k].scatter(centroids[:,0], centroids[:,1], color = colors[dataset.centroids_Y])
+  else :
+    fig, axs = plt.subplots(nrows =1, ncols = 1, figsize = (5,5))
+    axs.contourf(grid_x, grid_y, pred_classic.reshape(grid_x.shape),  vmin=0, vmax=1.0)
 
+    if centroids is not None:
+        axs.scatter(centroids[:,0], centroids[:,1], color = colors[dataset.centroids_Y])
 
   complete_path = os.path.join(path, "output_classification.jpg")
   plt.savefig(complete_path)
   plt.close(fig)
+
+
 def get_evaluation(trainer_var, loader, dic, dic_count_batch_size, dic_count_dim_batch_size, experiment_id, current_sampling_test, args_train, train = False):
     if train:
         suffix = "_train"
