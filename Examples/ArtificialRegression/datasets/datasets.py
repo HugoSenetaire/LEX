@@ -797,8 +797,12 @@ class LinearDataset(Dataset):
         accuracy_thresholded = torch.sum(1-torch.abs(true_masks - mask_thresholded))
         proportion = torch.count_nonzero(torch.all(torch.abs(true_masks - mask) == 0,axis=-1))
         proportion_thresholded = torch.count_nonzero(torch.all(torch.abs(true_masks - mask_thresholded) == 0,axis=-1))
-        auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
-        auc_score = torch.tensor(auc_score).type(torch.float32)
+
+        try :
+            auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
+            auc_score = torch.tensor(auc_score).type(torch.float32)
+        except :
+            auc_score = torch.tensor(-1.)
         if normalized : 
             accuracy = accuracy/self.nb_dim/batch_size
             accuracy_thresholded = accuracy_thresholded/self.nb_dim/batch_size
@@ -856,10 +860,6 @@ class LinearDataset(Dataset):
         uniform = torch.distributions.uniform.Uniform(-2.0,2.0)
         resampled_value = uniform.sample(value.shape)
         sampled = torch.where(mask == 1, value, resampled_value)
-        # plt.scatter(value[:,0], value[:,1])
-        # plt.show()
-        # plt.scatter(sampled[:,0], sampled[:,1])
-        # plt.show()
         return sampled
 
 
