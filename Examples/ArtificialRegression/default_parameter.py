@@ -111,6 +111,7 @@ def get_default():
     args_train["use_cuda"] = torch.cuda.is_available()
     args_train["fix_classifier_parameters"] = False
     args_train["post_hoc"] = False
+    args_train["argmax_post_hoc_classification"] = False
 
 
     args_train["optim_classification"] = partial(Adam, lr=1e-2) #Learning rate for classification module
@@ -120,12 +121,12 @@ def get_default():
     args_train["optim_baseline"] = partial(Adam, lr=1e-4) # Learning rate for the baseline network
     args_train["optim_autoencoder"] = partial(Adam, lr=1e-4)
 
-    args_train["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5) #Learning rate for classification module
-    args_train["scheduler_destruction"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5) # Learning rate for destruction module
-    args_train["scheduler_destruction_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5) # Learning rate for the variationnal destruction module used in Variationnal Training
-    args_train["scheduler_feature_extractor"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5) # Learning rate for the feature extractor if any
-    args_train["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5) # Learning rate for the baseline network
-    args_train["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5)
+    args_train["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) #Learning rate for classification module
+    args_train["scheduler_destruction"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for destruction module
+    args_train["scheduler_destruction_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for the variationnal destruction module used in Variationnal Training
+    args_train["scheduler_feature_extractor"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for the feature extractor if any
+    args_train["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for the baseline network
+    args_train["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6)
 
     
     args_test = {}

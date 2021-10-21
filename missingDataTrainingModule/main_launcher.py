@@ -244,7 +244,8 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
         if args_train["scheduler_classification"] is not None :
             scheduler_classification = args_train["scheduler_classification"](optim_classifier)
-
+        else :
+            scheduler_classification = None
         trainer_var = args_complete_trainer["complete_trainer"](vanilla_classification_module, feature_extractor=feature_extractor )
         nb_epoch = args_train["nb_epoch"]
 
@@ -290,7 +291,8 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
         if args_train["scheduler_classification"] is not None :
             scheduler_classification = args_train["scheduler_classification"](optim_classifier)
-
+        else :
+            scheduler_classification = None
 
         trainer_var = args_complete_trainer["complete_trainer"](vanilla_classification_module)
         nb_epoch = args_train["nb_epoch"]
@@ -333,7 +335,8 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
         if args_train["scheduler_classification"] is not None :
             scheduler_classification = args_train["scheduler_classification"](optim_classifier)
-
+        else :
+            scheduler_classification = None
         vanilla_classification_module.kernel_update(kernel_patch, stride_patch)
 
         trainer_var = ordinaryTraining(vanilla_classification_module, feature_extractor=feature_extractor,)
@@ -403,17 +406,24 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                 feature_extractor=feature_extractor,
                 use_cuda = use_cuda,
                 fix_classifier_parameters = args_train["fix_classifier_parameters"],
-                post_hoc = args_train["post_hoc"]
+                post_hoc = args_train["post_hoc"],
+                argmax_post_hoc_classification = args_train["argmax_post_hoc_classification"]
             )
 
 
         ####Optimizer :
         optim_classification = args_train["optim_classification"](classification_module.parameters(), weight_decay = 1e-5)
-        scheduler_classification = args_train["scheduler_classification"](optim_classification)
+        if args_train["scheduler_classification"] is not None :
+            scheduler_classification = args_train["scheduler_classification"](optim_classification)
+        else :
+            scheduler_classification = None
+
 
         optim_destruction = args_train["optim_destruction"](destruction_module.parameters(), weight_decay = 1e-5)
-        scheduler_destruction = args_train["scheduler_destruction"](optim_destruction)
-
+        if args_train["scheduler_destruction"] is not None :
+            scheduler_destruction = args_train["scheduler_destruction"](optim_destruction)
+        else :
+            scheduler_destruction = None
 
         if args_destruction["destructor_var"] is not None :
             optim_destruction_var = args_train["optim_destruction_var"](destruction_module_var.parameters(), weight_decay = 1e-5)
