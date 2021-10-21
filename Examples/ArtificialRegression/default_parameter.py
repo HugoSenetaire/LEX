@@ -119,6 +119,13 @@ def get_default():
     args_train["optim_baseline"] = partial(Adam, lr=1e-4) # Learning rate for the baseline network
     args_train["optim_autoencoder"] = partial(Adam, lr=1e-4)
 
+    args_train["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5) #Learning rate for classification module
+    args_train["scheduler_destruction"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5) # Learning rate for destruction module
+    args_train["scheduler_destruction_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5) # Learning rate for the variationnal destruction module used in Variationnal Training
+    args_train["scheduler_feature_extractor"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5) # Learning rate for the feature extractor if any
+    args_train["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5) # Learning rate for the baseline network
+    args_train["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.5)
+
     
     args_test = {}
     args_test["sampling_distribution_test"] = SubsetSampling # Sampling distribution used during test 

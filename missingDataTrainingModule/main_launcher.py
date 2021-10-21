@@ -230,13 +230,20 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     ##### ============ Modules initialisation for ordinary training ============:
 
     if args_complete_trainer["complete_trainer"] is ordinaryTraining :
+
+        scheduler_feature_extractor = None
         if args_complete_trainer["feature_extractor"] is not None :
             optim_feature_extractor = args_complete_trainer["feature_extractor"]()
+            if args_train["scheduler_feature_extractor"] is not None :
+                scheduler_feature_extractor = args_train["scheduler_feature_extractor"](optim_feature_extractor)
         else :
             optim_feature_extractor = None
+            
         vanilla_classification_module = ClassificationModule(classifier, use_cuda = args_train["use_cuda"])
-        optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
         vanilla_classification_module.kernel_update(kernel_patch, stride_patch)
+        optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
+        if args_train["scheduler_classification"] is not None :
+            scheduler_classification = args_train["scheduler_classification"](optim_classifier)
 
         trainer_var = args_complete_trainer["complete_trainer"](vanilla_classification_module, feature_extractor=feature_extractor )
         nb_epoch = args_train["nb_epoch"]
@@ -245,13 +252,16 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(nb_epoch):
-            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0))
+            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor,
+                                                save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),
+                                                scheduler_feature_extractor = scheduler_feature_extractor, scheduler_classification = scheduler_classification,
+                                                )
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
                 dic_test = trainer_var.test(loader)
 
-        
-        total_dic_train = fill_dic(total_dic_train, dic_train)
-        total_dic_test = fill_dic(total_dic_test, dic_test)
+            
+            total_dic_train = fill_dic(total_dic_train, dic_train)
+            total_dic_test = fill_dic(total_dic_test, dic_test)
             
         save_dic(os.path.join(final_path,"train"), total_dic_train)
         save_dic(os.path.join(final_path,"test"), total_dic_test)
@@ -263,15 +273,24 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
 
     if args_complete_trainer["complete_trainer"] is trainingWithSelection :
+
+        
+        scheduler_feature_extractor = None
         if args_complete_trainer["feature_extractor"] is not None :
             optim_feature_extractor = args_complete_trainer["feature_extractor"]()
+            if args_train["scheduler_feature_extractor"] is not None :
+                scheduler_feature_extractor = args_train["scheduler_feature_extractor"](optim_feature_extractor)
         else :
             optim_feature_extractor = None
+
         imputation = imputationMethod(input_size= args_classification["input_size_classification_module"], post_process_regularization = post_proc_regul,
                         reconstruction_reg= None, use_cuda = args_train["use_cuda"])
         vanilla_classification_module = ClassificationModule(classifier, use_cuda = args_train["use_cuda"],  feature_extractor=feature_extractor, imputation = imputation)
-        optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
         vanilla_classification_module.kernel_update(kernel_patch, stride_patch)
+        optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
+        if args_train["scheduler_classification"] is not None :
+            scheduler_classification = args_train["scheduler_classification"](optim_classifier)
+
 
         trainer_var = args_complete_trainer["complete_trainer"](vanilla_classification_module)
         nb_epoch = args_train["nb_epoch"]
@@ -280,14 +299,15 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(nb_epoch):
-            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0))
+            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor,
+                                                save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),
+                                                scheduler_feature_extractor = scheduler_feature_extractor, scheduler_classification = scheduler_classification,
+                                                )
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
                 dic_test = trainer_var.test(loader)
 
-        
-        total_dic_train = fill_dic(total_dic_train, dic_train)
-        total_dic_test = fill_dic(total_dic_test, dic_test)
-            
+            total_dic_train = fill_dic(total_dic_train, dic_train)
+            total_dic_test = fill_dic(total_dic_test, dic_test)
         save_dic(os.path.join(final_path,"train"), total_dic_train)
         save_dic(os.path.join(final_path,"test"), total_dic_test)
 
@@ -299,27 +319,39 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
     
     if args_train["nb_epoch_pretrain"]>0 :
+
+        scheduler_feature_extractor = None
         if args_complete_trainer["feature_extractor"] is not None :
             optim_feature_extractor = args_complete_trainer["feature_extractor"]()
+            if args_train["scheduler_feature_extractor"] is not None :
+                scheduler_feature_extractor = args_train["scheduler_feature_extractor"](optim_feature_extractor)
         else :
             optim_feature_extractor = None
+
+
         vanilla_classification_module = ClassificationModule(classifier, use_cuda = args_train["use_cuda"])
         optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
+        if args_train["scheduler_classification"] is not None :
+            scheduler_classification = args_train["scheduler_classification"](optim_classifier)
+
         vanilla_classification_module.kernel_update(kernel_patch, stride_patch)
 
-        trainer_var = ordinaryTraining(vanilla_classification_module, feature_extractor=feature_extractor)
+        trainer_var = ordinaryTraining(vanilla_classification_module, feature_extractor=feature_extractor,)
 
         nb_epoch = args_train["nb_epoch_pretrain"]
 
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(nb_epoch):
-            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0))
+            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor,
+                                                save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),
+                                                scheduler_classification=scheduler_classification, scheduler_feature_extractor=scheduler_feature_extractor,
+                                                )
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
                 dic_test = trainer_var.test(loader)
         
-        total_dic_train = fill_dic(total_dic_train, dic_train)
-        total_dic_test = fill_dic(total_dic_test, dic_test)
+            total_dic_train = fill_dic(total_dic_train, dic_train)
+            total_dic_test = fill_dic(total_dic_test, dic_test)
             
         save_dic(os.path.join(final_path,"train"), total_dic_train)
         save_dic(os.path.join(final_path,"test"), total_dic_test)
@@ -377,24 +409,35 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
 
         ####Optimizer :
         optim_classification = args_train["optim_classification"](classification_module.parameters(), weight_decay = 1e-5)
+        scheduler_classification = args_train["scheduler_classification"](optim_classification)
+
         optim_destruction = args_train["optim_destruction"](destruction_module.parameters(), weight_decay = 1e-5)
+        scheduler_destruction = args_train["scheduler_destruction"](optim_destruction)
+
 
         if args_destruction["destructor_var"] is not None :
             optim_destruction_var = args_train["optim_destruction_var"](destruction_module_var.parameters(), weight_decay = 1e-5)
+            scheduler_destruction_var = args_train["scheduler_destruction_var"](optim_destruction_var)
         else :
             optim_destruction_var = None
+            scheduler_destruction_var = None
 
         
         if args_classification["classifier_baseline"] is not None :
             optim_baseline = args_train["optim_baseline"](classifier_baseline.parameters(), weight_decay = 1e-5)
+            scheduler_baseline = args_train["scheduler_baseline"](optim_baseline)
         else :
             optim_baseline = None
+            scheduler_baseline = None
+
     
 
         if args_complete_trainer["feature_extractor"] is not None :
             optim_feature_extractor = args_train["optim_feature_extractor"](feature_extractor.parameters(), weight_decay = 1e-5)
+            scheduler_feature_extractor = args_train["scheduler_feature_extractor"](optim_feature_extractor)
         else :
             optim_feature_extractor = None
+            scheduler_feature_extractor = None
 
 
 
@@ -430,6 +473,11 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                     save_dic = True,
                     Nexpectation=args_train["Nexpectation_train"],
                     print_dic_bool = ((epoch+1) % args_train["print_every"] == 0),
+                    scheduler_classification = scheduler_classification,
+                    scheduler_destruction = scheduler_destruction,
+                    scheduler_destruction_var = scheduler_destruction_var,
+                    scheduler_baseline = scheduler_baseline, 
+                    scheduler_feature_extractor = scheduler_feature_extractor,
                 )
                 if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch ==args_train["nb_epoch"]-1:
                     dic_test_no_var = trainer_var.test_no_var(loader, current_sampling_test, Nexpectation=args_test["Nexpectation_test"])
@@ -447,6 +495,10 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                     save_dic = True,
                     Nexpectation=args_train["Nexpectation_train"],
                     print_dic_bool = ((epoch+1) % args_train["print_every"] == 0),
+                    scheduler_classification = scheduler_classification,
+                    scheduler_destruction = scheduler_destruction,
+                    scheduler_baseline = scheduler_baseline, 
+                    scheduler_feature_extractor = scheduler_feature_extractor,
                 )
 
                 if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch ==args_train["nb_epoch"]-1:

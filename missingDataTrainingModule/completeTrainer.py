@@ -97,7 +97,8 @@ class ordinaryTraining():
     def train(self):
         self.classification_module.train()
 
-    def train_epoch(self, epoch, dataset, optim_classifier, optim_feature_extractor= None, save_dic = False, print_dic_bool = False):
+    def train_epoch(self, epoch, dataset, optim_classifier, optim_feature_extractor= None, save_dic = False, print_dic_bool = False,
+            scheduler_classification = None, scheduler_feature_extractor = None,):
         
   
         self.train()
@@ -111,6 +112,8 @@ class ordinaryTraining():
 
         total_dic = {}
 
+        
+
         for batch_idx, data_aux in enumerate(dataset.train_loader):
             if len(data_aux)==3 :
                 data, target, index = data_aux
@@ -120,13 +123,19 @@ class ordinaryTraining():
 
             dic = self._train_step(data, target, dataset, optim_classifier = optim_classifier, optim_feature_extractor = optim_feature_extractor, index=index)
 
-
             if batch_idx % 100 == 0 :
                 if print_dic_bool :
                     print_dic(epoch, batch_idx, dic, dataset)
                 if save_dic :
                     total_dic = save_dic_helper(total_dic, dic)
-
+        
+        if scheduler_classification is not None :
+            print(f"Learning Rate classification : {scheduler_classification.get_last_lr()}")
+            scheduler_classification.step()
+        
+        if scheduler_feature_extractor is not None :
+            print(f"Learning Rate Feature extractor : {scheduler_feature_extractor.get_last_lr()}")
+            scheduler_feature_extractor.step()
         return total_dic
 
 
@@ -158,6 +167,17 @@ class ordinaryTraining():
                     data, target = data_aux
                     index = None
                 log_y_hat, neg_likelihood, mse_current = self._test_step(data, target, dataset, index)
+                
+                # if batch_index == 0 :
+                #     from itertools import cycle, islice
+                #     colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
+                #                                         '#f781bf', '#a65628', '#984ea3',
+                #                                         '#999999', '#e41a1c', '#dede00']),
+                #                             int(max(target) + 1))))
+                #     plt.scatter(data[:,0], data[:,1], color = colors[target])
+                #     plt.show()
+                #     plt.scatter(data[:, 0], data[:,1], color = colors[torch.argmax(log_y_hat,axis=-1)])
+                #     plt.show()
                 test_loss += mse_current
                 pred = log_y_hat.data.max(1, keepdim=True)[1]
                 if self.use_cuda:
@@ -191,7 +211,8 @@ class trainingWithSelection(ordinaryTraining):
 
     def _test_step(self, data, target, dataset, index):
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
-        log_y_hat, _ = self.classification_module(data, index = index)
+        true_selection = dataset.dataset.get_true_selection(index = index, train_dataset = False)
+        log_y_hat, _ = self.classification_module(data, sample_b = true_selection, index = index)
         
         
         neg_likelihood = F.nll_loss(log_y_hat, target)
@@ -347,7 +368,12 @@ class noVariationalTraining(ordinaryTraining):
         return dic
 
 
-    def train_epoch(self, epoch, dataset, optim_classifier, optim_destruction,  sampling_distribution, optim_baseline = None, optim_feature_extractor=None, lambda_reg = 0.0, Nexpectation=10, save_dic = False, lambda_reconstruction = 0.0, print_dic_bool = False):
+    def train_epoch(self, epoch, dataset, optim_classifier, optim_destruction, 
+        sampling_distribution, optim_baseline = None, optim_feature_extractor=None,
+        lambda_reg = 0.0, Nexpectation=10, save_dic = False,
+        lambda_reconstruction = 0.0, print_dic_bool = False,
+        scheduler_classification = None, scheduler_destruction = None,
+        scheduler_baseline = None, scheduler_feature_extractor = None,):
         self.train()
         if self.need_feature :
             if optim_feature_extractor is None :
@@ -371,6 +397,17 @@ class noVariationalTraining(ordinaryTraining):
                     print_dic(epoch, batch_idx, dic, dataset)
                 if save_dic :
                     total_dic = save_dic_helper(total_dic, dic)
+        if scheduler_classification is not None :
+            print(f"Learning Rate classification : {scheduler_classification.get_last_lr()}")
+            scheduler_classification.step()
+        if scheduler_baseline is not None :
+            scheduler_baseline.step()
+        if scheduler_destruction is not None :
+            print(f"Learning Rate destruction : {scheduler_destruction.get_last_lr()}")
+            scheduler_destruction.step()
+        if scheduler_feature_extractor is not None :
+            scheduler_feature_extractor.step()
+
         return total_dic
         
     def _create_dic_test(self, correct, correct_no_destruction, neg_likelihood, test_loss, pi_list_total, correct_baseline):
@@ -416,10 +453,21 @@ class noVariationalTraining(ordinaryTraining):
 
 
                 log_y_hat_destructed, _ = self.classification_module(data_expanded_flatten, z, index = index_expanded)
-
-                
                 log_y_hat_destructed = log_y_hat_destructed.reshape(Nexpectation, batch_size, dataset.get_category())
                 log_y_hat_iwae = torch.logsumexp(log_y_hat_destructed,0)
+
+                # if batch_index == 0 :
+                #     from itertools import cycle, islice
+                #     colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
+                #                                         '#f781bf', '#a65628', '#984ea3',
+                #                                         '#999999', '#e41a1c', '#dede00']),
+                #                             int(max(target) + 1))))
+                #     plt.scatter(data[:,0], data[:,1], color = colors[target])
+                #     plt.show()
+                #     plt.scatter(data[:, 0], data[:,1], color = colors[torch.argmax(log_y_hat,axis=-1)])
+                #     plt.show()
+                #     plt.scatter(data[:, 0], data[:,1], color = colors[torch.argmax(log_y_hat_iwae,axis=-1)])
+                #     plt.show()
 
                 test_loss_likelihood += F.nll_loss(log_y_hat_iwae,target)
                 test_loss_mse += torch.mean(torch.sum((torch.exp(log_y_hat_iwae)-one_hot_target)**2,1))
@@ -943,7 +991,7 @@ class REINFORCE(noVariationalTraining):
 
 
     def _create_dic(self, loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction = None, variance = None ):
-        dic = super()._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction = None)
+        dic = super()._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_destruction = None,)
         if variance is not None :
             dic["variance"] = variance.detach().cpu().numpy()
         return dic
@@ -1136,7 +1184,13 @@ class variationalTraining(noVariationalTraining):
             
             return total_dic
 
-    def train_epoch(self, epoch, dataset, optim_classifier, optim_destruction, optim_destruction_var, sampling_distribution, sampling_distribution_var, optim_baseline = None, optim_feature_extractor = None, lambda_reg = 0.0, lambda_reg_var= 0.0, Nexpectation = 10, lambda_reconstruction = 0.0, save_dic = False, print_dic_bool = False):
+    def train_epoch(self, epoch, dataset, optim_classifier, optim_destruction,
+                optim_destruction_var, sampling_distribution, sampling_distribution_var,
+                optim_baseline = None, optim_feature_extractor = None,
+                lambda_reg = 0.0, lambda_reg_var= 0.0, Nexpectation = 10,
+                lambda_reconstruction = 0.0, save_dic = False, print_dic_bool = False,
+                scheduler_classification = None, scheduler_destruction = None, scheduler_destruction_var = None,
+                scheduler_baseline = None, scheduler_feature_extractor = None, ):
         self.train()
         total_dic = {}
         for batch_idx, data_aux in enumerate(dataset.train_loader):
@@ -1165,6 +1219,18 @@ class variationalTraining(noVariationalTraining):
                 if save_dic :
                     total_dic = save_dic_helper(total_dic, dic)
 
+        if scheduler_classification is not None :
+            print(f"Learning Rate classification : {scheduler_classification.get_last_lr()}")
+            scheduler_classification.step()
+        if scheduler_baseline is not None :
+            scheduler_baseline.step()
+        if scheduler_destruction is not None :
+            print(f"Learning Rate destruction : {scheduler_destruction.get_last_lr()}")
+            scheduler_destruction.step()
+        if scheduler_feature_extractor is not None :
+            scheduler_feature_extractor.step()
+        if scheduler_destruction_var is not None :
+            scheduler_destruction_var.step()
 
         return total_dic
 
