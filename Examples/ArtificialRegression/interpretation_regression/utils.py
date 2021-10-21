@@ -228,7 +228,7 @@ def plot_destructor_output(destructor, dataset, path, figsize = (15,5)):
   xaux2 = grid_y.reshape(1, -1)
   complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
 
-  if destructor.destructor.is_cuda:
+  if next(destructor.destructor.parameters()).is_cuda:
     complete_X = complete_X.cuda()
   log_pi_list, _ = destructor(complete_X)
   pi_list = torch.exp(log_pi_list.detach().cpu())
@@ -295,7 +295,7 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
   except(AttributeError) :
     destructive = False
 
-  if trainer_var.classification_module.classifier.is_cuda:
+  if next(trainer_var.classification_module.classifier.parameters()).is_cuda:
     complete_X = complete_X.cuda()
   log_y_hat, _ = trainer_var.classification_module(complete_X, index = None)
 
