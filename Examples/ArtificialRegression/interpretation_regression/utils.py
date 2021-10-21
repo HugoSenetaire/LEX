@@ -196,7 +196,7 @@ def plot_true_continuousshape(dataset, path, figsize=(15,5)):
   qcs = axs[2].contourf(grid_x, grid_y, true_selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
 
   for k in range(3):
-    axs[k].scatter(centroids[:,0], centroids[:,1], color = colors[dataset.centroids_Y])
+    axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
 
   fig.colorbar(
    ScalarMappable(norm=qcs.norm, cmap=qcs.cmap),
@@ -255,7 +255,7 @@ def plot_destructor_output(destructor, dataset, path, figsize = (15,5)):
   # qcs = axs[2].contourf(grid_x, grid_y, selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
   if centroids is not None :
     for k in range(2):
-      axs[k].scatter(centroids[:,0], centroids[:,1], color = colors[dataset.centroids_Y])
+      axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
 
   # fig.colorbar(
   #  ScalarMappable(norm=qcs.norm, cmap=qcs.cmap),
@@ -319,14 +319,14 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
     # qcs = axs[2].contourf(grid_x, grid_y, selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
     if centroids is not None:
       for k in range(2):
-        axs[k].scatter(centroids[:,0], centroids[:,1], color = colors[dataset.centroids_Y])
+        axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
 
   else :
     fig, axs = plt.subplots(nrows =1, ncols = 1, figsize = (5,5))
     axs.contourf(grid_x, grid_y, pred_classic.reshape(grid_x.shape),  vmin=0, vmax=1.0)
 
     if centroids is not None:
-        axs.scatter(centroids[:,0], centroids[:,1], color = colors[dataset.centroids_Y])
+        axs.scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
 
   complete_path = os.path.join(path, "output_classification.jpg")
   plt.savefig(complete_path)
