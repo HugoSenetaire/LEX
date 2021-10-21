@@ -110,6 +110,7 @@ def get_default():
     args_train["temperature_decay"] = 0.9
     args_train["use_cuda"] = torch.cuda.is_available()
     args_train["fix_classifier_parameters"] = False
+    args_train["post_hoc"] = False
 
 
     args_train["optim_classification"] = partial(Adam, lr=1e-2) #Learning rate for classification module

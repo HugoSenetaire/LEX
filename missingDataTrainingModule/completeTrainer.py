@@ -112,8 +112,6 @@ class ordinaryTraining():
 
         total_dic = {}
 
-        
-
         for batch_idx, data_aux in enumerate(dataset.train_loader):
             if len(data_aux)==3 :
                 data, target, index = data_aux
@@ -221,7 +219,7 @@ class trainingWithSelection(ordinaryTraining):
         return log_y_hat, neg_likelihood, mse_current
 
 class noVariationalTraining(ordinaryTraining):
-    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, use_cuda = True, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False,):
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, use_cuda = True, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, post_hoc = False,):
         super().__init__(classification_module, use_cuda = use_cuda, feature_extractor=feature_extractor, kernel_patch= kernel_patch, stride_patch = stride_patch)
         self.destruction_module = destruction_module
         self.baseline = baseline
@@ -232,8 +230,10 @@ class noVariationalTraining(ordinaryTraining):
             if self.need_feature :
                 self.feature_extractor.cuda()
         self.fix_classifier_parameters = fix_classifier_parameters
-        print("INIT RESULT", fix_classifier_parameters)
-        if fix_classifier_parameters :
+        self.post_hoc = post_hoc
+        if self.post_hoc :
+            self.fix_classifier_parameters = True
+        if self.fix_classifier_parameters :
             self.classification_module.fix_parameters()
             if self.need_feature :
                 for param in self.feature_extractor.parameters():
@@ -349,8 +349,15 @@ class noVariationalTraining(ordinaryTraining):
         
 
         # Loss for classification
-        neg_likelihood = F.nll_loss(log_y_hat_iwae, target, reduction = 'mean')
-        mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat_iwae)-one_hot_target.float())**2,1)) 
+        if not self.post_hoc :
+            neg_likelihood = F.nll_loss(log_y_hat_iwae, target, reduction = 'mean')
+            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat_iwae)-one_hot_target.float())**2,1)) 
+        else :
+            out_y, _ = self.classification_module(data_expanded_flatten, index = index_expanded)
+            neg_likelihood = -torch.mean(torch.sum(torch.exp(out_y + log_y_hat_iwae),axis=-1),axis=0)
+            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat_iwae)-torch.exp(out_y).float())**2,1)) 
+
+
 
 
         # Updates 
@@ -548,20 +555,11 @@ class noVariationalTraining(ordinaryTraining):
             return sample_list_readable
 
 
-class postHocTraining(noVariationalTraining):
-    def __init__(self, classification_module, destruction_module,baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, feature_extractor_training = False, use_cuda = True):
-        super().__init__(classification_module, destruction_module, baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters)
-        self.feature_extractor_training = feature_extractor_training
-        self.classification_module.fix_parameters()
-        if self.need_feature and feature_extractor_training :
-            for param in self.feature_extractor.parameters():
-                param.requires_grad = False
-
 
 
 class AllZTraining(noVariationalTraining):
-    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, feature_extractor_training = False, use_cuda= True):
-        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters)
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, post_hoc = False, feature_extractor_training = False, use_cuda= True):
+        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters, post_hoc = post_hoc)
         self.compteur = 0
         self.computed_combination = False
         self.z = None
@@ -616,7 +614,18 @@ class AllZTraining(noVariationalTraining):
 
         
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z, index = index_expanded)
-        neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
+        # neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
+        # Loss for classification
+        if not self.post_hoc :
+            neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
+            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target.float())**2,1)) 
+        else :
+            out_y, _ = self.classification_module(data_expanded_flatten, index = index_expanded)
+            neg_likelihood = -torch.sum(torch.exp(out_y + log_y_hat),axis=-1).reshape(Nexpectation, nb_imputation, batch_size)
+            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-torch.exp(out_y).float())**2,1)) 
+
+
+
         neg_likelihood += log_prob_pz
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=1)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(Nexpectation).type(torch.float32))
@@ -652,8 +661,8 @@ class AllZTraining(noVariationalTraining):
 
 class AllZTrainingV2(noVariationalTraining):
     """ Difference betzeen the previous is the way we calculate the multiplication with the loss"""
-    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, feature_extractor_training = False, use_cuda= True):
-        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters)
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, post_hoc = False, feature_extractor_training = False, use_cuda= True):
+        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters, post_hoc = post_hoc)
         self.compteur = 0
         self.computed_combination = False
         self.z = None
@@ -707,12 +716,21 @@ class AllZTrainingV2(noVariationalTraining):
 
         
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z, index = index_expanded)
-        neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
+        # neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
+
+        if not self.post_hoc :
+            neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
+            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target.float())**2,1)) 
+        else :
+            out_y, _ = self.classification_module(data_expanded_flatten, index = index_expanded)
+            neg_likelihood = -torch.sum(torch.exp(out_y + log_y_hat),axis=-1).reshape(Nexpectation, nb_imputation, batch_size)
+            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-torch.exp(out_y).float())**2,1)) 
+
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=1)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
         neg_likelihood *= torch.exp(log_prob_pz)
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(Nexpectation).type(torch.float32))
         neg_likelihood = torch.sum(neg_likelihood)
-        mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target_expanded_multiple_imputation.flatten(0,1))**2,1))
+        # mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target_expanded_multiple_imputation.flatten(0,1))**2,1))
 
 
 
@@ -743,8 +761,8 @@ class AllZTrainingV2(noVariationalTraining):
         return dic
 
 class REBAR(noVariationalTraining):
-    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, feature_extractor_training = False, use_cuda = True, update_temperature = False, pytorch_relax = False):
-        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters)
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, post_hoc = False, feature_extractor_training = False, use_cuda = True, update_temperature = False, pytorch_relax = False):
+        super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters, post_hoc = post_hoc)
         self.compteur = 0
         self.update_temperature = update_temperature
         self.pytorch_relax = pytorch_relax
@@ -978,7 +996,7 @@ class REBAR(noVariationalTraining):
 
 
 class REINFORCE(noVariationalTraining):
-    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, feature_extractor_training = False, use_cuda = True, need_variance = False):
+    def __init__(self, classification_module, destruction_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, post_hoc = False, feature_extractor_training = False, use_cuda = True, need_variance = False):
         super().__init__(classification_module, destruction_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda = use_cuda)
         self.compteur = 0
         self.need_variance = need_variance
@@ -1023,7 +1041,15 @@ class REINFORCE(noVariationalTraining):
         target_aux = torch.argmax(one_hot_target_expanded_multiple_imputation, axis=-1).flatten().reshape(Nexpectation, nb_imputation, batch_size)
         
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded_flatten, z.detach(), index = index_expanded)
-        neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
+        if not self.post_hoc :
+            neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
+            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target.float())**2,1)) 
+        else :
+            out_y, _ = self.classification_module(data_expanded_flatten, index = index_expanded)
+            neg_likelihood = -torch.sum(torch.exp(out_y + log_y_hat),axis=-1).reshape(Nexpectation, nb_imputation, batch_size)
+            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-torch.exp(out_y).float())**2,1)) 
+
+        # neg_likelihood = F.nll_loss(log_y_hat, target_aux.flatten(), reduce=False).reshape(Nexpectation, nb_imputation, batch_size)
         neg_likelihood_original = neg_likelihood.clone().detach()
         neg_likelihood *= torch.exp(log_prob_pz).detach()
 

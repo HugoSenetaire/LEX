@@ -396,7 +396,6 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                 use_cuda = use_cuda,
             )
         else :
-            print("BEFORE INIT", args_train["fix_classifier_parameters"])
             trainer_var = args_complete_trainer["complete_trainer"](
                 classification_module,
                 destruction_module,
@@ -404,6 +403,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
                 feature_extractor=feature_extractor,
                 use_cuda = use_cuda,
                 fix_classifier_parameters = args_train["fix_classifier_parameters"],
+                post_hoc = args_train["post_hoc"]
             )
 
 
