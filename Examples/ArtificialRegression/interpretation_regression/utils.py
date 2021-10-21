@@ -287,6 +287,10 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
   xaux2 = grid_y.reshape(1, -1)
   complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
 
+  
+  if next(trainer_var.classification_module.classifier.parameters()).is_cuda:
+    complete_X = complete_X.cuda()
+
   try :
     pi_list, log_pi_list, _, z, p_z = trainer_var._destructive_test(complete_X, sampling_distribution, 1)
     log_y_hat_destructed, _ = trainer_var.classification_module(complete_X, z, index = None)
@@ -295,8 +299,7 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
   except(AttributeError) :
     destructive = False
 
-  if next(trainer_var.classification_module.classifier.parameters()).is_cuda:
-    complete_X = complete_X.cuda()
+
   log_y_hat, _ = trainer_var.classification_module(complete_X, index = None)
 
 
