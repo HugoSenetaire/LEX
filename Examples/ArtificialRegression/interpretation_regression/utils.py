@@ -46,8 +46,6 @@ def save_interpretation_artificial(path, data_destructed, target, predicted, pre
 
   for dim1 in range(nb_dim):
     for dim2 in range(dim1+1, nb_dim):
-
-
       fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (12, 4))
       ax1.scatter(data_destructed[:,dim1], data_destructed[:,dim2], s=10, color = colors[target])
       ax1.set_title('Destructed data with target')
@@ -111,44 +109,71 @@ global_keys_to_count_dim_batch_size = ["accuracy_selection_pi", "accuracy_select
 
 
 
-def create_dics(keys, nb_experiments, keys_to_count_batch_size, keys_to_count_dim_batch_size):
-    dic = {}
-    dic_count_batch_size = {}
-    dic_count_dim_batch_size = {}
-    for key in keys :
-        dic[key+"_train"] = np.zeros((nb_experiments),)
-        dic[key+"_test"] = np.zeros((nb_experiments),)
-        if key in keys_to_count_batch_size :
-            dic_count_batch_size[key+"_train"] = np.zeros((nb_experiments),)
-            dic_count_batch_size[key+"_test"] = np.zeros((nb_experiments),)
-        elif key in keys_to_count_dim_batch_size :
-            dic_count_dim_batch_size[key+"_train"] = np.zeros((nb_experiments,),)
-            dic_count_dim_batch_size[key+"_test"] = np.zeros((nb_experiments,),)
-        
-    return dic, dic_count_batch_size, dic_count_dim_batch_size
 
-# def get_dic_experiment(output_dic, to_save_dic, experiment_id):
-#     to_save_dic["accuracy_prediction_no_destruction_test"][experiment_id] = output_dic["test"]["correct"][-1]
-#     to_save_dic["accuracy_prediction_destruction_test"][experiment_id] =  output_dic["test"]["correct_destruction"][-1]
-#     to_save_dic["pi_list_median_test"][experiment_id] = output_dic["test"]["pi_list_median"][-1]
-#     to_save_dic["mean_pi_list_test"][experiment_id] = output_dic["test"]["mean_pi_list"][-1]
-#     to_save_dic["pi_list_q1_test"][experiment_id] = output_dic["test"]["pi_list_q1"][-1]
-#     to_save_dic["pi_list_q2_test"][experiment_id] = output_dic["test"]["pi_list_q2"][-1]
-#     return to_save_dic
-
-def get_dic_experiment(output_dic, to_save_dic, experiment_id, nb_experiments):
-  for key in output_dic["test"].keys():
-    save_key = key+ "_test"
-    if save_key not in to_save_dic.keys():
-      to_save_dic[save_key] = np.zeros((nb_experiments),)
-    to_save_dic[save_key][experiment_id] = output_dic["test"][key][-1]
-  return to_save_dic
-
-def plot_true_continuousshape(dataset, path, figsize=(15,5)):
+def plot_true_classifier_output(dataset, path, train_data = False, nb_train_data = 1000, figsize=(15,5)):
   centroids = dataset.centroids
 
   X = dataset.X_train
   Y = dataset.Y_train
+
+  indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
+  X_train = X[indexes, :]
+  Y_train = Y[indexes]
+
+
+
+  min_x = torch.min(dataset.X_train[:,0])
+  max_x = torch.max(dataset.X_train[:,0])
+  linspace_firstdim = torch.linspace(min_x, max_x, 1000)
+  min_x = torch.min(dataset.X_train[:,1])
+  max_x = torch.max(dataset.X_train[:,1])
+  linspace_seconddim = torch.linspace(min_x, max_x, 1000)
+
+  grid_x, grid_y = torch.meshgrid(linspace_firstdim, linspace_seconddim)
+  xaux1 = grid_x.reshape(1, -1)
+  xaux2 = grid_y.reshape(1, -1)
+  complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
+  aux_Y = dataset.centroids_Y.reshape(1,-1).expand(complete_X.shape[0],-1)
+
+  # First dimension needed :
+  mask = torch.ones_like(complete_X)
+  dependency = dataset.get_dependency(mask, complete_X, index=None, dataset_type = None)
+  true_selection = torch.sum(dependency * aux_Y, axis = -1) 
+
+
+  fig, axs = plt.subplots(nrows =1, ncols = 1, figsize = (5,5))
+  colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
+                                             '#f781bf', '#a65628', '#984ea3',
+                                             '#999999', '#e41a1c', '#dede00']),
+                                  int(max(Y) + 1))))
+
+  axs.contourf(grid_x, grid_y, true_selection.reshape(grid_x.shape),  vmin=0, vmax=1.0)
+  
+
+  axs.scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+  
+  if train_data :
+    axs.scatter(X_train[:,0].detach().cpu(), X_train[:,1].detach().cpu(), color = colors[Y_train.detach().cpu()], alpha = 0.3)
+
+  complete_path = os.path.join(path, "true_classifier.jpg")
+
+  if train_data :
+    complete_path = complete_path.split(".jpg")[0] + "_train_data.jpg"
+
+  plt.savefig(complete_path)
+  plt.close(fig)
+
+
+def plot_true_continuousshape(dataset, path, train_data = False, nb_train_data = 1000, interpretation = False, figsize=(15,5)):
+  centroids = dataset.centroids
+
+  X = dataset.X_train
+  Y = dataset.Y_train
+
+  indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
+  X_train = X[indexes, :]
+  Y_train = Y[indexes]
+
 
 
   min_x = torch.min(dataset.X_train[:,0])
@@ -181,9 +206,17 @@ def plot_true_continuousshape(dataset, path, figsize=(15,5)):
   true_selection_seconddim = 2 * torch.abs(0.5 - torch.sum(dependency_seconddim * aux_Y, axis=-1))
 
   # All dim needed :
+  mask_all_dim = torch.ones_like(complete_X)
+  dependency_all_dim = dataset.get_dependency(mask_all_dim, complete_X, index=None, dataset_type = None)
+  true_selection_alldim = 2 * torch.abs(0.5 - torch.sum(dependency_all_dim * aux_Y, axis=-1))
   aux = torch.cat([true_selection_firstdim.reshape(1,-1), true_selection_seconddim.reshape(1, -1)], dim=0) # Get true selection, 1 means selection; 0 means it's not necessary
   # true_selection_alldim = torch.max(aux,dim=0)[0] - torch.min(aux, dim=0)[0] # Get true selection, 1 means selection; 0 means it's not necessary
-  true_selection_alldim = 1 - torch.max(aux, dim=0)[0]
+
+  if interpretation :
+    true_selection_alldim = true_selection_alldim - torch.max(aux, dim=0)[0]
+    true_selection_alldim = torch.where(true_selection_alldim<0., torch.zeros_like(true_selection_alldim), true_selection_alldim)
+  else :
+    true_selection_alldim = 1 - torch.max(aux, dim=0)[0]
 
   fig, axs = plt.subplots(nrows =1, ncols = 3, figsize = (15,5))
   colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
@@ -197,23 +230,142 @@ def plot_true_continuousshape(dataset, path, figsize=(15,5)):
 
   for k in range(3):
     axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+  
+  if train_data :
+    for k in range(3):
+      axs[k].scatter(X_train[:,0].detach().cpu(), X_train[:,1].detach().cpu(), color = colors[Y_train.detach().cpu()], alpha = 0.3)
 
   fig.colorbar(
    ScalarMappable(norm=qcs.norm, cmap=qcs.cmap),
    ticks=range(0, 1, 20) 
   )
-  complete_path = os.path.join(path, "dataset_selection.jpg")
+
+
+  complete_path = os.path.join(path, "Y_definition.jpg")
+  if interpretation :
+    complete_path = complete_path.split(".jpg")[0] + "_interpretation.jpg"
+
+  if train_data :
+    complete_path = complete_path.split(".jpg")[0] + "_train_data.jpg"
+
+  plt.savefig(complete_path)
+  plt.close(fig)
+
+def plot_true_interpretation_v2(dataset, path, train_data = False, nb_train_data = 1000,  figsize=(15,5)):
+  centroids = dataset.centroids
+
+  X = dataset.X_train
+  Y = dataset.Y_train
+
+  indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
+  X_train = X[indexes, :]
+  Y_train = Y[indexes]
+
+  grid_sample = 1000
+
+  min_x = torch.min(dataset.X_train[:,0])
+  max_x = torch.max(dataset.X_train[:,0])
+  linspace_firstdim = torch.linspace(min_x, max_x, grid_sample)
+  min_x = torch.min(dataset.X_train[:,1])
+  max_x = torch.max(dataset.X_train[:,1])
+  linspace_seconddim = torch.linspace(min_x, max_x, grid_sample)
+
+  grid_x, grid_y = torch.meshgrid(linspace_firstdim, linspace_seconddim)
+  xaux1 = grid_x.reshape(1, -1)
+  xaux2 = grid_y.reshape(1, -1)
+  complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
+  aux_Y = dataset.centroids_Y.reshape(1,-1).expand(complete_X.shape[0],-1)
+
+  # First dimension needed :
+  mask = torch.zeros_like(complete_X)
+  mask_firstdim = mask.clone()
+  mask_firstdim[:,0]=torch.ones_like(complete_X[:,1])
+  complete_x_firstdim = complete_X * mask_firstdim
+  dependency_firstdim = dataset.get_dependency(mask_firstdim, complete_x_firstdim, index=None, dataset_type = None)
+  Y_first_dim = torch.sum(dependency_firstdim * aux_Y, axis = -1)
+
+  # Second dimension needed :
+  mask_seconddim = mask.clone()
+  mask_seconddim[:,1]=torch.ones_like(complete_X[:,1])
+  complete_x_seconddim = complete_X * mask_seconddim
+  dependency_seconddim = dataset.get_dependency(mask_seconddim, complete_x_seconddim, index=None, dataset_type = None)
+  Y_second_dim = torch.sum(dependency_seconddim * aux_Y, axis=-1)
+  
+  
+  # All dim needed :
+  mask_all_dim = torch.ones_like(complete_X)
+  dependency_all_dim = dataset.get_dependency(mask_all_dim, complete_X, index=None, dataset_type = None)
+  Y_all_dim = torch.sum(dependency_all_dim * aux_Y, axis=-1)
+
+  Y_first_dim_reshaped = Y_first_dim.reshape(1000,1000)
+  Y_second_dim_reshaped = Y_second_dim.reshape(1000,1000)
+  Y_all_dim_reshaped = Y_all_dim.reshape(1000,1000)
+
+
+
+  
+  true_selection_firstdim = torch.std(Y_first_dim_reshaped - Y_all_dim_reshaped, dim = -1, keepdim = True).expand(1000,1000)
+  true_selection_seconddim = torch.std(Y_second_dim_reshaped - Y_all_dim_reshaped, dim = 0, keepdim=True).expand(1000,1000)
+  
+  max_std = torch.max(torch.cat([true_selection_firstdim, true_selection_seconddim], dim=0))
+
+  true_selection_firstdim = 1 - true_selection_firstdim/max_std
+  true_selection_seconddim = 1 - true_selection_seconddim/max_std
+
+
+
+
+  aux = torch.cat([true_selection_firstdim.reshape(1,-1), true_selection_seconddim.reshape(1, -1)], dim=0) # Get true selection, 1 means selection; 0 means it's not necessary
+  true_selection_alldim = 1 - torch.max(aux, dim=0)[0]
+
+
+
+  fig, axs = plt.subplots(nrows =1, ncols = 3, figsize = (15,5))
+  colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
+                                             '#f781bf', '#a65628', '#984ea3',
+                                             '#999999', '#e41a1c', '#dede00']),
+                                  int(max(Y) + 1))))
+
+  axs[0].contourf(grid_x, grid_y, true_selection_firstdim.reshape(grid_x.shape),  vmin=0, vmax=1.0)
+  axs[1].contourf(grid_x, grid_y, true_selection_seconddim.reshape(grid_x.shape), vmin=0, vmax=1.0)
+  qcs = axs[2].contourf(grid_x, grid_y, true_selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
+
+  for k in range(3):
+    axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+  
+  if train_data :
+    for k in range(3):
+      axs[k].scatter(X_train[:,0].detach().cpu(), X_train[:,1].detach().cpu(), color = colors[Y_train.detach().cpu()], alpha = 0.3)
+
+  fig.colorbar(
+   ScalarMappable(norm=qcs.norm, cmap=qcs.cmap),
+   ticks=range(0, 1, 20) 
+  )
+
+
+  complete_path = os.path.join(path, "true_dataset_selection.jpg")
+  if train_data :
+    complete_path = complete_path.split(".jpg")[0] + "_train_data.jpg"
+
   plt.savefig(complete_path)
   plt.close(fig)
 
 
-def plot_destructor_output(destructor, dataset, path, figsize = (15,5)):
+
+def plot_destructor_output(destructor, dataset, path, train_data = False, nb_train_data = 1000, interpretation= False, figsize = (15,5),):
   try :
     centroids = dataset.centroids
   except :
     centroids = None
+
+
   X = dataset.X_train
   Y = dataset.Y_train
+
+  indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
+  X_train = X[indexes, :]
+  Y_train = Y[indexes]
+
 
 
   min_x = torch.min(dataset.X_train[:,0])
@@ -232,41 +384,57 @@ def plot_destructor_output(destructor, dataset, path, figsize = (15,5)):
     complete_X = complete_X.cuda()
   log_pi_list, _ = destructor(complete_X)
   pi_list = torch.exp(log_pi_list.detach().cpu())
+  pi_list = pi_list.clamp(min = 0.0, max=1.0)
+
+
+  if interpretation :
+    selection_bothdim, _ = torch.min(pi_list, dim = 1)
+  else :
+    selection_bothdim = torch.zeros_like(pi_list[:,0])
+
+
   # First dimension needed :
-  
-  selection_firstdim = pi_list[:,0] # Get true selection, 1 means selection; 0 means it's not necessary
-
-
+  selection_firstdim = pi_list[:,0] - selection_bothdim # Get true selection, 1 means selection; 0 means it's not necessary
   # Second dimension needed :
-  selection_seconddim = pi_list[:,1]
+  selection_seconddim = pi_list[:,1] - selection_bothdim
 
-  # All dim needed :
-  # aux = torch.cat([selection_firstdim.reshape(1,-1), selection_seconddim.reshape(1, -1)], dim=0) # Get true selection, 1 means selection; 0 means it's not necessary
-  # selection_alldim = 1 - torch.max(aux, dim=0)[0]
-
-  fig, axs = plt.subplots(nrows =1, ncols = 2, figsize = (10,5))
+  if interpretation :
+    fig, axs = plt.subplots(nrows =1, ncols = 3, figsize = (15,5))
+  else :
+    fig, axs = plt.subplots(nrows =1, ncols = 2, figsize = (10,5))
   colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
                                              '#f781bf', '#a65628', '#984ea3',
                                              '#999999', '#e41a1c', '#dede00']),
                                   int(max(Y) + 1))))
 
-  axs[0].contourf(grid_x, grid_y, selection_firstdim.reshape(grid_x.shape),  vmin=0, vmax=1.0)
-  axs[1].contourf(grid_x, grid_y, selection_seconddim.reshape(grid_x.shape), vmin=0, vmax=1.0)
-  # qcs = axs[2].contourf(grid_x, grid_y, selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
+  axs[0].contourf(grid_x, grid_y, selection_firstdim.reshape(grid_x.shape),  vmin=0.0, vmax=1.0)
+  axs[1].contourf(grid_x, grid_y, selection_seconddim.reshape(grid_x.shape), vmin=0.0, vmax=1.0)
+  if interpretation :
+    axs[2].contourf(grid_x, grid_y, selection_bothdim.reshape(grid_x.shape), vmin=0, vmax=1.0)
   if centroids is not None :
-    for k in range(2):
+    for k in range(len(axs)):
       axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+  if train_data :
+      for k in range(len(axs)):
+        axs[k].scatter(X_train[:,0].detach().cpu(), X_train[:,1].detach().cpu(), color = colors[Y_train.detach().cpu()], alpha = 0.3)
 
-  # fig.colorbar(
-  #  ScalarMappable(norm=qcs.norm, cmap=qcs.cmap),
-  #  ticks=range(0, 1, 20) 
-  # )
 
   complete_path = os.path.join(path, "selector_selection.jpg")
+
+  if train_data :
+    complete_path = complete_path.split(".jpg")[0] + "_train_data.jpg"
+
+  if interpretation :
+    complete_path = complete_path.split(".jpg")[0] + "_interpretation.jpg"
+
+
   plt.savefig(complete_path)
   plt.close(fig)
 
-def plot_model_output(trainer_var, dataset, sampling_distribution, path):
+
+
+
+def plot_model_output(trainer_var, dataset, sampling_distribution, path, imputed_centroids = False, nb_train_data = 1000, train_data = False):
   try :
     centroids = dataset.centroids
   except :
@@ -274,6 +442,16 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
   X = dataset.X_train
   Y = dataset.Y_train
 
+  indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
+  X_train = X[indexes, :]
+  Y_train = Y[indexes]
+
+
+  if centroids is not None :
+    if imputed_centroids :
+      centroids_masks = dataset.new_S
+      imputation = trainer_var.classification_module.imputation
+      centroids, _ = imputation.impute(centroids, centroids_masks)    
 
   min_x = torch.min(dataset.X_train[:,0])
   max_x = torch.max(dataset.X_train[:,0])
@@ -292,11 +470,12 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
     complete_X = complete_X.cuda()
 
   try :
-    pi_list, log_pi_list, _, z, p_z = trainer_var._destructive_test(complete_X, sampling_distribution, 1)
-    log_y_hat_destructed, _ = trainer_var.classification_module(complete_X, z, index = None)
+    log_y_hat_destructed = trainer_var._predict(complete_X, sampling_distribution, 2, Nexpectation = 20, index = None)    
     pred_destruction = torch.exp(log_y_hat_destructed[:,0]).detach().cpu()
     destructive= True
-  except(AttributeError) :
+
+  except(AttributeError) as e :
+    print(e)
     destructive = False
 
 
@@ -308,10 +487,8 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
 
 
   # All dim needed :
-  # aux = torch.cat([selection_firstdim.reshape(1,-1), selection_seconddim.reshape(1, -1)], dim=0) # Get true selection, 1 means selection; 0 means it's not necessary
-  # selection_alldim = 1 - torch.max(aux, dim=0)[0]
 
-  colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
+  colors = np.array(list(islice(cycle([ '#ff7f00', '#377eb8', '#4daf4a',
                                         '#f781bf', '#a65628', '#984ea3',
                                         '#999999', '#e41a1c', '#dede00']),
                                     int(max(Y) + 1))))
@@ -319,10 +496,13 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
     fig, axs = plt.subplots(nrows =1, ncols = 2, figsize = (10,5))
     axs[0].contourf(grid_x, grid_y, pred_classic.reshape(grid_x.shape),  vmin=0, vmax=1.0)
     axs[1].contourf(grid_x, grid_y, pred_destruction.reshape(grid_x.shape), vmin=0, vmax=1.0)
-    # qcs = axs[2].contourf(grid_x, grid_y, selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
     if centroids is not None:
       for k in range(2):
         axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+    
+    if train_data :
+      for k in range(2):
+        axs[k].scatter(X_train[:,0].detach().cpu(), X_train[:,1].detach().cpu(), color = colors[Y_train.detach().cpu()], alpha = 0.3)
 
   else :
     fig, axs = plt.subplots(nrows =1, ncols = 1, figsize = (5,5))
@@ -330,13 +510,32 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path):
 
     if centroids is not None:
         axs.scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+    if train_data :
+        axs.scatter(X_train[:,0].detach().cpu(), X_train[:,1].detach().cpu(), color = colors[Y_train.detach().cpu()], alpha = 0.3)
 
+  
   complete_path = os.path.join(path, "output_classification.jpg")
+
+
+  if imputed_centroids :
+    complete_path = complete_path.split(".jpg")[0] + "_imputed_centroids.jpg"
+  if train_data :
+    complete_path = complete_path.split(".jpg")[0] + "_train_data.jpg"
+
   plt.savefig(complete_path)
   plt.close(fig)
 
 
-def get_evaluation(trainer_var, loader, dic, dic_count_batch_size, dic_count_dim_batch_size, experiment_id, current_sampling_test, args_train, train = False):
+
+def get_dic_experiment(output_dic, to_save_dic,):
+  for key in output_dic["test"].keys():
+    save_key = key+ "_test"
+    to_save_dic[save_key]= output_dic["test"][key][-1]
+  return to_save_dic
+
+
+
+def get_evaluation(trainer_var, loader, dic, dic_count_batch_size, dic_count_dim_batch_size, current_sampling_test, args_train, train = False):
     if train:
         suffix = "_train"
         wanted_loader = loader.train_loader
@@ -353,14 +552,13 @@ def get_evaluation(trainer_var, loader, dic, dic_count_batch_size, dic_count_dim
         z_s = z_s.reshape(data.shape)
         comparing_dic = dataset.compare_selection(pi_list, index=index, normalized = False, train_dataset = True, sampling_distribution = current_sampling_test)
         
-
         for key in comparing_dic.keys():
-            dic[key+suffix][experiment_id] += comparing_dic[key]
+            dic[key+suffix] = comparing_dic[key]
 
         for key in dic_count_batch_size.keys():
-            dic_count_batch_size[key][experiment_id] += batch_size
+            dic_count_batch_size[key] = batch_size
         for key in dic_count_dim_batch_size.keys():
-            dic_count_dim_batch_size[key][experiment_id] += dim * batch_size
+            dic_count_dim_batch_size[key] = dim * batch_size
 
     return dic, dic_count_batch_size, dic_count_dim_batch_size
 
