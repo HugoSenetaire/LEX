@@ -730,10 +730,12 @@ class HypercubeDataset(Dataset):
 
         dependency = (((value_reshape - centroids_reshape)/sigma)**2)/2
         dependency = torch.where(mask_reshape == 0, torch.ones_like(dependency), dependency)
-        dependency = torch.exp(-torch.prod(dependency, axis=-1))  +1e-8
-        dependency /= torch.sum(dependency, axis=-1, keepdim = True)
+        dependency = - torch.sum(dependency, dim = -1)
+        dependency = dependency - torch.logsumexp(dependency, dim = -1, keepdim = True)
+        dependency = torch.exp(dependency)
 
         return dependency
+
 
     def impute_result(self, mask, value, index = None, dataset_type=None): 
         """ On part du principe que la value est complète mais c'est pas le cas encore, à gérer, sinon il faut transmettre l'index"""
