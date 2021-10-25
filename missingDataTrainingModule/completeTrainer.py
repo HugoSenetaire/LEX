@@ -70,7 +70,7 @@ class ordinaryTraining():
         if self.need_feature :
             self.feature_extractor.zero_grad()
 
-    def _predict(self, data, sampling_distribution = None, dataset = None, Nexpectation = 1, index = None):
+    def _predict(self, data, sampling_distribution = None, nb_category = None, Nexpectation = 1, index = None):
         log_y_hat, _ = self.classification_module(data, index= index)
         return log_y_hat
 
@@ -80,7 +80,7 @@ class ordinaryTraining():
 
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_category(), use_cuda=self.use_cuda)
 
-        log_y_hat = self._predict(data, dataset = dataset, index = index)
+        log_y_hat = self._predict(data, nb_category= dataset.get_category(), index = index)
 
         neg_likelihood = F.nll_loss(log_y_hat, target)
         mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1))
@@ -314,13 +314,17 @@ class noVariationalTraining(ordinaryTraining):
         z, p_z = self._sample_z_train(pi_list, log_pi_list, sampling_distribution, Nexpectation)
         return pi_list, log_pi_list, loss_reg, z, p_z
 
-    def _predict(self, data, sampling_distribution, dataset, Nexpectation = 1, index = None):
-        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, None, index=index, num_classes=dataset.get_category(), Nexpectation=Nexpectation, use_cuda=self.use_cuda)
+    def _predict(self, data, sampling_distribution, nb_category, Nexpectation = 1, index = None):
+        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, None, index=index, num_classes=nb_category, Nexpectation=Nexpectation, use_cuda=self.use_cuda)
 
+        # print("data", data.shape)
         pi_list, log_pi_list, loss_reg, z, p_z = self._destructive_test(data, sampling_distribution, Nexpectation)
+        # print("pi -list", pi_list.shape)
+        # print("z", z.shape)
         y_hat, _ = self.classification_module(data_expanded_flatten, z.flatten(0,1), index_expanded)
-        y_hat = y_hat.reshape(Nexpectation, -1, dataset.get_category())
-        y_hat_mean = torch.logsumexp(y_hat,0)
+        # print("yhat", y_hat.shape)
+        y_hat = y_hat.reshape(Nexpectation, -1, nb_category)
+        y_hat_mean = torch.logsumexp(y_hat,0) - torch.log(torch.tensor(Nexpectation, dtype=torch.float32))
 
         return y_hat_mean
 
