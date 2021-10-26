@@ -13,6 +13,10 @@ def free_regularization(log_pi_list):
   loss_reg = torch.mean(torch.mean(torch.exp(log_pi_list),-1)).squeeze() 
   return log_pi_list, loss_reg
 
+def L2_regularization(log_pi_list):
+  loss_reg = torch.mean(torch.mean(torch.exp(log_pi_list) **2,-1)).squeeze() 
+  return log_pi_list, loss_reg
+
 def squared_regularization_per_image(log_pi_list, missing_rate = 0.5):
   batch_size = log_pi_list.shape[0]
   channels = log_pi_list.shape[1]
