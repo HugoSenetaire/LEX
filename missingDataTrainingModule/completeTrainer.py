@@ -459,7 +459,7 @@ class ReparametrizedTraining(ordinaryTraining):
                 batch_size = data.shape[0]
                 
                 if self.use_cuda :
-                    data, target, index = on_cuda(data, target = None, index = None,)
+                    data, target, index = on_cuda(data, target = target, index = index,)
                 one_hot_target = get_one_hot(target, num_classes = dataset.get_category())
                 data_expanded, target_expanded, index_expanded, one_hot_target_expanded = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, Nexpectation = Nexpectation, nb_imputation = None)
 

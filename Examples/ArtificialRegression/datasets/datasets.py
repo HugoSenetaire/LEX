@@ -867,6 +867,8 @@ class LinearDataset(Dataset):
     def impute_result(self, mask, value, index = None, dataset_type=None): 
         uniform = torch.distributions.uniform.Uniform(-2.0,2.0)
         resampled_value = uniform.sample(value.shape)
+        if value.is_cuda :
+            resampled_value = resampled_value.cuda()
         sampled = torch.where(mask == 1, value, resampled_value)
         return sampled
 
