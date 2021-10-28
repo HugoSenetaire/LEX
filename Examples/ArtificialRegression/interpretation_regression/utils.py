@@ -1,3 +1,9 @@
+import sys
+
+from missingDataTrainingModule.Classification.classification_network import ClassifierLVL3, ClassifierLinear
+sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
+sys.path.append("/home/hhjs/MissingDataTraining")
+
 import torch
 import matplotlib.pyplot as plt
 
@@ -18,6 +24,43 @@ from matplotlib.cm import ScalarMappable
 colors = np.array(['#377eb8', '#ff7f00', '#4daf4a',
                   '#f781bf', '#a65628', '#984ea3',
                   '#999999', '#e41a1c', '#dede00'])
+
+list_name_post_hoc = [
+  "PostHoc_NoArgmax_NoAuxiliary",
+  "PostHoc_Argmax_NoAuxiliary",
+  "PostHoc_Argmax_ClassifierLinear",
+  "PostHoc_Argmax_ClassifierLVL3",
+  "PostHoc_NoArgmax_ClassifierLinear",
+  "PostHoc_NoArgmax_ClassifierLVL3",
+  ]
+
+
+def get_post_hoc_parameters(name, args_train):
+  _, argmax_value, auxiliary_value = name.split("_")
+
+  args_train["post_hoc"] = True
+  if argmax_value == "Argmax":
+    args_train["argmax_post_hoc_classification"] = True
+  elif argmax_value == "NoArgmax":
+    args_train["argmax_post_hoc_classification"] = False
+  else :
+    raise ValueError("argmax_value should be 'Argmax' or 'NoArgmax'")
+    
+  if auxiliary_value == "NoAuxiliary":
+    args_train["fix_classifier_parameters"] = True
+    args_train["nb_epoch_pretrain"] = 10
+    args_train["post_hoc_guidance"] = None
+  else :
+    args_train["fix_classifier_parameters"] = False
+    args_train["nb_epoch_post_hoc"] = 10
+    args_train["nb_epoch_pretrain"] = 0
+    if auxiliary_value == "ClassifierLinear":
+      args_train["post_hoc_guidance"] = ClassifierLinear
+    elif auxiliary_value == "ClassifierLVL3":
+      args_train["post_hoc_guidance"] = ClassifierLVL3
+    else:
+      raise ValueError("Unknown post hoc guidance")
+
 
 def save_result_artificial(path, data, target, predicted):
   path_result = os.path.join(path, "result")
@@ -539,6 +582,7 @@ def get_evaluation(trainer_var, loader, dic, dic_count_batch_size, dic_count_dim
     if train:
         suffix = "_train"
         wanted_loader = loader.train_loader
+        
     else :
         suffix = "_test"
         wanted_loader = loader.test_loader
@@ -550,7 +594,7 @@ def get_evaluation(trainer_var, loader, dic, dic_count_batch_size, dic_count_dim
             data = data.cuda()
         pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
         z_s = z_s.reshape(data.shape)
-        comparing_dic = dataset.compare_selection(pi_list, index=index, normalized = False, train_dataset = True, sampling_distribution = current_sampling_test)
+        comparing_dic = dataset.compare_selection(pi_list, index=index, normalized = False, train_dataset = train, sampling_distribution = current_sampling_test)
         
         for key in comparing_dic.keys():
             dic[key+suffix] = comparing_dic[key]

@@ -1,4 +1,3 @@
-from math import log, pi
 from numpy.core.fromnumeric import var
 from numpy.lib.npyio import _savez_compressed_dispatcher
 from numpy.testing._private.utils import requires_memory
@@ -365,7 +364,7 @@ class ReparametrizedTraining(ordinaryTraining):
 
         neg_likelihood = torch.logsumexp(neg_likelihood,0) - torch.log(torch.tensor(nb_imputation, dtype=torch.float32))
         neg_likelihood = torch.logsumexp(neg_likelihood,0) - torch.log(torch.tensor(Nexpectation, dtype=torch.float32))
-        neg_likelihood = torch.mean(neg_likelihood)
+        neg_likelihood = torch.sum(neg_likelihood)
         # Updates 
         loss_rec = neg_likelihood
         loss_total = loss_rec + loss_reg + loss_reconstruction
@@ -638,7 +637,7 @@ class AllZTraining(ReparametrizedTraining):
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
         neg_likelihood *= torch.exp(log_prob_pz) # I used to do + but not correct ?
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(Nexpectation).type(torch.float32))
-        neg_likelihood = torch.mean(neg_likelihood)
+        neg_likelihood = torch.sum(neg_likelihood)
 
 
 

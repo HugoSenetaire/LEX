@@ -172,7 +172,7 @@ def check_parameters_compatibility(args_classification, args_destruction, args_c
     #     raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
 
 
-def experiment(args_dataset, args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output):
+def experiment(args_dataset, args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output, name_modification = True):
     
     dataset = args_dataset["dataset"]
     dic_list = {}
@@ -180,12 +180,19 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     origin_path = args_output["path"]
     if not os.path.exists(origin_path):
         os.makedirs(origin_path)
-    folder = os.path.join(origin_path,dataset.__name__)
-    if not os.path.exists(folder):
-        os.makedirs(folder)
 
-    experiment_name = args_output["experiment_name"]
-    final_path = os.path.join(folder, experiment_name)
+    if name_modification :
+        print("Modification of the name")
+        folder = os.path.join(origin_path,dataset.__name__)
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+        experiment_name = args_output["experiment_name"]
+        final_path = os.path.join(folder, experiment_name)
+    else :
+        final_path = origin_path
+
+
     if not os.path.exists(final_path):
         os.makedirs(final_path)
 

@@ -775,6 +775,7 @@ class LinearDataset(Dataset):
         self.give_index = give_index
         self.batch_size_train = batch_size_train
         self.use_cuda = use_cuda
+        self.nb_dim = 2
 
         nb_sample = nb_sample_test + nb_sample_train
         X = scipy.stats.uniform([-2.0,-2.0], [4,4]).rvs((nb_sample,2))
@@ -822,6 +823,8 @@ class LinearDataset(Dataset):
         dic["auc_score_"+suffix] = auc_score.item()
 
         return dic
+    def get_dim(self):
+        return self.nb_dim
  
     def compare_selection(self, mask, index = None, normalized = False, train_dataset = False, sampling_distribution = None, threshold = 0.5, nb_sample_z = 100):
 
