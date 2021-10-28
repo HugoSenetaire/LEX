@@ -29,35 +29,59 @@ def get_extended_data(data, Nexpectation):
     data_expanded_flatten = data_expanded.flatten(0,1)
 
     return data_expanded, data_expanded_flatten
-    
-def prepare_data_augmented(data, target, index=None, num_classes=10, Nexpectation = 1, use_cuda = False):
-    if index is not None :
-        index_expanded = index.unsqueeze(0).expand(Nexpectation, -1).flatten(0,1)
-    else :
-        index_expanded = None
-    
-    if use_cuda:
-        data =data.cuda()
-        if target is not None :
-            target = target.cuda()
+
+def on_cuda(data, target = None, index = None,):
     if target is not None :
-        one_hot_target = torch.nn.functional.one_hot(target,num_classes=num_classes) # batch_size, category
-        one_hot_target_expanded = one_hot_target.unsqueeze(0).expand(Nexpectation,-1,-1) #N_expectations, batch_size, category
+        target = target.cuda()
+    if index is not None :
+        index = index.cuda()
+    data = data.cuda()
+    return data, target, index
+
+def get_one_hot(target, num_classes = 10):
+    if target is not None :
+        one_hot_target = torch.nn.functional.one_hot(target, num_classes = num_classes)
     else :
         one_hot_target = None
-        one_hot_target_expanded = None
+
+    return one_hot_target
+
+def extend_input(input, Nexpectation = 1, nb_imputation = 1):
+    shape = input.shape
+    if nb_imputation is not None :
+        wanted_shape = torch.Size((nb_imputation, Nexpectation)) + shape
+        input_expanded = input.unsqueeze(0).unsqueeze(0).expand(wanted_shape)
+    else :
+        wanted_shape = torch.Size((Nexpectation,)) + shape
+        input_expanded = input.unsqueeze(0).expand(wanted_shape)
+
+
+    return input_expanded
     
-    shape = data.shape
-    data_unsqueezed = data.unsqueeze(0)
-    wanted_transform = tuple(np.insert(-np.ones(len(shape),dtype = int),0,Nexpectation))
 
+    
+def prepare_data_augmented(data, target = None, index=None, one_hot_target = None, Nexpectation = 1, nb_imputation = None):
+    if index is not None :
+        index_expanded = extend_input(index, Nexpectation, nb_imputation)
+    else :
+        index_expanded = None
+
+    if one_hot_target is not None :
+        one_hot_target_expanded = extend_input(one_hot_target, Nexpectation, nb_imputation)
+    else :
+        one_hot_target_expanded = None
+
+    
+    
+    if target is not None :
+        target_expanded = extend_input(target, Nexpectation, nb_imputation)
+    else :
+        target_expanded = None
+    data_expanded = extend_input(data, Nexpectation, nb_imputation)
      
-    data_expanded = data_unsqueezed.expand(wanted_transform) # N_expectation, batch_size, channels, size:...
-    data_expanded_flatten = data_expanded.flatten(0,1)
 
-    wanted_shape_flatten = data_expanded_flatten.shape
 
-    return data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded
+    return data_expanded, target_expanded, index_expanded, one_hot_target_expanded
 
 
 def print_dic(epoch, batch_idx, dic, dataset):

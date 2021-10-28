@@ -199,12 +199,13 @@ class NetworkTransformMask(NetworkBasedPostProcess):
     return data_reconstructed, data_expanded, sample_b
 
 def expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation, index = None):
-    wanted_transform = tuple(np.insert(-np.ones(len(data_expanded.shape),dtype = int),1, nb_imputation))
-    data_imputed_expanded = data_imputed.unsqueeze(1).expand(wanted_transform).flatten(0,1)
-    data_expanded_imputation = data_expanded.unsqueeze(1).expand(wanted_transform).flatten(0,1) # N_expectation, batch_size, channels, size:...
-    mask_expanded = sample_b.unsqueeze(1).expand(wanted_transform).flatten(0,1)
+    wanted_transform = torch.Size((nb_imputation,)) + data_expanded.shape
+    data_imputed_expanded = data_imputed.unsqueeze(0).expand(wanted_transform).flatten(0,1)
+    data_expanded_imputation = data_expanded.unsqueeze(0).expand(wanted_transform).flatten(0,1) 
+    mask_expanded = sample_b.unsqueeze(0).expand(wanted_transform).flatten(0,1)
     if index is not None :
-      index_expanded = index.unsqueeze(1).expand(wanted_transform[0],nb_imputation).flatten(0,1)
+      wanted_transform_index = torch.Size((nb_imputation,)) + index.shape
+      index_expanded = index.unsqueeze(0).expand(wanted_transform_index).flatten(0,1)
     else:
       index_expanded = None
     return data_imputed_expanded, data_expanded_imputation, mask_expanded, index_expanded
@@ -234,15 +235,10 @@ class DatasetBasedImputation(MultipleImputation):
         imputation_number = 1
         dataset_type = "Test"
 
-      data_imputed, data_expanded, sample_b, index = expand_for_imputations(data_imputed, data_expanded, sample_b, imputation_number, index)
-      data_expanded = data_expanded.flatten(0,1)
-      if len(data_expanded.shape)>2:
-        data_imputed = data_imputed.flatten(0,1)
-      # if len(sample_b.shape)>2:
-        # sample_b = sample_b.flatten(0,1)
-
-      imputed_output = self.dataset.impute_result(mask = sample_b.clone().detach(), value = data_imputed.clone().detach(), index = index, dataset_type = dataset_type)
-      return imputed_output, data_expanded, sample_b
+      data_imputed, data_expanded, sample_b_expanded, index_expanded = expand_for_imputations(data_imputed, data_expanded, sample_b, imputation_number, index)
+      
+      imputed_output = self.dataset.impute_result(mask = sample_b_expanded.clone().detach(), value = data_imputed.clone().detach(), index = index_expanded, dataset_type = dataset_type)
+      return imputed_output, data_expanded, sample_b_expanded
     else :
       return data_imputed, data_expanded, sample_b
 

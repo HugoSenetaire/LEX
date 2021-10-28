@@ -59,28 +59,28 @@ class ClassificationModule():
 
     
   
-    def patch_creation(self,sample_b):
+    def patch_creation(self,mask):
         """ Recreating the heat-map of selection being given the original selection mask
         TODO : This is very slow, check how a convolution is done in Pytorch. Might need to use some tricks to accelerate here """
         assert(self.kernel_updated)
     
         if self.image :
             if self.kernel_patch == (1,1):
-                return sample_b
+                return mask
             else :
-                aux_sample_b = sample_b.reshape(-1, self.input_size[0], self.nb_patch_x*self.nb_patch_y)
-                aux_sample_b = aux_sample_b.unsqueeze(2).expand(-1, -1, np.prod(self.kernel_patch), -1).flatten(1,2)
-                new_sample_b = torch.nn.Fold((self.input_size[1], self.input_size[2]),self.kernel_patch, stride = self.stride_patch)(aux_sample_b)
+                aux_mask = mask.reshape(-1, self.input_size[0], self.nb_patch_x*self.nb_patch_y)
+                aux_mask = aux_mask.unsqueeze(2).expand(-1, -1, np.prod(self.kernel_patch), -1).flatten(1,2)
+                new_mask = torch.nn.Fold((self.input_size[1], self.input_size[2]),self.kernel_patch, stride = self.stride_patch)(aux_mask)
 
-            new_sample_b = new_sample_b.clamp(0.0, 1.0)    
+            new_mask = new_mask.clamp(0.0, 1.0)    
         else :
-            new_sample_b = sample_b
-        return new_sample_b
+            new_mask = mask
+        return new_mask
 
     
-    def readable_sample(self, sample_b):
+    def readable_sample(self, mask):
         """ Use during test or analysis to make sure we have a mask dimension similar to the input dimension """
-        return self.patch_creation(sample_b)         
+        return self.patch_creation(mask)         
             
     def train(self):
         if self.need_imputation :
@@ -119,36 +119,49 @@ class ClassificationModule():
         for param in self.classifier.parameters():
          param.requires_grad = False
 
-    def multiple_channel(self, data, sample_b):
-        if len(data.shape)>2 and data.shape[1]>1 : # If multiple channels
-            wanted_transform = tuple(np.insert(-np.ones(len(sample_b.shape),dtype = int),1,data.shape[1]))
-            sample_b = sample_b.unsqueeze(1).expand(wanted_transform)
-            sample_b = sample_b.flatten(1,2)
-        return sample_b
+    def multiple_channel(self, data, mask): 
+        # data is of the form Nexpectation * batch_size, channels, size_lists...
+        # mask is of the form Nexpection * batch_size, size_lists... ie the third dimension (index 2 in python) do not exists for selection, there might be a better way to handle this #TODO    
+        if len(data.shape) >2 :
+            wanted_shape = torch.Size((mask.size()[0],)) + torch.Size((data.size()[1],)) + mask.Size()[1:] #TODO : It would be better to actually always have the channel in the mask size
+            mask = mask.unsqueeze(2).expand(wanted_shape)
+        return mask
 
-    def prepare_mask(self, data, sample_b):
-        sample_b = self.multiple_channel(data, sample_b)
-        sample_b = self.patch_creation(sample_b)
-        sample_b = sample_b.reshape(data.shape)
-        return sample_b
+    def prepare_mask(self, data, mask):
+        mask = self.multiple_channel(data, mask)
+        mask = self.patch_creation(mask)
+        mask = mask.reshape(data.shape)
+        return mask
 
 
-    def __call__(self, data, sample_b = None, index = None):
-        if sample_b is not None :
-            sample_b = self.prepare_mask(data, sample_b)
-        # if self.imputation is not None and sample_b is None :
-            # print("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
-            # raise AssertionError("If using imputation, you should give a sample of bernoulli or relaxed bernoulli")
+    def __call__(self, data, mask = None, index = None):
+        """ Using the data and the mask, do the imputation and classification 
         
-    
-        if self.imputation is not None and sample_b is not None :
-            x_imputed, loss_reconstruction = self.imputation.impute(data, sample_b, index)
-            # x_imputed_aux = x_imputed.cpu().detach().numpy()
-            # fig, (ax1, ax2, ax3)= plt.subplots(1,3)
-            # ax1.imshow(data[0].cpu().detach().numpy().reshape((28,28)), cmap='gray')
-            # ax2.imshow(sample_b[0].cpu().detach().numpy().reshape((28,28)), cmap='gray')
-            # ax3.imshow(x_imputed_aux[0].reshape((28,28)), cmap='gray')
-            # plt.show()
+        Parameters:
+        -----------
+        data : torch.Tensor of shape (Nexpectation*batch_size, channels, size_lists...)
+            The data to be classified
+        mask : torch.Tensor of shape (Nexpectation*batch_size, size_lists...)
+            The mask to be used for the classification
+        index : torch.Tensor of shape (Nexpectation*batch_size, size_lists...)
+            The index to be used for imputation
+
+        Returns:
+        --------
+        y_hat : torch.Tensor of shape (nb_imputation*Nexpectation*batch_size, nb_category)
+            The output of the classification
+        loss_reconstruction : torch.Tensor of shape (1)
+            Some regularization term that can be added to the loss (for instance in the case of version Autoencoder regularisation)
+
+        """
+        if mask is not None :
+            mask = self.prepare_mask(data, mask)
+
+
+
+        if self.imputation is not None and mask is not None :
+            x_imputed, loss_reconstruction = self.imputation.impute(data, mask, index)
+
             if self.need_extraction :
                 x_imputed = self.feature_extractor(x_imputed)
             y_hat = self.classifier(x_imputed)
@@ -161,6 +174,7 @@ class ClassificationModule():
             loss_reconstruction = torch.zeros((1))
             if self.use_cuda :
                 loss_reconstruction = loss_reconstruction.cuda()
+
         return y_hat, loss_reconstruction
 
 

@@ -89,14 +89,14 @@ def get_default():
 
     
     args_complete_trainer = {}
-    args_complete_trainer["complete_trainer"] = noVariationalTraining # Ordinary training, Variational Traininig, No Variational Training, post hoc...
+    args_complete_trainer["complete_trainer"] = ReparametrizedTraining # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args_complete_trainer["feature_extractor"] = None
     args_complete_trainer["save_every_epoch"] = 1
 
     args_train = {}
     # args_train["nb_epoch"] = 500 # Training the complete model
-    args_train["nb_epoch"] = 15 # Training the complete model
-
+    args_train["nb_epoch"] = 10 # Training the complete model
+    args_train["nb_epoch_post_hoc"] = 2 # Training the complete model
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training auto encoder
     args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
     args_train["Nexpectation_train"] = 10 # Number K in the IWAE-similar loss 
@@ -112,6 +112,7 @@ def get_default():
     args_train["fix_classifier_parameters"] = False
     args_train["post_hoc"] = False
     args_train["argmax_post_hoc_classification"] = False
+    args_train["post_hoc_guidance"] = None
 
 
     args_train["optim_classification"] = partial(Adam, lr=1e-2) #Learning rate for classification module
@@ -120,6 +121,7 @@ def get_default():
     args_train["optim_feature_extractor"] = partial(Adam, lr=1e-4) # Learning rate for the feature extractor if any
     args_train["optim_baseline"] = partial(Adam, lr=1e-4) # Learning rate for the baseline network
     args_train["optim_autoencoder"] = partial(Adam, lr=1e-4)
+    args_train["optim_post_hoc"] = partial(Adam, lr=1e-2)
 
     args_train["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) #Learning rate for classification module
     args_train["scheduler_destruction"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for destruction module
@@ -127,7 +129,7 @@ def get_default():
     args_train["scheduler_feature_extractor"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for the feature extractor if any
     args_train["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for the baseline network
     args_train["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6)
-
+    args_train["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6)
     
     args_test = {}
     args_test["sampling_distribution_test"] = SubsetSampling # Sampling distribution used during test 
