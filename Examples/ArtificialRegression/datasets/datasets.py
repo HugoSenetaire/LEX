@@ -794,6 +794,9 @@ class LinearDataset(Dataset):
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
     
     def compare_selection_single(self, dic, mask, true_masks, normalized = False, threshold = 0.5, suffix = "pi"):
+        mask = mask.detach().cpu()
+        true_masks = true_masks.detach().cpu()
+
         batch_size = len(mask)
         if mask.is_cuda :
             mask_thresholded = torch.where(mask > threshold, torch.tensor(1.).cuda(), torch.tensor(0.).cuda())
