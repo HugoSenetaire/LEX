@@ -641,7 +641,6 @@ def get_evaluation_adhoc(trainer_var, loader, dic, current_sampling_test, args_t
         if args_train["use_cuda"] :
           data = data.cuda()
           index = index.cuda()
-          print("CUDA")
         pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
 
         batch_size, dim = data.shape
@@ -690,6 +689,9 @@ def get_evaluation_posthoc(trainer_var, loader, dic, current_sampling_test, args
     for (data, target, index) in iter(wanted_loader):
         pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
         batch_size, dim = data.shape
+        if args_train["use_cuda"] :
+          data = data.cuda()
+          index = index.cuda()
 
         
         true_masks_nopostprocess = dataset.calculate_true_selection_variation(data, classifier = trainer_var.classification_module.classifier)
