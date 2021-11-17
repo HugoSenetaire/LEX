@@ -641,7 +641,9 @@ def get_evaluation_adhoc(trainer_var, loader, dic, current_sampling_test, args_t
         if args_train["use_cuda"] :
           data = data.cuda()
           index = index.cuda()
+          print("CUDA")
         pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
+
         batch_size, dim = data.shape
         current_true_masks = true_masks[index]
         if args_train["use_cuda"]:
