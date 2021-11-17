@@ -714,7 +714,7 @@ class HypercubeDataset(ArtificialDataset):
         
         mask_reshape = mask.unsqueeze(1).expand(batch_size, nb_centroids, dim)
         value_reshape = value.unsqueeze(1).expand(batch_size, nb_centroids, dim)
-        centroids_reshape = self.centroids.unsqueeze(0).expand(batch_size, nb_centroids, dim)
+        centroids_reshape = self.centroids.unsqueeze(0).expand(batch_size, nb_centroids, dim).cpu()
         sigma = torch.ones_like(value_reshape) * self.gaussian_noise
 
 
