@@ -1,6 +1,9 @@
 import sys
 
+from numpy.core.function_base import linspace
+
 from missingDataTrainingModule.Classification.classification_network import ClassifierLVL3, ClassifierLinear
+from missingDataTrainingModule.Destruction import destruction_module
 sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
 sys.path.append("/home/hhjs/MissingDataTraining")
 
@@ -11,6 +14,7 @@ from collections.abc import Iterable
 from functools import partial
 import matplotlib.pyplot as plt
 from itertools import cycle, islice
+import sklearn
 
 import os
 from datetime import datetime
@@ -141,6 +145,9 @@ def save_interpretation_artificial_bar(path, sample, target, pred):
   plt.close(fig)
 
 ### SAVINGS FOR HYPERCUDE DATASET
+ 
+
+
 
 
 global_keys = ["accuracy_selection_pi", "accuracy_selection_z", "accuracy_selection_thresholded_pi","accuracy_selection_thresholded_z",
@@ -294,8 +301,15 @@ def plot_true_continuousshape(dataset, path, train_data = False, nb_train_data =
   plt.savefig(complete_path)
   plt.close(fig)
 
-def plot_true_interpretation_v2(dataset, path, train_data = False, nb_train_data = 1000,  figsize=(15,5)):
-  centroids = dataset.centroids
+
+
+
+
+def plot_true_interpretation_v3(dataset, path, train_data = False, nb_train_data = 1000, grid_sample = 100, nb_imputation = 1000,  figsize=(15,5), interpretation = False):
+  try :
+    centroids = dataset.centroids
+  except AttributeError:
+    centroids = None
 
   X = dataset.X_train
   Y = dataset.Y_train
@@ -304,7 +318,7 @@ def plot_true_interpretation_v2(dataset, path, train_data = False, nb_train_data
   X_train = X[indexes, :]
   Y_train = Y[indexes]
 
-  grid_sample = 1000
+
 
   min_x = torch.min(dataset.X_train[:,0])
   max_x = torch.max(dataset.X_train[:,0])
@@ -317,64 +331,36 @@ def plot_true_interpretation_v2(dataset, path, train_data = False, nb_train_data
   xaux1 = grid_x.reshape(1, -1)
   xaux2 = grid_y.reshape(1, -1)
   complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
-  aux_Y = dataset.centroids_Y.reshape(1,-1).expand(complete_X.shape[0],-1)
+  complete_X = complete_X.type(torch.float64)
 
-  # First dimension needed :
-  mask = torch.zeros_like(complete_X)
-  mask_firstdim = mask.clone()
-  mask_firstdim[:,0]=torch.ones_like(complete_X[:,1])
-  complete_x_firstdim = complete_X * mask_firstdim
-  dependency_firstdim = dataset.get_dependency(mask_firstdim, complete_x_firstdim, index=None, dataset_type = None)
-  Y_first_dim = torch.sum(dependency_firstdim * aux_Y, axis = -1)
 
-  # Second dimension needed :
-  mask_seconddim = mask.clone()
-  mask_seconddim[:,1]=torch.ones_like(complete_X[:,1])
-  complete_x_seconddim = complete_X * mask_seconddim
-  dependency_seconddim = dataset.get_dependency(mask_seconddim, complete_x_seconddim, index=None, dataset_type = None)
-  Y_second_dim = torch.sum(dependency_seconddim * aux_Y, axis=-1)
+
+  true_selection = dataset.calculate_true_selection_variation(complete_X, classifier = None, nb_imputation=nb_imputation, normalize = True)
+
+
+  true_selection_firstdim = true_selection[:,0]
+  true_selection_seconddim = true_selection[:,1]
+  aux = torch.cat([true_selection_firstdim.unsqueeze(0), true_selection_seconddim.unsqueeze(0)], dim=0)
+  true_selection_alldim = torch.min(aux, dim=0)[0]
   
-  
-  # All dim needed :
-  mask_all_dim = torch.ones_like(complete_X)
-  dependency_all_dim = dataset.get_dependency(mask_all_dim, complete_X, index=None, dataset_type = None)
-  Y_all_dim = torch.sum(dependency_all_dim * aux_Y, axis=-1)
 
-  Y_first_dim_reshaped = Y_first_dim.reshape(1000,1000)
-  Y_second_dim_reshaped = Y_second_dim.reshape(1000,1000)
-  Y_all_dim_reshaped = Y_all_dim.reshape(1000,1000)
-
-
-
-  
-  true_selection_firstdim = torch.std(Y_first_dim_reshaped - Y_all_dim_reshaped, dim = -1, keepdim = True).expand(1000,1000)
-  true_selection_seconddim = torch.std(Y_second_dim_reshaped - Y_all_dim_reshaped, dim = 0, keepdim=True).expand(1000,1000)
-  
-  max_std = torch.max(torch.cat([true_selection_firstdim, true_selection_seconddim], dim=0))
-
-  true_selection_firstdim = 1 - true_selection_firstdim/max_std
-  true_selection_seconddim = 1 - true_selection_seconddim/max_std
-
-
-
-
-  aux = torch.cat([true_selection_firstdim.reshape(1,-1), true_selection_seconddim.reshape(1, -1)], dim=0) # Get true selection, 1 means selection; 0 means it's not necessary
-  true_selection_alldim = 1 - torch.max(aux, dim=0)[0]
-
-
+  if interpretation :
+    true_selection_firstdim = true_selection_firstdim - true_selection_alldim
+    true_selection_seconddim =  true_selection_seconddim - true_selection_alldim
 
   fig, axs = plt.subplots(nrows =1, ncols = 3, figsize = (15,5))
   colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
                                              '#f781bf', '#a65628', '#984ea3',
                                              '#999999', '#e41a1c', '#dede00']),
-                                  int(max(Y) + 1))))
+                                  2)))
 
   axs[0].contourf(grid_x, grid_y, true_selection_firstdim.reshape(grid_x.shape),  vmin=0, vmax=1.0)
   axs[1].contourf(grid_x, grid_y, true_selection_seconddim.reshape(grid_x.shape), vmin=0, vmax=1.0)
   qcs = axs[2].contourf(grid_x, grid_y, true_selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
 
-  for k in range(3):
-    axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+  if centroids is not None:
+    for k in range(3):
+      axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
   
   if train_data :
     for k in range(3):
@@ -385,14 +371,15 @@ def plot_true_interpretation_v2(dataset, path, train_data = False, nb_train_data
    ticks=range(0, 1, 20) 
   )
 
-
   complete_path = os.path.join(path, "true_dataset_selection.jpg")
+  print("Figure saved at", complete_path)
+  if interpretation :
+    complete_path = complete_path.split(".jpg")[0] + "_interpretation.jpg"
   if train_data :
     complete_path = complete_path.split(".jpg")[0] + "_train_data.jpg"
 
   plt.savefig(complete_path)
   plt.close(fig)
-
 
 
 def plot_destructor_output(destructor, dataset, path, train_data = False, nb_train_data = 1000, interpretation= False, figsize = (15,5),):
@@ -477,13 +464,14 @@ def plot_destructor_output(destructor, dataset, path, train_data = False, nb_tra
 
 
 
-def plot_model_output(trainer_var, dataset, sampling_distribution, path, imputed_centroids = False, nb_train_data = 1000, train_data = False):
+def plot_complete_model_output(trainer_var, dataset, sampling_distribution, path, imputed_centroids = False, nb_train_data = 1000, train_data = False):
   try :
     centroids = dataset.centroids
   except :
     centroids = None
   X = dataset.X_train
   Y = dataset.Y_train
+  nb_classes = dataset.nb_classes
 
   indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
   X_train = X[indexes, :]
@@ -512,21 +500,18 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path, imputed
   if next(trainer_var.classification_module.classifier.parameters()).is_cuda:
     complete_X = complete_X.cuda()
 
-  try :
-    log_y_hat_destructed = trainer_var._predict(complete_X, sampling_distribution, 2, Nexpectation = 20, index = None)    
-    pred_destruction = torch.exp(log_y_hat_destructed[:,0]).detach().cpu()
+  if hasattr(trainer_var, "destruction_module"):
+    log_y_hat_destructed = trainer_var._predict(complete_X, sampling_distribution, nb_classes, Nexpectation = 20, index = None)  
+    pred_destruction = torch.exp(log_y_hat_destructed).detach().cpu()
     destructive= True
-
-  except(AttributeError) as e :
-    print(e)
+  else :
     destructive = False
+  
 
 
   log_y_hat, _ = trainer_var.classification_module(complete_X, index = None)
-
-
-  pred_classic = torch.exp(log_y_hat[:,0]).detach().cpu()
-
+  pred_classic = torch.exp(log_y_hat).detach().cpu()
+  
 
 
   # All dim needed :
@@ -536,27 +521,29 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path, imputed
                                         '#999999', '#e41a1c', '#dede00']),
                                     int(max(Y) + 1))))
   if destructive :
-    fig, axs = plt.subplots(nrows =1, ncols = 2, figsize = (10,5))
-    axs[0].contourf(grid_x, grid_y, pred_classic.reshape(grid_x.shape),  vmin=0, vmax=1.0)
-    axs[1].contourf(grid_x, grid_y, pred_destruction.reshape(grid_x.shape), vmin=0, vmax=1.0)
-    if centroids is not None:
-      for k in range(2):
-        axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
-    
-    if train_data :
-      for k in range(2):
-        axs[k].scatter(X_train[:,0].detach().cpu(), X_train[:,1].detach().cpu(), color = colors[Y_train.detach().cpu()], alpha = 0.3)
+    fig, axs = plt.subplots(nrows = nb_classes, ncols = 2, figsize = (10, nb_classes*5))
+    for category_index in range(nb_classes):
+      axs[category_index, 0,].contourf(grid_x, grid_y, pred_classic[:,category_index].reshape(grid_x.shape),  vmin=0, vmax=1.0)
+      axs[category_index, 1,].contourf(grid_x, grid_y, pred_destruction[:,category_index].reshape(grid_x.shape), vmin=0, vmax=1.0)
+      if centroids is not None:
+        for k in range(2):
+          axs[category_index, k,].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+      
+      if train_data :
+        for k in range(2):
+          axs[category_index, k,].scatter(X_train[:,0].detach().cpu(), X_train[:,1].detach().cpu(), color = colors[Y_train.detach().cpu()], alpha = 0.3)
 
   else :
-    fig, axs = plt.subplots(nrows =1, ncols = 1, figsize = (5,5))
-    axs.contourf(grid_x, grid_y, pred_classic.reshape(grid_x.shape),  vmin=0, vmax=1.0)
+    fig, axs = plt.subplots(nrows =1, ncols = 1, figsize = (5,nb_classes*5))
+    for category_index in range(nb_classes):
+      axs[nb_classes].contourf(grid_x, grid_y, pred_classic[:,category_index].reshape(grid_x.shape),  vmin=0, vmax=1.0)
 
-    if centroids is not None:
-        axs.scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
-    if train_data :
-        axs.scatter(X_train[:,0].detach().cpu(), X_train[:,1].detach().cpu(), color = colors[Y_train.detach().cpu()], alpha = 0.3)
+      if centroids is not None:
+          axs[category_index].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+      if train_data :
+          axs[category_index].scatter(X_train[:,0].detach().cpu(), X_train[:,1].detach().cpu(), color = colors[Y_train.detach().cpu()], alpha = 0.3)
 
-  
+    
   complete_path = os.path.join(path, "output_classification.jpg")
 
 
@@ -570,41 +557,160 @@ def plot_model_output(trainer_var, dataset, sampling_distribution, path, imputed
 
 
 
-def get_dic_experiment(output_dic, to_save_dic,):
-  for key in output_dic["test"].keys():
-    save_key = key+ "_test"
-    to_save_dic[save_key]= output_dic["test"][key][-1]
-  return to_save_dic
+##  Accuracy of the experiments :
 
 
 
-def get_evaluation(trainer_var, loader, dic, dic_count_batch_size, dic_count_dim_batch_size, current_sampling_test, args_train, train = False):
-    if train:
-        suffix = "_train"
-        wanted_loader = loader.train_loader
-        
+
+   
+def compare_selection_single(dic, mask, true_masks, normalized_output = True, threshold_destructor = 0.5, suffix = "pi", true_masks_int = False):
+    batch_size = len(mask)
+    nb_dim = mask.shape[1]
+
+    for dim in range(nb_dim):
+      
+      current_mask = mask.detach().cpu()[:, dim]
+      true_current_masks = true_masks.detach().cpu()[:, dim]
+      current_mask_thresholded = torch.where(current_mask > threshold_destructor, torch.ones_like(current_mask), torch.zeros_like(current_mask))
+      accuracy = torch.sum(1-torch.abs(true_current_masks - current_mask))
+      accuracy_thresholded = torch.sum(1-torch.abs(true_current_masks - current_mask_thresholded))
+
+
+      if true_masks_int :
+        try :
+            auc_score = sklearn.metrics.roc_auc_score(true_current_masks.flatten().detach().cpu().numpy(), current_mask.flatten().detach().cpu().numpy())
+            auc_score = torch.tensor(auc_score).type(torch.float32)
+        except :
+            auc_score = torch.abs(true_current_masks - current_mask).mean()
+
+        confusion_matrix = sklearn.metrics.confusion_matrix(true_current_masks.flatten().detach().cpu().numpy(), current_mask_thresholded.flatten().detach().cpu().numpy())
+        if normalized_output : 
+          dic[f"dim_{dim}_auc_score_"+suffix] = auc_score.item()
+          dic[f"dim_{dim}_confusion_matrix_"+suffix] = confusion_matrix / batch_size
+        else :
+          dic[f"dim_{dim}_auc_score_"+suffix] = auc_score.item() * batch_size
+          dic[f"dim_{dim}_confusion_matrix_"+suffix] = confusion_matrix 
+
+      if normalized_output : 
+          accuracy = accuracy/batch_size
+          accuracy_thresholded = accuracy_thresholded/batch_size
+
+      dic[f"dim_{dim}_accuracy_"+suffix] = accuracy.item()
+      dic[f"dim_{dim}_accuracythresholded_"+suffix] = accuracy_thresholded.item()
+
+    return dic
+
+def compare_selection(mask, true_masks, normalized_output = False, train_dataset = False, sampling_distribution = None, threshold_destructor = 0.5, nb_sample_z = 100, true_masks_int = False): 
+    dic = {}
+    dic = compare_selection_single(dic, mask, true_masks, normalized_output = normalized_output, threshold_destructor = threshold_destructor, suffix = "pi")
+
+    # if sampling_distribution is not None :
+    #     mask_z = sampling_distribution(probs=mask).sample((nb_sample_z,)).flatten(0,1)
+    #     true_masks_z = true_masks.unsqueeze(0).expand(torch.Size((nb_sample_z,)) + true_masks.shape).flatten(0,1)
+    #     dic = compare_selection_single(dic, mask_z, true_masks_z, normalized_output = normalized_output, threshold_destructor = threshold_destructor, suffix = "z", true_masks_int = true_masks_int)
+    
+    return dic
+
+
+def get_evaluation_adhoc(trainer_var, loader, dic, current_sampling_test, args_train, train = False, nb_sample_z = 100,):
+  if train:
+      suffix_train = "_train_adhoc"
+      wanted_loader = loader.train_loader
+      dataset = loader.dataset
+      true_masks_nopostprocess = dataset.S_train_dataset_based_unnormalized
+  else :
+      suffix_train = "_test_adhoc"
+      wanted_loader = loader.test_loader
+      dataset = loader.dataset
+      true_masks_nopostprocess = dataset.S_test_dataset_based_unnormalized
+
+  for aux_method in ["max_normalized", "true_thresholded_05" ]:
+    if aux_method == "max_normalized" :
+      true_masks = true_masks_nopostprocess/torch.max(true_masks_nopostprocess)
+      suffix = suffix_train + "_max_normalized"
+      true_masks_int = False
+    elif aux_method == "true_thresholded_05" :
+      true_masks = torch.where(true_masks_nopostprocess > 0.5, torch.ones_like(true_masks_nopostprocess), torch.zeros_like(true_masks_nopostprocess))
+      suffix = suffix_train + "_true_thresholded_05"
+      true_masks_int = True
     else :
-        suffix = "_test"
-        wanted_loader = loader.test_loader
+      raise ValueError("Unknown aux_method")
 
-    dataset = loader.dataset
+    complete_batch_size = 0
     for (data, target, index) in iter(wanted_loader):
+        pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
         batch_size, dim = data.shape
+        current_true_masks = true_masks[index]
         if args_train["use_cuda"]:
             data = data.cuda()
+
+        comparing_dic = compare_selection(mask = pi_list, true_masks = current_true_masks, normalized_output=False, train_dataset = train, sampling_distribution = current_sampling_test, nb_sample_z=nb_sample_z, true_masks_int=true_masks_int)
+
+        for key in comparing_dic.keys():
+            if key+suffix in dic.keys():
+                dic[key+suffix] += comparing_dic[key]
+            else :
+                dic[key+suffix] = comparing_dic[key]
+        complete_batch_size += batch_size
+
+  for key in dic.keys():
+    dic[key] = dic[key]/complete_batch_size
+    print(key, dic[key])
+
+  print("========================================================")
+  return dic
+
+def get_evaluation_posthoc(trainer_var, loader, dic, current_sampling_test, args_train, train = False, nb_sample_z = 100,):
+  if train:
+      suffix_train = "_train_posthoc"
+      wanted_loader = loader.train_loader
+      dataset = loader.dataset
+  else :
+      suffix_train = "_test_posthoc"
+      wanted_loader = loader.test_loader
+      dataset = loader.dataset
+
+  for aux_method in ["max_normalized", "true_thresholded_05" ]:
+    if aux_method == "max_normalized" :
+      suffix = suffix_train + "_max_normalized"
+      true_masks_int = False
+    elif aux_method == "true_thresholded_05" :
+      suffix = suffix_train + "_true_thresholded_05"
+      true_masks_int = True
+    else :
+      raise ValueError("Unknown aux_method")
+    
+
+    complete_batch_size = 0
+    for (data, target, index) in iter(wanted_loader):
         pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
-        z_s = z_s.reshape(data.shape)
-        comparing_dic = dataset.compare_selection(pi_list, index=index, normalized = False, train_dataset = train, sampling_distribution = current_sampling_test)
+        batch_size, dim = data.shape
+
+        
+        true_masks_nopostprocess = dataset.calculate_true_selection_variation(data, classifier = trainer_var.classification_module.classifier)
+
+        if aux_method == "max_normalized" :
+          true_masks = true_masks_nopostprocess/torch.max(true_masks_nopostprocess)
+        elif aux_method == "true_thresholded_05" :
+          true_masks = torch.where(true_masks_nopostprocess > 0.5, torch.ones_like(true_masks_nopostprocess), torch.zeros_like(true_masks_nopostprocess))
+
+              
+        if args_train["use_cuda"]:
+            data = data.cuda()
+
+        comparing_dic = compare_selection(mask = pi_list, true_masks = true_masks, normalized_output=False, train_dataset = train, sampling_distribution = current_sampling_test, nb_sample_z=nb_sample_z, true_masks_int=true_masks_int)
         
         for key in comparing_dic.keys():
-            dic[key+suffix] = comparing_dic[key]
+            if key+suffix in dic.keys():
+                dic[key+suffix] += comparing_dic[key]
+            else :
+                dic[key+suffix] = comparing_dic[key]
+        complete_batch_size += batch_size
+  for key in dic.keys():
+    dic[key] = dic[key]/complete_batch_size
 
-        for key in dic_count_batch_size.keys():
-            dic_count_batch_size[key] = batch_size
-        for key in dic_count_dim_batch_size.keys():
-            dic_count_dim_batch_size[key] = dim * batch_size
 
-    return dic, dic_count_batch_size, dic_count_dim_batch_size
+  return dic
 
 
 def normalize_dic(dic, dic_count_batch_size, dic_count_dim_batch_size,):

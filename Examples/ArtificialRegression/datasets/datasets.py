@@ -1,6 +1,6 @@
 import torch
 import torchvision
-from torch.utils.data import TensorDataset, Dataset, DataLoader
+from torch.utils.data import TensorDataset, Dataset, DataLoader, dataset
 import numpy as np 
 from PIL import Image
 import copy
@@ -28,6 +28,151 @@ def create_noisy(data, noise_function):
         data_noised.append(noise_function(data[k]))
 
     return data_noised
+
+
+
+def bit_count(bin_subset):
+    ''' Cardinality of the set corresponding to bin_subset. '''
+    c = 0
+    while bin_subset:
+        bin_subset &= bin_subset - 1
+        c += 1
+    return c
+
+def gen_multivariate(n, d, max_sel_dim = 2, sigma = 0.25, prob_simplify = 0.2, mix_shape=True, exact_sel_dim = False):
+    '''
+    Generates n shapes in d dimensions
+    
+    * max_sel_dim: maximum selection cardinality
+    * sigma: min dist between points -> used to tune the Gaussian variances
+    * prob_simplify: probability to delete some generated centroids to bring diversity
+      in the shapes. For prob = 0., we generate hyper-cubes with binary labels (as an
+      hypercube defines a bipartite graph, it's possible to do that.) 
+    * mix_shape: a debugging parameter, use False to see all shapes nicely aligned
+      along a \vec{(1, 1, ...)} line.
+    '''
+    assert max_sel_dim <= d
+    X = []
+    Y = []
+    S = []
+    n_points = 0
+    shapes = []
+    to_delete = []
+
+    # 1 -- generate abstract problems
+    used = [0 for i in range(d)]
+    for i in range(n):
+        # select a ground-truth solution for the shape
+        if exact_sel_dim :
+            sel_dim = max_sel_dim
+        else :
+            sel_dim = np.random.randint(1, max_sel_dim + 1)
+        sel = sorted(list(np.random.permutation(d)[:sel_dim]))
+
+        # allocate some coordinates that do not collide with previous ones
+        x_base = []
+        for k in range(d):
+            x_base.append(used[k])
+            used[k] += 1
+        x_separated = list(x_base)  # copy
+        for k in sel:
+            x_separated[k] = used[k]
+            used[k] += 1
+
+        # add a binary hypercube in sel_dim dimensions
+        shapes.append([])
+        for j in range(2 ** sel_dim):
+            x = list(x_base)
+            for i_k, k in enumerate(sel):
+                if 1 << i_k & j > 0:
+                    x[k] = x_separated[k]  # move point along dim k
+            X.append(x)
+            if bit_count(j) % 2 == 0:
+                Y.append(1.)
+            else:
+                Y.append(0.)
+            S.append(list(sel))  # don't forget to copy! else the removal fails
+            shapes[-1].append(n_points)
+            n_points += 1
+
+        # delete hypercube points to create more complex selections
+        for j in range(2 ** sel_dim):
+            if np.random.random() < prob_simplify and bit_count(j) > 1:
+                if shapes[-1][0] + j not in to_delete:
+                    to_delete.append(shapes[-1][0] + j)
+                for l in range(sel_dim):  # frees dependences for neighbors
+                    neighbor = j ^ (1 << l)  # flip one dim to find neighbor
+                    neighbor_id = shapes[-1][neighbor]
+                    S[neighbor_id].remove(sel[l])
+                    if len(S[neighbor_id]) == 0 and (neighbor_id not in to_delete):
+                        to_delete.append(neighbor_id)  # don't keep isolated point
+
+    # effectively delete points from all lists
+    for point_to_del in sorted(to_delete)[::-1]:
+        try:
+            X.pop(point_to_del)
+            Y.pop(point_to_del)
+            S.pop(point_to_del)
+        except:
+            raise ValueError(point_to_del, sorted(to_delete))
+    to_del_ind = 0
+    for shape in shapes:  # remove from shapes
+        while to_del_ind < len(to_delete) and to_delete[to_del_ind] in shape:
+            shape.remove(to_delete[to_del_ind])
+            to_del_ind += 1
+        if to_del_ind >= len(to_delete):
+            break
+    acc_shape = 0
+    for i, shape in enumerate(shapes):  # reorder points from 1 to n.
+        l_shape = len(shape)
+        shapes[i] = list(range(acc_shape, acc_shape + l_shape))
+        acc_shape += l_shape
+
+    # 2 -- translate into real points spaced by sigma
+    real_coord = [np.linspace(0, sigma * (k_used - 1), k_used) for k_used in used]
+    for k in range(d):
+        real_coord[k] = real_coord[k] - np.mean(real_coord[k])
+        if mix_shape:
+            real_coord[k] = np.random.permutation(real_coord[k])
+    X_real = np.zeros((len(X), d))
+    for i, x in enumerate(X):
+        for k in range(d):
+            X_real[i,k] = real_coord[k][X[i][k]]
+    Y_real = np.array(Y, dtype='float32')
+
+
+    return X_real, Y_real, S, shapes
+
+def generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_samples = 20):
+    nb_point, nb_dim = centroids_X.shape
+
+    augmented_X = centroids_X.unsqueeze(1).expand(-1, nb_samples, -1).flatten(0,1)
+    new_S_reshaped = new_S.unsqueeze(1).expand(-1,nb_samples,-1).flatten(0,1)
+
+    Y = centroids_Y.unsqueeze(-1).expand(-1, nb_samples).flatten(0,1)
+    X = augmented_X + torch.normal(torch.zeros_like(augmented_X), std = sigma)
+
+    # X = X.type(torch.float32)
+
+    
+    return X,Y, new_S_reshaped
+
+def generate_distribution(centroids_X, centroids_Y, new_S, sigma, nb_sample_train = 20, nb_sample_test = 20):
+  X_train, Y_train, new_S_train = generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_sample_train)
+  X_test, Y_test, new_S_test = generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_sample_test) 
+
+  return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
+
+
+def redraw_dependency(S, nb_dim):
+  nb_shape = len(S)
+  new_S = torch.zeros((nb_shape, nb_dim))
+  for k in range(len(S)):
+    new_S[k, S[k]] = torch.ones(len(S[k]))
+
+  return new_S
+ 
+
 
 
 class TensorDatasetAugmented(TensorDataset):
@@ -78,50 +223,6 @@ class GeneratingTensorDataset(Dataset):
         else :
             return input_tensor, target
 
-# from numbers import Number
-
-# import torch
-# from torch.distributions import constraints
-# from torch.distributions.distribution import Distribution
-# from torch.distributions.utils import broadcast_all
-
-# class CircleDatasetDitribution(Distribution):
-#     # TODO allow (loc,scale) parameterization to allow independent constraints.
-#     arg_constraints = {'mask': constraints.dependent(is_discrete=False, event_dim=0),
-#                        'value': constraints.dependent(is_discrete=False, event_dim=0)}
-#     has_rsample = False
-    
-#     def __init__(self, mask, value, ratio):
-#         self.ratio = ratio
-#         self.mask, self.value = broadcast_all(mask, value)
-
-#         if isinstance(mask, Number) and isinstance(value, Number):
-#             batch_shape = torch.Size()
-#         else:
-#             batch_shape = self.low.size()
-#         super(CircleDatasetDitribution, self).__init__(batch_shape, validate_args=validate_args)
-
-#         if self._validate_args :
-#             raise ValueError("Add a method here")
-
-#     def expand(self, batch_shape, _instance=None):
-#         new = self._get_checked_instance(CircleDatasetDitribution, _instance)
-#         batch_shape = torch.Size(batch_shape)
-#         new.mask = self.mask.expand(batch_shape)
-#         new.value = self.value.expand(batch_shape)
-#         super(CircleDatasetDitribution, new).__init__(batch_shape, validate_args=False)
-#         new._validate_args = self._validate_args
-#         return new
-
-#     def sample(self, sample_shape = torch.size()):
-        
-#         x_1_missing = torch.where(self.mask[:,0] == 0, True, False)
-#         x_2_missing = torch.where(self.mask[:,1] == 0, True, False)
-
-
-#     def log_prob(self, value):
-
-    
 
 
 class CircleDataset():
@@ -391,170 +492,108 @@ class LinearSeparableDataset():
 
 
 
+class ArtificialDataset(Dataset):
+    def __init__(self, nb_sample_train = 20, nb_sample_test = 20, give_index = False, batch_size_train = None,
+                 noisy = None, use_cuda = False,) -> None:
+        super().__init__()
+        self.nb_sample_train = nb_sample_train
+        self.nb_sample_test = nb_sample_test
+        self.give_index = give_index
+        self.batch_size_train = batch_size_train
+        self.noisy = noisy
+        self.use_cuda = use_cuda
 
-def bit_count(bin_subset):
-    ''' Cardinality of the set corresponding to bin_subset. '''
-    c = 0
-    while bin_subset:
-        bin_subset &= bin_subset - 1
-        c += 1
-    return c
+    def get_true_output(self, value, mask = None, index=None, dataset_type = None):
+        raise NotImplementedError("Using abstract class ArtificialDataset")
 
-def gen_multivariate(n, d, max_sel_dim = 2, sigma = 0.25, prob_simplify = 0.2, mix_shape=True, exact_sel_dim = False):
-    '''
-    Generates n shapes in d dimensions
-    
-    * max_sel_dim: maximum selection cardinality
-    * sigma: min dist between points -> used to tune the Gaussian variances
-    * prob_simplify: probability to delete some generated centroids to bring diversity
-      in the shapes. For prob = 0., we generate hyper-cubes with binary labels (as an
-      hypercube defines a bipartite graph, it's possible to do that.) 
-    * mix_shape: a debugging parameter, use False to see all shapes nicely aligned
-      along a \vec{(1, 1, ...)} line.
-    '''
-    assert max_sel_dim <= d
-    X = []
-    Y = []
-    S = []
-    n_points = 0
-    shapes = []
-    to_delete = []
+    def impute(self, value, mask=None, index=None, dataset_type = None):
+        raise NotImplementedError("Using abstract class ArtificialDataset")
 
-    # 1 -- generate abstract problems
-    used = [0 for i in range(d)]
-    for i in range(n):
-        # select a ground-truth solution for the shape
-        if exact_sel_dim :
-            sel_dim = max_sel_dim
-        else :
-            sel_dim = np.random.randint(1, max_sel_dim + 1)
-        sel = sorted(list(np.random.permutation(d)[:sel_dim]))
+    def calculate_true_selection_variation(self, X, normalize = False, classifier = None, nb_imputation = 100,):
+        """
+        Calculate the true selection for the given data X using the true definition of the dataset. If classifier is None, uses the true definition of output from the dataset.
+        """
+        output_S = np.zeros(X.shape)
 
-        # allocate some coordinates that do not collide with previous ones
-        x_base = []
-        for k in range(d):
-            x_base.append(used[k])
-            used[k] += 1
-        x_separated = list(x_base)  # copy
-        for k in sel:
-            x_separated[k] = used[k]
-            used[k] += 1
+        if classifier is None :
+            classifier = lambda x: self.get_true_output(x)
+        
+        nb_batch = X.shape[0] // self.batch_size_train + 1
 
-        # add a binary hypercube in sel_dim dimensions
-        shapes.append([])
-        for j in range(2 ** sel_dim):
-            x = list(x_base)
-            for i_k, k in enumerate(sel):
-                if 1 << i_k & j > 0:
-                    x[k] = x_separated[k]  # move point along dim k
-            X.append(x)
-            if bit_count(j) % 2 == 0:
-                Y.append(1.)
-            else:
-                Y.append(0.)
-            S.append(list(sel))  # don't forget to copy! else the removal fails
-            shapes[-1].append(n_points)
-            n_points += 1
+        for k in range(nb_batch) :
+            if k != nb_batch - 1 :
+                X_batch = X[k*self.batch_size_train:(k+1)*self.batch_size_train]
+            else :
+                X_batch = X[k*self.batch_size_train:]
 
-        # delete hypercube points to create more complex selections
-        for j in range(2 ** sel_dim):
-            if np.random.random() < prob_simplify and bit_count(j) > 1:
-                if shapes[-1][0] + j not in to_delete:
-                    to_delete.append(shapes[-1][0] + j)
-                for l in range(sel_dim):  # frees dependences for neighbors
-                    neighbor = j ^ (1 << l)  # flip one dim to find neighbor
-                    neighbor_id = shapes[-1][neighbor]
-                    S[neighbor_id].remove(sel[l])
-                    if len(S[neighbor_id]) == 0 and (neighbor_id not in to_delete):
-                        to_delete.append(neighbor_id)  # don't keep isolated point
+        
+            if k*self.batch_size_train == len(X):
+  
+                continue
 
-    # effectively delete points from all lists
-    for point_to_del in sorted(to_delete)[::-1]:
-        try:
-            X.pop(point_to_del)
-            Y.pop(point_to_del)
-            S.pop(point_to_del)
-        except:
-            raise ValueError(point_to_del, sorted(to_delete))
-    to_del_ind = 0
-    for shape in shapes:  # remove from shapes
-        while to_del_ind < len(to_delete) and to_delete[to_del_ind] in shape:
-            shape.remove(to_delete[to_del_ind])
-            to_del_ind += 1
-        if to_del_ind >= len(to_delete):
-            break
-    acc_shape = 0
-    for i, shape in enumerate(shapes):  # reorder points from 1 to n.
-        l_shape = len(shape)
-        shapes[i] = list(range(acc_shape, acc_shape + l_shape))
-        acc_shape += l_shape
+            batch_size = X_batch.shape[0]
 
-    # 2 -- translate into real points spaced by sigma
-    real_coord = [np.linspace(0, sigma * (k_used - 1), k_used) for k_used in used]
-    for k in range(d):
-        real_coord[k] = real_coord[k] - np.mean(real_coord[k])
-        if mix_shape:
-            real_coord[k] = np.random.permutation(real_coord[k])
-    X_real = np.zeros((len(X), d))
-    for i, x in enumerate(X):
-        for k in range(d):
-            X_real[i,k] = real_coord[k][X[i][k]]
-    Y_real = np.array(Y, dtype='float32')
+            X_batch = X_batch.unsqueeze(0).expand(torch.Size((nb_imputation,))+X_batch.shape).flatten(0,1)
+            if output_S.shape[-1] == 2 :
+                mask = torch.ones_like(X_batch, dtype=torch.float32)
+
+                mask_firstdim = mask.clone()
+                mask_firstdim[:,0] = torch.zeros(X_batch.shape[0], dtype=torch.float32)
+                
+
+                X_batch_first_dim = self.impute_result(mask_firstdim, X_batch)
+                Y_first_dim = classifier(X_batch_first_dim).reshape(nb_imputation, batch_size, self.nb_classes)
 
 
-    return X_real, Y_real, S, shapes
+                mask_seconddim = mask.clone()
+                mask_seconddim[:,1] = torch.zeros(X_batch.shape[0], dtype=torch.float32)
+                X_batch_second_dim = self.impute_result(mask_seconddim, X_batch)
+                Y_second_dim = classifier(X_batch_second_dim).reshape(nb_imputation, batch_size, self.nb_classes)
 
-def generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_samples = 20):
-    nb_point, nb_dim = centroids_X.shape
-    # plt.scatter(centroids_X[:,0], centroids_X[:,1])
-    # plt.show()
-    augmented_X = centroids_X.unsqueeze(1).expand(-1, nb_samples, -1).flatten(0,1)
-    new_S_reshaped = new_S.unsqueeze(1).expand(-1,nb_samples,-1).flatten(0,1)
-    # plt.scatter(augmented_X[:,0], augmented_X[:,1])
-    # plt.show()
+                                
+                true_selection_firstdim = torch.mean(torch.std(Y_first_dim, dim=0), axis=-1)
+                true_selection_seconddim = torch.mean(torch.std(Y_second_dim, dim=0), axis=-1)
+        
+                if k != nb_batch - 1 :
+                    output_S[k*self.batch_size_train:(k+1)*self.batch_size_train,0] = true_selection_firstdim.detach().cpu().numpy()
+                    output_S[k*self.batch_size_train:(k+1)*self.batch_size_train,1] = true_selection_seconddim.detach().cpu().numpy()                
+                else :
+                    output_S[k*self.batch_size_train:,0] = true_selection_firstdim.detach().cpu().numpy()
+                    output_S[k*self.batch_size_train:,1] = true_selection_seconddim.detach().cpu().numpy()   
+                
 
+            else :
+                raise NotImplementedError("Not implemented for more than 2 dimensions") 
 
-    Y = centroids_Y.unsqueeze(-1).expand(-1, nb_samples).flatten(0,1)
-    X = augmented_X + torch.normal(torch.zeros_like(augmented_X), std = sigma)
-    # plt.scatter(X[:,0], X[:,1])
-    # plt.show()
-    
-    return X,Y, new_S_reshaped
+        output_S = torch.tensor(output_S).type(torch.float32)
+        if normalize :
+            output_S /= torch.max(output_S)
 
-def generate_distribution(centroids_X, centroids_Y, new_S, sigma, nb_sample_train = 20, nb_sample_test = 20):
-  X_train, Y_train, new_S_train = generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_sample_train)
-  X_test, Y_test, new_S_test = generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_sample_test) 
+        return output_S
 
-  return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
-
-
-def redraw_dependency(S, nb_dim):
-  nb_shape = len(S)
-  new_S = torch.zeros((nb_shape, nb_dim))
-  for k in range(len(S)):
-    new_S[k, S[k]] = torch.ones(len(S[k]))
-
-  return new_S
- 
-
-
-class HypercubeDataset(Dataset):
+class HypercubeDataset(ArtificialDataset):
     def __init__(self, nb_shape = None, nb_dim = None,  sigma=1.0, ratio_sigma = 0.25, prob_simplify=0.2,
                  nb_sample_train = 20, nb_sample_test = 20, give_index = False, batch_size_train = None,
                  noisy = None, use_cuda = False, centroids_path = None,
                  generate_new = False, save = False, generate_each_time = True,
                  exact_sel_dim = False, max_sel_dim = 2):
 
+        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, batch_size_train = batch_size_train,
+                 noisy = noisy, use_cuda = use_cuda,)
+
         self.nb_shape = nb_shape
         self.nb_dim = nb_dim
         self.sigma = sigma  
+        self.nb_classes = 2
         print(f"Given sigma is {sigma}")
-        self.use_cuda = use_cuda
         self.prob_simplify = prob_simplify
         self.ratio_sigma = ratio_sigma
+        self.index_neighboors_train = None
+        self.index_neighboors_test = None
 
 
         if generate_new :
+            print("Generate new data")
             if nb_shape is None or nb_dim is None :
                 raise ValueError("Can't generate new dataset without information on dim and shapes")
             self.centroids, self.centroids_Y, self.S, self.shapes = gen_multivariate(n = nb_shape, d = nb_dim, max_sel_dim= max_sel_dim, sigma=sigma, prob_simplify=prob_simplify, exact_sel_dim=exact_sel_dim)
@@ -566,6 +605,9 @@ class HypercubeDataset(Dataset):
                         os.makedirs(os.path.dirname(centroids_path))
                     np.save(centroids_path, (self.centroids, self.centroids_Y, self.S, self.shapes))
         else :
+            print("Load data from file")
+            if not centroids_path.endswith(".npy"):
+                centroids_path += ".npy"
             if (centroids_path is None) or (not os.path.exists(centroids_path)):
                 raise FileNotFoundError(f"Did not find the file at {centroids_path}")
             self.centroids, self.centroids_Y, self.S, self.shapes = np.load(centroids_path, allow_pickle=True)
@@ -611,19 +653,19 @@ class HypercubeDataset(Dataset):
         if self.use_cuda :
             self.centroids = self.centroids.cuda()
             self.centroids_Y =self.centroids_Y.cuda()
-
-
-        self.nb_sample_train = nb_sample_train
-        self.nb_sample_test = nb_sample_test
-        self.give_index = give_index
-        self.batch_size_train = batch_size_train
         self.generate_each_time = generate_each_time
 
-        self.new_S = redraw_dependency(self.S, self.nb_dim)
+        self.S_exactdef = redraw_dependency(self.S, self.nb_dim)
         if self.use_cuda :
-            self.new_S = self.new_S.cuda()
-        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate_distribution(self.centroids, self.centroids_Y, self.new_S, self.gaussian_noise, self.nb_sample_train, self.nb_sample_test)
+            self.S_exactdef = self.S_exactdef.cuda()
+        self.X_train, self.Y_train, self.S_train_exactdef, self.X_test, self.Y_test, self.S_test_exactdef = generate_distribution(self.centroids, self.centroids_Y, self.S_exactdef, self.gaussian_noise, self.nb_sample_train, self.nb_sample_test)
         
+        
+        self.S_train_dataset_based_unnormalized = self.calculate_true_selection_variation(self.X_train,)
+        self.S_test_dataset_based_unnormalized = self.calculate_true_selection_variation(self.X_test,)
+        
+        
+
         if self.generate_each_time :
             self.dataset_train = GeneratingTensorDataset(function=self.sample_function, len= self.batch_size_train, give_index = self.give_index)
         else :
@@ -652,60 +694,6 @@ class HypercubeDataset(Dataset):
             if diff_index in deleted_directions:
                 list_index.append(index)
         return list_index
-
-    def compare_selection_single(self, dic, mask, true_masks, normalized = False, threshold = 0.5, suffix = "pi"):
-        batch_size = len(mask)
-        if mask.is_cuda :
-            mask_thresholded = torch.where(mask > threshold, torch.tensor(1.).cuda(), torch.tensor(0.).cuda())
-        else :
-            mask_thresholded =  torch.where(mask > threshold, torch.tensor(1.), torch.tensor(0.))
-        accuracy = torch.sum(1-torch.abs(true_masks - mask))
-        accuracy_thresholded = torch.sum(1-torch.abs(true_masks - mask_thresholded))
-        proportion = torch.count_nonzero(torch.all(torch.abs(true_masks - mask) == 0,axis=-1))
-        proportion_thresholded = torch.count_nonzero(torch.all(torch.abs(true_masks - mask_thresholded) == 0,axis=-1))
-        try :
-            auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
-            auc_score = torch.tensor(auc_score).type(torch.float32)
-        except :
-            auc_score = torch.tensor(-1.)
-        if normalized : 
-            accuracy = accuracy/self.nb_dim/batch_size
-            accuracy_thresholded = accuracy_thresholded/self.nb_dim/batch_size
-            proportion = proportion/batch_size
-        else :
-            auc_score = auc_score*self.nb_dim*batch_size
-
-        dic["accuracy_selection_"+suffix] = accuracy.item()
-        dic["accuracy_selection_thresholded_"+suffix] = accuracy_thresholded.item()
-        dic["proportion_"+suffix] = proportion.item()
-        dic["proportion_thresholded_"+suffix] = proportion_thresholded.item()
-        dic["auc_score_"+suffix] = auc_score.item()
-
-        return dic
- 
-    def compare_selection(self, mask, index = None, normalized = False, train_dataset = False, sampling_distribution = None, threshold = 0.5, nb_sample_z = 100):
-
-        dic = {}
-        if train_dataset :
-          current_S = self.new_S_train
-        else :
-          current_S = self.new_S_test
-
-        if index is not None :
-            true_masks = current_S[index]
-        else :
-            true_masks = current_S
-
-        dic = self.compare_selection_single(dic, mask, true_masks, normalized = normalized, threshold = threshold, suffix = "pi")
-
-
-        if sampling_distribution is not None :
-            mask_z = sampling_distribution(probs=mask).sample((nb_sample_z,))
-            true_masks_z = true_masks.unsqueeze(0).expand(torch.Size((nb_sample_z,)) + true_masks.shape)
-            dic = self.compare_selection_single(dic, mask_z, true_masks_z, normalized = normalized, threshold = threshold, suffix = "z")
-        
-        
-        return dic
 
     def get_true_selection(self, index,  train_dataset = True):
         if not self.give_index :
@@ -736,6 +724,20 @@ class HypercubeDataset(Dataset):
 
         return dependency
 
+    def get_true_output(self, value, mask = None, index=None, dataset_type = None):
+        batch_size, _ = value.shape
+        nb_centroids, dim = self.centroids.shape
+        if mask is None :
+            mask = torch.ones(value.shape)
+
+        dependency = self.get_dependency(mask, value, index = None, dataset_type = None)
+        aux_y = self.centroids_Y.unsqueeze(0).expand(batch_size, nb_centroids,)
+        out_y = torch.sum(dependency * aux_y, dim = -1).unsqueeze(-1)
+        out_y = torch.cat([out_y, torch.ones(batch_size, 1) - out_y], dim = -1)
+
+    
+
+        return out_y
 
     def impute_result(self, mask, value, index = None, dataset_type=None): 
         """ On part du principe que la value est complète mais c'est pas le cas encore, à gérer, sinon il faut transmettre l'index"""
@@ -758,101 +760,122 @@ class HypercubeDataset(Dataset):
         index_resampling = torch.argmax(index_resampling,axis=-1)
 
         wanted_centroids = self.centroids[index_resampling]
-        sampled = wanted_centroids + torch.normal(torch.zeros_like(wanted_centroids), self.gaussian_noise)
+        sampled = wanted_centroids + torch.normal(torch.zeros_like(wanted_centroids), self.gaussian_noise).type(torch.float32)
 
         no_imputation_index = torch.where(torch.all(mask==1,axis=-1), True, False).unsqueeze(-1).expand(batch_size, dim)
+
         sampled = torch.where(no_imputation_index, value, sampled)
 
         return sampled
 
+    # def calculate_local_neighboors(self, dataset_type = None, epsilon_selection = 0.5):
+    #     if dataset_type == "train" :
+    #         X = self.X_train
+    #     elif dataset_type == "test" :
+    #         X = self.X_test
+    #     else :
+    #         raise ValueError("dataset_type must be train or test")
+    #     nb_centroids, dim = self.centroids.shape
+    #     index_neighboors = []
+    #     for x in X :
+    #         x = x.unsqueeze(0)
+    #         distance = torch.linalg.norm(X - x.expand(X.shape), dim = -1)
+    #         index_neighboors.append(torch.where(distance < epsilon_selection)[0])
+    #     if dataset_type=="train" :
+    #         self.index_neighboors_train = index_neighboors
+    #     else :
+    #         self.index_neighboors_test = index_neighboors    
+        
 
-class LinearDataset(Dataset):
+
+
+
+    # def local_impute(self, mask, value, index=None, dataset_type=None, epsilon_selection = 0.5, sigma_impute = 0.05):
+    #     # TODO : Could be improved by adding some methods
+    #     if index is None :
+    #         raise ValueError("You need to give the index in the distribution if you want to use local imputation")
+
+    #     batch_size, _ = value.shape
+    #     if dataset_type == "train" :
+    #         X = self.X_train
+    #         if self.index_neighboors_train is None :
+    #             self.calculate_local_neighboors(dataset_type = "train", epsilon_selection=epsilon_selection)
+    #         index_neighboors = self.index_neighboors_train
+    #     else :
+    #         X = self.X_test
+    #         if self.index_neighboors_test is None :
+    #             self.calculate_local_neighboors(dataset_type = "test", epsilon_selection=epsilon_selection)
+    #         index_neighboors = self.index_neighboors_test
+
+
+    #     samples_list = []
+    #     for i in range(len(value)):
+    #         current_mask = mask[i]
+    #         current_value = value[i]
+    #         current_neighboors = X[index_neighboors[i]]
+    #         current_value = current_value.unsqueeze(0).expand(current_neighboors.shape)
+    #         current_mask = current_mask.unsqueeze(0).expand(current_neighboors.shape)
+            
+    #         dependency = (((current_value - current_neighboors)/sigma_impute)**2)/2
+    #         dependency = torch.where(current_mask == 0, torch.ones_like(dependency), dependency)
+    #         dependency = torch.exp(-torch.prod(dependency, axis=-1))  +1e-8
+    #         dependency /= torch.sum(dependency, axis=-1, keepdim = True)
+
+    #         index_resampling = torch.distributions.Multinomial(probs = dependency).sample().type(torch.int64)
+    #         index_resampling = torch.argmax(index_resampling,axis=-1)
+
+    #         wanted_centroid = current_neighboors[index_resampling]
+    #         sampled = wanted_centroid + torch.normal(torch.zeros_like(wanted_centroid), self.gaussian_noise)
+            
+            
+
+
+
+
+
+
+class LinearDataset(ArtificialDataset):
     def __init__(self, nb_sample_train = 1000, nb_sample_test = 1000, give_index = False, 
                  batch_size_train = None, use_cuda = False, noisy = None):
-        super().__init__()
+        
+        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, batch_size_train = batch_size_train,
+                 noisy = noisy, use_cuda = use_cuda,)
+
+        
         self.nb_sample_train = nb_sample_train
         self.nb_sample_test = nb_sample_test
         self.give_index = give_index
         self.batch_size_train = batch_size_train
         self.use_cuda = use_cuda
         self.nb_dim = 2
+        self.nb_classes = 2
 
         nb_sample = nb_sample_test + nb_sample_train
         X = scipy.stats.uniform([-2.0,-2.0], [4,4]).rvs((nb_sample,2))
         Y = np.where(X[:,0]<-X[:,1], np.ones((nb_sample)), np.zeros((nb_sample))).astype(np.int64)
 
-        self.X_train = torch.tensor(X[:nb_sample_train])
+        self.X_train = torch.tensor(X[:nb_sample_train], dtype= torch.float32)
         self.Y_train = torch.tensor(Y[:nb_sample_train], dtype = torch.int64)
-        self.new_S_train = torch.ones_like(self.X_train)
         
-        self.X_test = torch.tensor(X[nb_sample_train:])
+        
+        self.X_test = torch.tensor(X[nb_sample_train:], dtype=torch.float32)
         self.Y_test = torch.tensor(Y[nb_sample_train:], dtype = torch.int64)
-        self.new_S_test = torch.ones_like(self.X_test)
+        
 
-        print()
+        self.S_train_exactdef = torch.ones_like(self.X_train)
+        self.S_test_exactdef = torch.ones_like(self.X_test)
+
+
+        self.S_train_dataset_based_unnormalized = self.calculate_true_selection_variation(self.X_train,)
+        self.S_test_dataset_based_unnormalized = self.calculate_true_selection_variation(self.X_test,)
+        
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
     
-    def compare_selection_single(self, dic, mask, true_masks, normalized = False, threshold = 0.5, suffix = "pi"):
-        mask = mask.detach().cpu()
-        true_masks = true_masks.detach().cpu()
 
-        batch_size = len(mask)
-        if mask.is_cuda :
-            mask_thresholded = torch.where(mask > threshold, torch.tensor(1.).cuda(), torch.tensor(0.).cuda())
-        else :
-            mask_thresholded =  torch.where(mask > threshold, torch.tensor(1.), torch.tensor(0.))
-        accuracy = torch.sum(1-torch.abs(true_masks - mask))
-        accuracy_thresholded = torch.sum(1-torch.abs(true_masks - mask_thresholded))
-        proportion = torch.count_nonzero(torch.all(torch.abs(true_masks - mask) == 0,axis=-1))
-        proportion_thresholded = torch.count_nonzero(torch.all(torch.abs(true_masks - mask_thresholded) == 0,axis=-1))
-
-        try :
-            auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
-            auc_score = torch.tensor(auc_score).type(torch.float32)
-        except :
-            auc_score = torch.tensor(-1.)
-        if normalized : 
-            accuracy = accuracy/self.nb_dim/batch_size
-            accuracy_thresholded = accuracy_thresholded/self.nb_dim/batch_size
-            proportion = proportion/batch_size
-        else :
-            auc_score = auc_score*self.nb_dim*batch_size
-
-        dic["accuracy_selection_"+suffix] = accuracy.item()
-        dic["accuracy_selection_thresholded_"+suffix] = accuracy_thresholded.item()
-        dic["proportion_"+suffix] = proportion.item()
-        dic["proportion_thresholded_"+suffix] = proportion_thresholded.item()
-        dic["auc_score_"+suffix] = auc_score.item()
-
-        return dic
     def get_dim(self):
         return self.nb_dim
  
-    def compare_selection(self, mask, index = None, normalized = False, train_dataset = False, sampling_distribution = None, threshold = 0.5, nb_sample_z = 100):
-
-        dic = {}
-        if train_dataset :
-          current_S = self.new_S_train
-        else :
-          current_S = self.new_S_test
-
-        if index is not None :
-            true_masks = current_S[index]
-        else :
-            true_masks = current_S
-
-        dic = self.compare_selection_single(dic, mask, true_masks, normalized = normalized, threshold = threshold, suffix = "pi")
-
-
-        if sampling_distribution is not None :
-            mask_z = sampling_distribution(probs=mask).sample((nb_sample_z,))
-            true_masks_z = true_masks.unsqueeze(0).expand(torch.Size((nb_sample_z,)) + true_masks.shape)
-            dic = self.compare_selection_single(dic, mask_z, true_masks_z, normalized = normalized, threshold = threshold, suffix = "z")
-        
-        
-        return dic
-
     def get_true_selection(self, index,  train_dataset = True):
         if not self.give_index :
             raise AttributeError("You need to give the index in the distribution if you want to use true Selection as input of a model")
@@ -867,22 +890,43 @@ class LinearDataset(Dataset):
         true_S_value = true_S[index]
         return true_S_value
 
+    def get_true_output(self, value, mask=None, index=None, dataset_type = None):
+        if mask is None :
+            mask = torch.ones_like(value, dtype=torch.float32)
+        
+        aux_value = mask * value
+        output = torch.where(aux_value[:,0]<aux_value[:,1], torch.tensor(1., dtype=torch.float32), torch.tensor(0., dtype=torch.float32))
+        aux_output = torch.sum((2 - aux_value)/4 * mask, dim = -1)
+        
+        output = torch.where(torch.all(mask >0.5 , dim = -1), output, aux_output)
+        output = torch.where(torch.all(mask <0.5, dim = -1), torch.tensor(0.5, dtype = torch.float32), output)
+        
+        output = output.unsqueeze(-1)
+        output = torch.cat((output, torch.ones_like(output) - output), dim = -1)
+
+        return output            
+
     def impute_result(self, mask, value, index = None, dataset_type=None): 
         uniform = torch.distributions.uniform.Uniform(-2.0,2.0)
-        resampled_value = uniform.sample(value.shape)
+        resampled_value = uniform.sample(value.shape).type(torch.float32)
         if value.is_cuda :
             resampled_value = resampled_value.cuda()
-        sampled = torch.where(mask == 1, value, resampled_value)
+        
+        try :
+            sampled = torch.where(mask>0.5, value, resampled_value)
+        except(RuntimeError):
+            print(mask, value, resampled_value)
         return sampled
 
 
 
 ## Dataset based on standard gaussian
 
-class StandardGaussianDataset(Dataset):
+class StandardGaussianDataset(ArtificialDataset):
     def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
                  batch_size_train = None, use_cuda = False, ):
-        super().__init__()
+        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, batch_size_train = batch_size_train,
+                 use_cuda = use_cuda,)
         self.sigma = sigma  
         self.nb_sample_train = nb_sample_train
         self.nb_sample_test = nb_sample_test
@@ -890,57 +934,6 @@ class StandardGaussianDataset(Dataset):
         self.batch_size_train = batch_size_train
         self.use_cuda = use_cuda
 
-
-    def compare_selection_single(self, dic, mask, true_masks, normalized = False, threshold = 0.5, suffix = "pi"):
-        batch_size = len(mask)
-        if mask.is_cuda :
-            mask_thresholded = torch.where(mask > threshold, torch.tensor(1.).cuda(), torch.tensor(0.).cuda())
-        else :
-            mask_thresholded =  torch.where(mask > threshold, torch.tensor(1.), torch.tensor(0.))
-        accuracy = torch.sum(1-torch.abs(true_masks - mask))
-        accuracy_thresholded = torch.sum(1-torch.abs(true_masks - mask_thresholded))
-        proportion = torch.count_nonzero(torch.all(torch.abs(true_masks - mask) == 0,axis=-1))
-        proportion_thresholded = torch.count_nonzero(torch.all(torch.abs(true_masks - mask_thresholded) == 0,axis=-1))
-        auc_score = sklearn.metrics.roc_auc_score(true_masks.flatten().detach().cpu().numpy(), mask.flatten().detach().cpu().numpy())
-        auc_score = torch.tensor(auc_score).type(torch.float32)
-        if normalized : 
-            accuracy = accuracy/self.nb_dim/batch_size
-            accuracy_thresholded = accuracy_thresholded/self.nb_dim/batch_size
-            proportion = proportion/batch_size
-        else :
-            auc_score = auc_score*self.nb_dim*batch_size
-
-        dic["accuracy_selection_"+suffix] = accuracy.item()
-        dic["accuracy_selection_thresholded_"+suffix] = accuracy_thresholded.item()
-        dic["proportion_"+suffix] = proportion.item()
-        dic["proportion_thresholded_"+suffix] = proportion_thresholded.item()
-        dic["auc_score_"+suffix] = auc_score.item()
-
-        return dic
- 
-    def compare_selection(self, mask, index = None, normalized = False, train_dataset = False, sampling_distribution = None, threshold = 0.5, nb_sample_z = 100):
-
-        dic = {}
-        if train_dataset :
-          current_S = self.new_S_train
-        else :
-          current_S = self.new_S_test
-
-        if index is not None :
-            true_masks = current_S[index]
-        else :
-            true_masks = current_S
-
-        dic = self.compare_selection_single(dic, mask, true_masks, normalized = normalized, threshold = threshold, suffix = "pi")
-
-
-        if sampling_distribution is not None :
-            mask_z = sampling_distribution(probs=mask).sample((nb_sample_z,))
-            true_masks_z = true_masks.unsqueeze(0).expand(torch.Size((nb_sample_z,)) + true_masks.shape)
-            dic = self.compare_selection_single(dic, mask_z, true_masks_z, normalized = normalized, threshold = threshold, suffix = "z")
-        
-        
-        return dic
 
     def get_true_selection(self, index,  train_dataset = True):
         if not self.give_index :
@@ -981,7 +974,6 @@ def generate_XOR(sigma, nb_sample_train, nb_sample_test,):
     Y_train,  Y_test = Y[:nb_sample_train], Y[nb_sample_train:]
     new_S_train = torch.cat([torch.ones((nb_sample_train, 2)),torch.zeros((nb_sample_train, 8))], axis=1)
     new_S_test = torch.cat([torch.ones((nb_sample_test, 2)),torch.zeros((nb_sample_test, 8))], axis=1)
-
 
     return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
 
@@ -1129,11 +1121,10 @@ class SwitchFeature(StandardGaussianDataset):
     
     def impute_result(self, mask, value, index = None, dataset_type=None):
         
-        
         bern = torch.bernoulli(torch.full(mask.shape, fill_value=torch.tensor(0.5)))
         mean = bern * 3 + (1 - bern) * -3
         
-        normal_distrib = torch.distributions.normal.Normal(mean,sigma)
+        normal_distrib = torch.distributions.normal.Normal(mean,self.sigma)
         resampled_value = normal_distrib.sample()
         sampled = torch.where(mask == 1, value, resampled_value)
         return sampled

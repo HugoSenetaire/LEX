@@ -306,12 +306,18 @@ class ReparametrizedTraining(ordinaryTraining):
     def _predict(self, data, sampling_distribution, nb_category, Nexpectation = 1, index = None):
         if self.use_cuda :
             data, _, index = on_cuda(data, target = None, index = index,)
-
+        batch_size = data.size(0)
         data_expanded, target_expanded, index_expanded, one_hot_target_expanded = prepare_data_augmented(data, target = None, index=index, one_hot_target = None, Nexpectation = Nexpectation, nb_imputation = None)
 
 
         pi_list, log_pi_list, loss_reg, z, p_z = self._destructive_test(data, sampling_distribution, Nexpectation)
-        y_hat, _ = self.classification_module(data_expanded.flatten(0,1), z.flatten(0,1), index_expanded.flatten(0,1))
+        if index_expanded is not None :
+            index_expanded_flatten = index_expanded.flatten(0,1)
+        else :
+            index_expanded_flatten = None
+
+        y_hat, _ = self.classification_module(data_expanded.flatten(0,1), z.flatten(0,1), index_expanded_flatten)
+        y_hat = y_hat.reshape(Nexpectation, batch_size, nb_category)
         y_hat_mean = torch.logsumexp(y_hat,0) - torch.log(torch.tensor(Nexpectation))
         return y_hat_mean
 
