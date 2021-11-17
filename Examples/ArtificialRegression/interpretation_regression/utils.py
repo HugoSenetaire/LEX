@@ -687,13 +687,14 @@ def get_evaluation_posthoc(trainer_var, loader, dic, current_sampling_test, args
 
     complete_batch_size = 0
     for (data, target, index) in iter(wanted_loader):
-        pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
-        batch_size, dim = data.shape
         if args_train["use_cuda"] :
           data = data.cuda()
           index = index.cuda()
 
         
+        pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
+        batch_size, dim = data.shape
+
         true_masks_nopostprocess = dataset.calculate_true_selection_variation(data, classifier = trainer_var.classification_module.classifier)
 
         if aux_method == "max_normalized" :
