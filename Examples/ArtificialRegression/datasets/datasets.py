@@ -731,8 +731,8 @@ class HypercubeDataset(ArtificialDataset):
         nb_centroids, dim = self.centroids.shape
         if mask is None :
             mask = torch.ones(value.shape)
-            if value.is_cuda:
-                mask.cuda()    
+        if value.is_cuda:
+            mask.cuda()    
     
 
         
