@@ -709,6 +709,8 @@ class HypercubeDataset(ArtificialDataset):
         batch_size, _ = value.shape
         nb_centroids, dim = self.centroids.shape
         
+        mask = mask.cpu()
+        value = value.cpu()
         
         mask_reshape = mask.unsqueeze(1).expand(batch_size, nb_centroids, dim)
         value_reshape = value.unsqueeze(1).expand(batch_size, nb_centroids, dim)
