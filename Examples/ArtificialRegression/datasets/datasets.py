@@ -738,6 +738,8 @@ class HypercubeDataset(ArtificialDataset):
 
         dependency = self.get_dependency(mask, value, index = None, dataset_type = None)
         aux_y = self.centroids_Y.unsqueeze(0).expand(batch_size, nb_centroids,)
+        if value.is_cuda:
+            aux_y = aux_y.cuda()   
         out_y = torch.sum(dependency * aux_y, dim = -1).unsqueeze(-1)
         out_y = torch.cat([out_y, torch.ones(batch_size, 1) - out_y], dim = -1)
 
