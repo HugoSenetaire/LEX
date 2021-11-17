@@ -709,12 +709,12 @@ class HypercubeDataset(ArtificialDataset):
         batch_size, _ = value.shape
         nb_centroids, dim = self.centroids.shape
         
-        mask = mask.cpu()
-        value = value.cpu()
+        # mask = mask.cpu()
+        # value = value.cpu()
         
         mask_reshape = mask.unsqueeze(1).expand(batch_size, nb_centroids, dim)
         value_reshape = value.unsqueeze(1).expand(batch_size, nb_centroids, dim)
-        centroids_reshape = self.centroids.unsqueeze(0).expand(batch_size, nb_centroids, dim).cpu()
+        centroids_reshape = self.centroids.unsqueeze(0).expand(batch_size, nb_centroids, dim)
         sigma = torch.ones_like(value_reshape) * self.gaussian_noise
 
 
@@ -731,9 +731,14 @@ class HypercubeDataset(ArtificialDataset):
         nb_centroids, dim = self.centroids.shape
         if mask is None :
             mask = torch.ones(value.shape)
+            if value.is_cuda:
+                mask.cuda()    
+    
+
+        
 
         dependency = self.get_dependency(mask, value, index = None, dataset_type = None)
-        aux_y = self.centroids_Y.unsqueeze(0).expand(batch_size, nb_centroids,).cpu()
+        aux_y = self.centroids_Y.unsqueeze(0).expand(batch_size, nb_centroids,)
         out_y = torch.sum(dependency * aux_y, dim = -1).unsqueeze(-1)
         out_y = torch.cat([out_y, torch.ones(batch_size, 1) - out_y], dim = -1)
 
