@@ -741,6 +741,9 @@ class HypercubeDataset(ArtificialDataset):
         if value.is_cuda:
             aux_y = aux_y.cuda()   
         out_y = torch.sum(dependency * aux_y, dim = -1).unsqueeze(-1)
+        one_vector = torch.ones(batch_size, 1)
+        if value.is_cuda :
+            one_vector = one_vector.cuda()
         out_y = torch.cat([out_y, torch.ones(batch_size, 1) - out_y], dim = -1)
 
     
