@@ -638,6 +638,9 @@ def get_evaluation_adhoc(trainer_var, loader, dic, current_sampling_test, args_t
 
     complete_batch_size = 0
     for (data, target, index) in iter(wanted_loader):
+        if trainer_var.destruction_module.destructor.is_cuda :
+          data = data.cuda()
+          index = index.cuda()
         pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
         batch_size, dim = data.shape
         current_true_masks = true_masks[index]
