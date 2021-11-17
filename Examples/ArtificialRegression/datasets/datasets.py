@@ -733,7 +733,7 @@ class HypercubeDataset(ArtificialDataset):
             mask = torch.ones(value.shape)
 
         dependency = self.get_dependency(mask, value, index = None, dataset_type = None)
-        aux_y = self.centroids_Y.unsqueeze(0).expand(batch_size, nb_centroids,)
+        aux_y = self.centroids_Y.unsqueeze(0).expand(batch_size, nb_centroids,).cpu()
         out_y = torch.sum(dependency * aux_y, dim = -1).unsqueeze(-1)
         out_y = torch.cat([out_y, torch.ones(batch_size, 1) - out_y], dim = -1)
 
