@@ -3,7 +3,9 @@
 # from .utils_missing import *
 import numpy as np
 from psutil import net_connections
-from .completeTrainer import *
+
+
+from .classicTraining import *
 from .utils import *
 
 
@@ -40,39 +42,26 @@ def save_parameters(path, args_dataset, args_classification, args_destruction, a
     with open(os.path.join(complete_path,"output.txt"), "w") as f:
         f.write(str(args_output))
 
-def get_dataset(args_dataset, args_train, args_classification, args_destruction):
-    if "HypercubeDataset" in str(args_dataset["dataset"]):
-        dataset = partial(args_dataset["dataset"],
-                         nb_shape = args_dataset["nb_shape"],
-                         nb_dim = args_dataset["nb_dim"],
-                         ratio_sigma = args_dataset["ratio_sigma"],
-                         sigma = args_dataset["sigma"],
-                         prob_simplify = args_dataset["prob_simplify"],
-                         nb_sample_train = args_dataset["nb_samples_train"],
-                         nb_sample_test = args_dataset["nb_samples_test"],
-                         give_index = args_dataset["give_index"],
-                         centroids_path = args_dataset["centroids_path"],
-                         generate_new = args_dataset["generate_new"],
-                         use_cuda= args_train["use_cuda"],
-                         save = args_dataset["save"],
-                         generate_each_time = args_dataset["generate_each_time"],
-                         )
-        loader = args_dataset["loader"](dataset, root_dir = args_dataset["root_dir"], batch_size_test=args_dataset["batch_size_test"], batch_size_train=args_dataset["batch_size_train"], nb_sample_train = args_dataset["nb_samples_train"], nb_sample_test = args_dataset["nb_samples_test"])
-        nb_dim = loader.dataset.nb_dim
-        args_classification["input_size_classification_module"] = (1,nb_dim) # Size before imputation
-        args_classification["input_size_classifier"] = (1,nb_dim) # Size after imputation
-        args_classification["input_size_classifier_baseline"] = (1,nb_dim) # Size before imputation (should be size of data)
-        args_destruction["input_size_destructor"] = (1,nb_dim)
-        args_destruction["input_size_autoencoder"] = (1,nb_dim)
-    else :
-        dataset = partial(args_dataset["dataset"], give_index = args_dataset["give_index"])
-        loader = args_dataset["loader"](dataset, root_dir = args_dataset["root_dir"], batch_size_test=args_dataset["batch_size_test"], batch_size_train=args_dataset["batch_size_train"])
+def get_dataset(args_dataset,):
+
+    dataset = args_dataset["dataset"](**args_dataset)
+    loader = args_dataset["loader"](dataset, batch_size_test=args_dataset["batch_size_test"], batch_size_train=args_dataset["batch_size_train"],)
     return dataset, loader
 
+def comply_size(dataset, args_classification, args_destruction, args_complete_trainer):
+    dim_shape = dataset.get_dim_input()
+    args_classification["input_size_classification_module"] = dim_shape # Size before imputation
+    args_classification["input_size_classifier"] = dim_shape # Size after imputation
+    args_classification["input_size_baseline"] = dim_shape # Size before imputation (should be size of data)
+    args_destruction["input_size_destructor"] = dim_shape
+    args_destruction["output_size_destructor"] = dim_shape
+    args_destruction["input_size_autoencoder"] = dim_shape
+    args_complete_trainer["input_size_baseline"] = dim_shape
+    args_complete_trainer["reshape_mask_function"] = partial(args_complete_trainer["reshape_mask_function"], size = dim_shape)
 
 def get_imputation_method(args_class):
     
-    if args_class["imputation"] is ConstantImputation or args_class["imputation"] is ConstantImputation_ContinuousAddMask or args_class["imputation"] is ConstantImputation_ContinuousAddMaskV2:
+    if args_class["imputation"] is ConstantImputation :
         return partial(args_class["imputation"], cste = args_class["cste_imputation"], add_mask = args_class["add_mask"])
     elif args_class["imputation"] is LearnConstantImputation:
         return partial(args_class["imputation"], add_mask = args_class["add_mask"])
@@ -130,52 +119,52 @@ def get_multiple_imputation(args_classification, args_train, loader):
     return post_proc_regul
 
 
-def get_networks(args_classification, args_destruction, args_complete_trainer, loader):
+def get_networks(args_classification, args_destruction, args_complete_trainer, output_category):
     input_size_destructor = args_destruction["input_size_destructor"]
-    input_size_classifier = args_classification["input_size_classifier"]
-    input_size_classifier_baseline = args_classification["input_size_classifier_baseline"]
+    output_size_destructor = args_destruction["output_size_destructor"]
+    input_size_classifier = args_classification["input_size_classification_module"]
+    input_size_baseline = args_classification["input_size_classification_module"]
 
-    classifier =  args_classification["classifier"](input_size_classifier, loader.get_category())
-    destructor = args_destruction["destructor"](input_size_destructor)
+    classifier =  args_classification["classifier"](input_size_classifier, output_category)
+    destructor = args_destruction["destructor"](input_size_destructor, output_size_destructor)
     
 
     if args_destruction["destructor_var"] is not None :
-        destructor_var = args_destruction["destructor_var"](input_size_destructor)
+        destructor_var = args_destruction["destructor_var"](input_size_destructor, output_size_destructor)
     else :
         destructor_var = None
 
     
-    if args_classification["classifier_baseline"] is not None :
-        classifier_baseline = args_classification["classifier_baseline"](input_size_classifier_baseline,loader.get_category())
+    if args_complete_trainer["baseline"] is not None :
+        baseline = args_complete_trainer["baseline"](input_size_baseline, output_category)
     else :
-        classifier_baseline = None
+        baseline = None
  
+    return classifier, destructor, baseline, destructor_var
 
-    if args_complete_trainer["feature_extractor"] is not None :
-        feature_extractor = args_complete_trainer["feature_extractor"]().cuda()
-    else :
-        feature_extractor = None
-
-
-    return classifier, destructor, classifier_baseline, destructor_var, feature_extractor
+def get_regularization_method(args_destruction):
+    regularization = args_destruction["regularization"](**args_destruction)
+    return regularization
 
 
-def check_parameters_compatibility(args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output):
-    sampling_distrib = args_train["sampling_distribution_train"]
+
+def check_parameters_compatibility(args_classification, args_destruction, args_distribution_module, args_complete_trainer, args_train, args_test, args_output):
+    sampling_distrib = args_distribution_module["distribution"]
     activation = args_destruction["activation"]
-    # if args_train["sampling_distribution_train"] in [RelaxedSubsetSampling, RelaxedSubsetSampling_STE, L2X_Distribution_STE, L2X_Distribution] \
-    #     and args_destruction["activation"] != torch.nn.LogSoftmax() :
-    #     raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
+    if args_distribution_module["distribution"] in [RelaxedSubsetSampling, RelaxedSubsetSampling_STE, L2X_Distribution_STE, L2X_Distribution] \
+        and args_destruction["activation"] != torch.nn.LogSoftmax() :
+        raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
     
-    # if args_train["sampling_distribution_train"] in [RelaxedBernoulli_thresholded_STE, RelaxedBernoulli] \
-    #     and args_destruction["activation"] != torch.nn.LogSigmoid() :
-    #     raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
+    if args_distribution_module["distribution"] in [RelaxedBernoulli_thresholded_STE, RelaxedBernoulli] \
+        and args_destruction["activation"] != torch.nn.LogSigmoid() :
+        raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
 
 
-def experiment(args_dataset, args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output, name_modification = True):
+def experiment(args_output, args_dataset, args_classification, args_destruction, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = True):
     
     dataset = args_dataset["dataset"]
     dic_list = {}
+
     ### Prepare output path :
     origin_path = args_output["path"]
     if not os.path.exists(origin_path):
@@ -201,20 +190,15 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     save_parameters(final_path, args_dataset, args_classification,
                      args_destruction, args_complete_trainer,
                       args_train, args_test, args_output)
-    check_parameters_compatibility(args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output)
+    check_parameters_compatibility(args_classification, args_destruction, args_distribution_module, args_complete_trainer, args_train, args_test, args_output)
 
     ### Datasets :
-    dataset, loader = get_dataset(args_dataset, args_train, args_classification, args_destruction)
-    kernel_patch = args_destruction["kernel_patch"]
-    stride_patch = args_destruction["stride_patch"]
-    
+    dataset, loader = get_dataset(args_dataset,)
+    if args_complete_trainer["comply_with_dataset"] :
+        comply_size(dataset, args_classification, args_destruction, args_complete_trainer)
 
     ## Sampling :
-    sampling_distribution_train = args_train["sampling_distribution_train"]
-    sampling_distribution_train_var = args_train["sampling_distribution_train_var"]
-    sampling_distribution_test = args_test["sampling_distribution_test"]
-    use_cuda = args_train["use_cuda"]
-
+    distribution_module = get_distribution_module_from_args(args_distribution_module)
 
     ### Imputation :
     imputationMethod = get_imputation_method(args_classification)  
@@ -222,37 +206,35 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     ### Multiple imputation :
     post_proc_regul = get_multiple_imputation(args_classification, args_train, loader)
 
+    ### Regularization method :
+    regularization = get_regularization_method(args_destruction)
 
     ### Networks :
-    classifier, destructor, classifier_baseline, destructor_var, feature_extractor = get_networks(args_classification, args_destruction, args_complete_trainer, loader)
+    classifier, destructor, baseline, destructor_var = get_networks(args_classification, args_destruction, args_complete_trainer, dataset.get_dim_output())
 
     post_hoc_guidance = None
     ##### ============ Training POST-HOC ============= ####
 
     if args_train["post_hoc"] and args_train["post_hoc_guidance"] is not None :
         print("Training post-hoc guidance")
-        post_hoc_classifier =  args_train["post_hoc_guidance"](args_destruction["input_size_destructor"], loader.get_category())
-        post_hoc_guidance = ClassificationModule(post_hoc_classifier, use_cuda = args_train["use_cuda"],feature_extractor=None, imputation = None)
-        post_hoc_guidance.kernel_update(kernel_patch, stride_patch)
+        post_hoc_classifier =  args_train["post_hoc_guidance"](args_destruction["input_size_destructor"], dataset.get_dim_output())
+        post_hoc_guidance = ClassificationModule(post_hoc_classifier, imputation = None)
         optim_post_hoc = args_train["optim_post_hoc"](post_hoc_guidance.parameters())
 
         if args_train["scheduler_post_hoc"] is not None :
             scheduler_post_hoc = args_train["scheduler_post_hoc"](optim_post_hoc)
         else :
             scheduler_post_hoc = None
-        trainer_var = ordinaryTraining(post_hoc_guidance, feature_extractor=None )
-
+        trainer = ordinaryTraining(classification_module = post_hoc_guidance,)
+        trainer.compile(optimizer=optim_post_hoc, scheduler_classification = scheduler_post_hoc)
 
         nb_epoch = args_train["nb_epoch_post_hoc"]
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(nb_epoch):
-            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier = optim_post_hoc,
-                                                save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),
-                                                scheduler_classification = scheduler_post_hoc,
-                                                )
+            dic_train = trainer.train_epoch(epoch, loader, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
-                dic_test = trainer_var.test(loader)
+                dic_test = trainer.test(loader)
 
             
             total_dic_train = fill_dic(total_dic_train, dic_train)
@@ -268,18 +250,10 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
     ##### ============ Modules initialisation for ordinary training ============:
 
     if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection  or args_complete_trainer["complete_trainer"] is trainingWithSelection or args_train["nb_epoch_pretrain"]>0 :
-
-        scheduler_feature_extractor = None
-        if args_complete_trainer["feature_extractor"] is not None :
-            optim_feature_extractor = args_complete_trainer["feature_extractor"]()
-            if args_train["scheduler_feature_extractor"] is not None :
-                scheduler_feature_extractor = args_train["scheduler_feature_extractor"](optim_feature_extractor)
-        else :
-            optim_feature_extractor = None
-
+        
         if args_complete_trainer["complete_trainer"] is trainingWithSelection :
             imputation = imputationMethod(input_size= args_classification["input_size_classification_module"], post_process_regularization = post_proc_regul,
-                        reconstruction_reg= None, use_cuda = args_train["use_cuda"])
+                        reconstruction_reg= None, )
         else :
             imputation = None
             
@@ -288,8 +262,7 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         else :
             nb_epoch = args_train["nb_epoch_pretrain"]
 
-        vanilla_classification_module = ClassificationModule(classifier, use_cuda = args_train["use_cuda"],feature_extractor=feature_extractor, imputation = imputation)
-        vanilla_classification_module.kernel_update(kernel_patch, stride_patch)
+        vanilla_classification_module = ClassificationModule(classifier, imputation = imputation)
         optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
 
 
@@ -298,23 +271,16 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         else :
             scheduler_classification = None
 
-        if args_complete_trainer["complete_trainer"] is trainingWithSelection :
-            trainer_var = args_complete_trainer["complete_trainer"](vanilla_classification_module, feature_extractor=feature_extractor )
-        else :
-            trainer_var = ordinaryTraining(vanilla_classification_module, feature_extractor=feature_extractor )
+        trainer = args_complete_trainer["complete_trainer"](vanilla_classification_module,)
+        trainer.compile(optimizer=optim_classifier, scheduler_classification = scheduler_classification,)
 
 
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(nb_epoch):
-            dic_train = trainer_var.train_epoch(epoch, loader, optim_classifier, optim_feature_extractor= optim_feature_extractor,
-                                                save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),
-                                                scheduler_feature_extractor = scheduler_feature_extractor, scheduler_classification = scheduler_classification,
-                                                )
+            dic_train = trainer.train_epoch(epoch, loader, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
-                dic_test = trainer_var.test(loader)
-
-            
+                dic_test = trainer.test(loader) 
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test = fill_dic(total_dic_test, dic_test)
             
@@ -325,173 +291,115 @@ def experiment(args_dataset, args_classification, args_destruction, args_complet
         dic_list["test"]  = total_dic_test
 
         if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection:
-            return final_path, trainer_var, loader, dic_list
+            return final_path, trainer, loader, dic_list
 
 
 
     ##### ============  Modules initialisation for complete training ===========:
     if args_complete_trainer["complete_trainer"] is not ordinaryTraining and args_complete_trainer["complete_trainer"] is not trainingWithSelection :
-        
+
         if args_classification["reconstruction_regularization"] is not None :
             recons_regul = args_classification["reconstruction_regularization"](args_classification["autoencoder"], to_train = args_classification["train_reconstruction_regularization"])
         else : 
             recons_regul = None
 
+        destruction_module = DestructionModule(destructor,
+                            activation=args_destruction["activation"],
+                            regularization=regularization,
+                            )
 
-        destruction_module = DestructionModule(destructor, feature_extractor=feature_extractor, activation=args_destruction["activation"], regularization=args_destruction["regularization"], use_cuda = args_train["use_cuda"])
-        destruction_module.kernel_update(kernel_patch, stride_patch)
-        if args_destruction["destructor_var"] is not None :
-            destruction_module_var = DestructionModule(destructor_var, feature_extractor=feature_extractor, activation=args_destruction["activation"], regularization= free_regularization)
-            destruction_module_var.kernel_update(kernel_patch, stride_patch)
-        else :
-            destruction_module_var = None
-        imputation = imputationMethod(input_size= args_classification["input_size_classification_module"], post_process_regularization = post_proc_regul,
-                        reconstruction_reg= recons_regul, use_cuda = args_train["use_cuda"])
-        classification_module = ClassificationModule(classifier, imputation=imputation, feature_extractor=feature_extractor)
-        classification_module.kernel_update(kernel_patch, stride_patch)
+        imputation = imputationMethod(input_size= args_classification["input_size_classification_module"],
+                                    post_process_regularization = post_proc_regul,
+                                    reconstruction_reg= recons_regul,
+                                    )
+
+        classification_module = ClassificationModule(classifier, imputation=imputation)
         
 
         if args_train["post_hoc"] and args_train["post_hoc_guidance"] is None :
             print("Training in PostHoc without a variational approximation")
             post_hoc_guidance = classification_module
 
-        if args_complete_trainer["complete_trainer"] is variationalTraining :
-            trainer_var = args_complete_trainer["complete_trainer"](
-                classification_module,
-                destruction_module,
-                destruction_module_var,
-                baseline=classifier_baseline,
-                feature_extractor=feature_extractor,
-                use_cuda = use_cuda,
-            )
-        else :
-            trainer_var = args_complete_trainer["complete_trainer"](
-                classification_module,
-                destruction_module,
-                baseline=classifier_baseline,
-                feature_extractor=feature_extractor,
-                use_cuda = use_cuda,
-                fix_classifier_parameters = args_train["fix_classifier_parameters"],
-                post_hoc_guidance = post_hoc_guidance,
-                argmax_post_hoc_classification = args_train["argmax_post_hoc_classification"]
-            )
+
+        trainer = args_complete_trainer["complete_trainer"](
+            classification_module,
+            destruction_module,
+            distribution_module = distribution_module,
+            baseline = baseline,
+            reshape_mask_function = args_complete_trainer["reshape_mask_function"],
+            fix_classifier_parameters = args_train["fix_classifier_parameters"],
+            post_hoc_guidance = post_hoc_guidance,
+            argmax_post_hoc = args_train["argmax_post_hoc"],
+        )
 
 
         ####Optimizer :
-        optim_classification = args_train["optim_classification"](classification_module.parameters(), weight_decay = 1e-5)
-        if args_train["scheduler_classification"] is not None :
-            scheduler_classification = args_train["scheduler_classification"](optim_classification)
+        optim_classification = args_compiler["optim_classification"](classification_module.parameters(), weight_decay = 1e-5)
+        if args_compiler["scheduler_classification"] is not None :
+            scheduler_classification = args_compiler["scheduler_classification"](optim_classification)
         else :
             scheduler_classification = None
 
 
-        optim_destruction = args_train["optim_destruction"](destruction_module.parameters(), weight_decay = 1e-5)
-        if args_train["scheduler_destruction"] is not None :
-            scheduler_destruction = args_train["scheduler_destruction"](optim_destruction)
+        optim_destruction = args_compiler["optim_destruction"](destruction_module.parameters(), weight_decay = 1e-5)
+        if args_compiler["scheduler_destruction"] is not None :
+            scheduler_destruction = args_compiler["scheduler_destruction"](optim_destruction)
         else :
             scheduler_destruction = None
-
-        if args_destruction["destructor_var"] is not None :
-            optim_destruction_var = args_train["optim_destruction_var"](destruction_module_var.parameters(), weight_decay = 1e-5)
-            scheduler_destruction_var = args_train["scheduler_destruction_var"](optim_destruction_var)
-        else :
-            optim_destruction_var = None
-            scheduler_destruction_var = None
-
         
-        if args_classification["classifier_baseline"] is not None :
-            optim_baseline = args_train["optim_baseline"](classifier_baseline.parameters(), weight_decay = 1e-5)
-            scheduler_baseline = args_train["scheduler_baseline"](optim_baseline)
+        if args_complete_trainer["baseline"] is not None :
+            optim_baseline = args_compiler["optim_baseline"](baseline.parameters(), weight_decay = 1e-5)
+            scheduler_baseline = args_compiler["scheduler_baseline"](optim_baseline)
         else :
             optim_baseline = None
             scheduler_baseline = None
 
-    
-
-        if args_complete_trainer["feature_extractor"] is not None :
-            optim_feature_extractor = args_train["optim_feature_extractor"](feature_extractor.parameters(), weight_decay = 1e-5)
-            scheduler_feature_extractor = args_train["scheduler_feature_extractor"](optim_feature_extractor)
+        if args_compiler["optim_distribution_module"] is not None and len(list(distribution_module.parameters())) > 0 :
+                optim_distribution_module = args_compiler["optim_distribution_module"](distribution_module.parameters(), weight_decay = 1e-5)
+                scheduler_distribution_module = args_compiler["scheduler_distribution_module"](optim_distribution_module)
         else :
-            optim_feature_extractor = None
-            scheduler_feature_extractor = None
+            optim_distribution_module = None
+            scheduler_distribution_module = None
 
+        trainer.compile(optim_classification = optim_classification,
+            optim_destruction = optim_destruction,
+            scheduler_classification = scheduler_classification,
+            scheduler_destruction = scheduler_destruction,
+            optim_baseline = optim_baseline,
+            scheduler_baseline = scheduler_baseline,
+            optim_distribution_module = optim_distribution_module,
+            scheduler_distribution_module = scheduler_distribution_module,)
 
 
 
 ######============== Complete module training================:
 
-        temperature = torch.tensor([args_train["temperature_train_init"]])
-
-        if torch.cuda.is_available():
-            temperature = temperature.cuda()
 
         total_dic_train = {}
-        total_dic_test_no_var = {}
+        total_dic_test = {}
         total_dic_test_no_var_2 = {}
         total_dic_test_var = {}
         for epoch in range(args_train["nb_epoch"]):
-            current_sampling = get_distribution(sampling_distribution_train, temperature, args_train)
-            current_sampling_test = get_distribution(sampling_distribution_test, temperature, args_train)
+            dic_train = trainer.train_epoch(
+                epoch, loader,
+                save_dic = True,
+                nb_sample_z=args_train["nb_sample_z_train"],
+                verbose = ((epoch+1) % args_train["print_every"] == 0),
+            )
 
-
-            if args_complete_trainer["complete_trainer"] is variationalTraining :
-                current_sampling_var = get_distribution(sampling_distribution_train_var, temperature, args_train)
-                dic_train = trainer_var.train_epoch( 
-                    epoch, loader,
-                    optim_classification, optim_destruction, optim_destruction_var,
-                    current_sampling,
-                    current_sampling_var,
-                    optim_baseline=optim_baseline,
-                    optim_feature_extractor= optim_feature_extractor,
-                    lambda_reg = args_destruction["lambda_regularisation"],
-                    lambda_reg_var = args_destruction["lambda_regularisation_var"],
-                    lambda_reconstruction = args_classification["lambda_reconstruction"],
-                    save_dic = True,
-                    Nexpectation=args_train["Nexpectation_train"],
-                    print_dic_bool = ((epoch+1) % args_train["print_every"] == 0),
-                    scheduler_classification = scheduler_classification,
-                    scheduler_destruction = scheduler_destruction,
-                    scheduler_destruction_var = scheduler_destruction_var,
-                    scheduler_baseline = scheduler_baseline, 
-                    scheduler_feature_extractor = scheduler_feature_extractor,
-                )
-                if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch ==args_train["nb_epoch"]-1:
-                    dic_test_no_var = trainer_var.test_no_var(loader, current_sampling_test, Nexpectation=args_test["Nexpectation_test"])
-                    dic_test_var = trainer_var.test_var(loader, current_sampling_test, current_sampling_test, Nexpectation = args_test["Nexpectation_test"])
-                    total_dic_test_var = fill_dic(total_dic_test_var, dic_test_var)
-            else :   
-                dic_train = trainer_var.train_epoch(
-                    epoch, loader,
-                    optim_classification, optim_destruction,
-                    current_sampling,
-                    optim_baseline=optim_baseline,
-                    optim_feature_extractor= optim_feature_extractor,
-                    lambda_reg = args_destruction["lambda_regularisation"],
-                    lambda_reconstruction = args_classification["lambda_reconstruction"],
-                    save_dic = True,
-                    Nexpectation=args_train["Nexpectation_train"],
-                    print_dic_bool = ((epoch+1) % args_train["print_every"] == 0),
-                    scheduler_classification = scheduler_classification,
-                    scheduler_destruction = scheduler_destruction,
-                    scheduler_baseline = scheduler_baseline, 
-                    scheduler_feature_extractor = scheduler_feature_extractor,
-                )
-
-                if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch ==args_train["nb_epoch"]-1:
-                    dic_test_no_var = trainer_var.test_no_var(loader, current_sampling_test, Nexpectation=args_test["Nexpectation_test"])
-                    total_dic_train = fill_dic(total_dic_train, dic_train)
-                    total_dic_test_no_var = fill_dic(total_dic_test_no_var, dic_test_no_var)
+            if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch ==args_train["nb_epoch"]-1:
+                dic_test = trainer.test(loader, nb_sample_z=args_test["nb_sample_z_test"])
+                total_dic_train = fill_dic(total_dic_train, dic_train)
+                total_dic_test = fill_dic(total_dic_test, dic_test)
            
-            
-            temperature *= args_train["temperature_decay"]
         save_dic(os.path.join(final_path,"train"), total_dic_train)
-        save_dic(os.path.join(final_path,"test_no_var"), total_dic_test_no_var)
+        save_dic(os.path.join(final_path,"test"), total_dic_test)
         if args_complete_trainer["complete_trainer"] is variationalTraining :
             save_dic(os.path.join(final_path, "test_var"), total_dic_test_var)
             dic_list["test_var"] = total_dic_test_var
 
         dic_list["train"] = total_dic_train
-        dic_list["test"]  = total_dic_test_no_var
+        dic_list["test"]  = total_dic_test
         
 
-    return final_path, trainer_var, loader, dic_list 
+    return final_path, trainer, loader, dic_list 

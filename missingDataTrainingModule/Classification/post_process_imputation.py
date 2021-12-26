@@ -14,97 +14,31 @@ import inspect
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
 
-class BaseMethod():
-  def __init__(self):
-    self.to_train = False
-    self.multiple_imputation = False
-
-  def cuda(self):
-    return 0
-
-  def eval(self):
-    return 0
-  
-  def train(self):
-    return 0
-
-  
-
-class NetworkBasedPostProcess(BaseMethod):
-  def __init__(self, network, to_train = False, deepcopy = False, use_cuda = True):
-    BaseMethod.__init__(self)
-    self.network = network
-    self.to_train = to_train
-    self.multiple_imputation = False
-    self.use_cuda = use_cuda
-    
-    if deepcopy :
-      self.network = copy.deepcopy(self.network)
-    
-    self.network = self.network.cuda()
-    if not to_train :
-      for param in self.network.parameters():
-          param.requires_grad = False
-
-  def cuda(self):
-    self.network = self.network.cuda()
-
-  def eval(self):
-    self.network.eval()
-
-  def train(self):
-    self.network.train()
-
-  def parameters(self):
-    return self.network.parameters()
-
-  def __call__(self, data_expanded, data_imputed, sample_b,index = None):
-    raise NotImplementedError
+#### UTILS 
 
 
-
-class MultipleImputation(BaseMethod):
-  def __init__(self, nb_imputation):
-    super().__init__()
-    self.multiple_imputation = True
-    self.nb_imputation = nb_imputation
-    self.eval_mode = False
-
-  def eval(self):
-    self.eval_mode = True
-
-  def train(self):
-    self.eval_mode = False
-
-  def check_mode(self):
-    if self.eval_mode :
-      return 1
-    else :
-      return self.nb_imputation
-
-
-
-class NetworkBasedMultipleImputation(NetworkBasedPostProcess, MultipleImputation):
-  def __init__(self, network, to_train = False, deepcopy = False, nb_imputation = 3, use_cuda = True):
-    NetworkBasedPostProcess.__init__(self, network, to_train=to_train, deepcopy=deepcopy)
-    MultipleImputation.__init__(self, nb_imputation = nb_imputation)
-    self.use_cuda = use_cuda
-
-  def eval(self):
-    NetworkBasedPostProcess.eval(self)
-    MultipleImputation.eval(self)
-
-  def train(self):
-    NetworkBasedPostProcess.train(self)
-    MultipleImputation.train(self)
+def expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation, index = None):
+    wanted_transform = torch.Size((nb_imputation,)) + data_expanded.shape
+    data_imputed_expanded = data_imputed.unsqueeze(0).expand(wanted_transform).flatten(0,1)
+    data_expanded_imputation = data_expanded.unsqueeze(0).expand(wanted_transform).flatten(0,1) 
+    mask_expanded = sample_b.unsqueeze(0).expand(wanted_transform).flatten(0,1)
+    if index is not None :
+      wanted_transform_index = torch.Size((nb_imputation,)) + index.shape
+      index_expanded = index.unsqueeze(0).expand(wanted_transform_index).flatten(0,1)
+    else:
+      index_expanded = None
+    return data_imputed_expanded, data_expanded_imputation, mask_expanded, index_expanded
 
 
 
 
+
+
+##### POST PROCESS :
 
 
 ### SAMPLE_B REGULARIZATION :
-class SampleB_regularization(BaseMethod):
+class SampleB_regularization(nn.Module):
   def __init__(self):
     super().__init__()
     self.to_train = False
@@ -155,6 +89,61 @@ class Complete_Inversion_Regularization(SampleB_regularization):
     return sample_b
 
 
+##### MORE COMPLICATED IMPUTATION :
+  
+
+class NetworkBasedPostProcess(nn.Module):
+  def __init__(self, network, deepcopy = False, to_train = False):
+    super(NetworkBasedPostProcess, self).__init__()
+    self.network = network
+    self.multiple_imputation = False
+
+    self.to_train = to_train
+    if deepcopy :
+      self.network = copy.deepcopy(self.network)
+    self.network = self.network.cuda()
+
+  def train(self):
+    super(NetworkBasedPostProcess, self).train()
+    if not self.to_train :
+      self.network.eval()
+
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None):
+    raise NotImplementedError
+
+
+
+class MultipleImputation(nn.Module):
+  def __init__(self, nb_imputation):
+    super().__init__()
+    self.multiple_imputation = True
+    self.nb_imputation = nb_imputation
+
+
+
+  def check_mode(self):
+    if self.training :
+      return self.nb_imputation
+    else :
+      return 1
+
+
+
+class NetworkBasedMultipleImputation(NetworkBasedPostProcess, MultipleImputation):
+  def __init__(self, network, to_train = False, deepcopy = False, nb_imputation = 3, use_cuda = True):
+    NetworkBasedPostProcess.__init__(self, network, to_train=to_train, deepcopy=deepcopy)
+    MultipleImputation.__init__(self, nb_imputation = nb_imputation)
+    self.use_cuda = use_cuda
+
+  def eval(self):
+    NetworkBasedPostProcess.eval(self)
+    MultipleImputation.eval(self)
+
+  def train(self):
+    NetworkBasedPostProcess.train(self)
+    MultipleImputation.train(self)
+
+
 
 ### LOSS REGULARIZATION : 
 
@@ -198,18 +187,6 @@ class NetworkTransformMask(NetworkBasedPostProcess):
     data_reconstructed = data_imputed * (1-sample_b) + self.network(data_imputed) * sample_b 
     return data_reconstructed, data_expanded, sample_b
 
-def expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation, index = None):
-    wanted_transform = torch.Size((nb_imputation,)) + data_expanded.shape
-    data_imputed_expanded = data_imputed.unsqueeze(0).expand(wanted_transform).flatten(0,1)
-    data_expanded_imputation = data_expanded.unsqueeze(0).expand(wanted_transform).flatten(0,1) 
-    mask_expanded = sample_b.unsqueeze(0).expand(wanted_transform).flatten(0,1)
-    if index is not None :
-      wanted_transform_index = torch.Size((nb_imputation,)) + index.shape
-      index_expanded = index.unsqueeze(0).expand(wanted_transform_index).flatten(0,1)
-    else:
-      index_expanded = None
-    return data_imputed_expanded, data_expanded_imputation, mask_expanded, index_expanded
-
 
 
     
@@ -228,7 +205,7 @@ class DatasetBasedImputation(MultipleImputation):
 
   def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
     if self.exist :
-      if not self.eval_mode :
+      if self.training :
         dataset_type = "Train"
         imputation_number = self.nb_imputation
       else :
@@ -265,51 +242,10 @@ def load_VAEAC(path_model):
                           map_location=location)
   model.load_state_dict(checkpoint['model_state_dict'])
   model.eval()
-  # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-  # validation_iwae = checkpoint['validation_iwae']
-  # train_vlb = checkpoint['train_vlb']
+
   return model, sampler
 
 
-# class VAEAC_Imputation(NetworkBasedPostProcess):
-#   def __init__(self, network, sampler, nb_imputation = 10, to_train = False, use_cuda = False, deepcopy= False):
-#     super().__init__(network= network, to_train=to_train, use_cuda=use_cuda, deepcopy=deepcopy)
-#     self.nb_imputation = nb_imputation
-#     self.sampler = sampler
-#     self.multiple_imputation = True
-#     raise NotImplementedError
-#   def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
-#     batch = data_imputed
-#     masks = 1-sample_b
-#     init_shape = batch.shape[0]
-#     if torch.cuda.is_available():
-#         batch = batch.cuda()
-#         masks = masks.cuda()
-
-        
-#     if not self.eval_mode :
-#       nb_imputation = self.nb_imputation
-#     else :
-#       nb_imputation = 1
-      
-
-
-#     # compute imputation distributions parameters
-#     samples_params = self.network.generate_samples_params(batch,
-#                                                   masks,
-#                                                   nb_imputation)
-
-    
-#     img_samples = self.sampler(samples_params, multiple = True)
-
-
-
-    
-#     _, data_expanded, sample_b, _ = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
-
-#     new_data = img_samples *  (1-mask_expanded) + data_expanded * mask_expanded 
-#     new_data = new_data.flatten(0,1)
-#     return new_data, data_expanded, mask_expanded
 
 class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
   def __init__(self, network, sampler, nb_imputation = 10, to_train = False, use_cuda = False, deepcopy= False):
@@ -330,40 +266,21 @@ class VAEAC_Imputation_DetachVersion(NetworkBasedMultipleImputation):
         batch = batch.cuda()
         masks = masks.cuda()
 
-
-    if not self.eval_mode :
-      nb_imputation = self.nb_imputation
-    else :
-      nb_imputation = 1
     
 
   
     with torch.no_grad():
-
-      # compute imputation distributions parameters
       samples_params = self.network.generate_samples_params(batch.detach(),
                                                     masks.detach(),
                                                     nb_imputation,
                                                     need_observed = False)
-      # img_samples = []
-      # for element in samples_params :
+
       img_samples = self.sampler(samples_params, multiple = True).flatten(0,1)
-
-
 
     
     _, data_expanded, sample_b, _ = expand_for_imputations(data_imputed, data_expanded, sample_b, nb_imputation)
     new_data = img_samples.detach() *  (1-sample_b) + data_expanded.detach() * sample_b 
-    # if np.random.rand()<0.01:
-    #   fig, axs = plt.subplots(3,2)
-    #   axs[0,0].imshow(batch[0].reshape(28,28).detach().cpu().numpy(), cmap = 'gray')
-    #   axs[0,1].imshow(masks[0].reshape(28,28).detach().cpu().numpy(), cmap = 'gray')
-    #   axs[1,0].imshow(img_samples[0].reshape(28,28).detach().cpu().numpy(), cmap='gray')
-    #   axs[1,1].imshow(new_data[0].reshape(28,28).detach().cpu().numpy(), cmap='gray')
-    #   axs[2,0].imshow(img_samples[1].reshape(28,28).detach().cpu().numpy(), cmap='gray')
-    #   axs[2,1].imshow(new_data[1].reshape(28,28).detach().cpu().numpy(), cmap='gray')
-    #   plt.show()
-      # plt.close(fig)
+
     return new_data, data_expanded, sample_b
 
 class VAEAC_Imputation_Renormalized(NetworkBasedMultipleImputation):
@@ -385,12 +302,6 @@ class VAEAC_Imputation_Renormalized(NetworkBasedMultipleImputation):
         batch = batch.cuda()
         masks = masks.cuda()
 
-
-    if not self.eval_mode :
-      nb_imputation = self.nb_imputation
-    else :
-      nb_imputation = 1
-    
 
   
     with torch.no_grad():
@@ -997,6 +908,383 @@ class HMM():
     output_total = torch.nn.functional.one_hot(output_total.squeeze(),self.output_dim).transpose(-1,-2)
     return output_total
 
+
+  
+
+def log_matmul(M1, M2):
+  torch.exp(M1, M2)
+
+def op_plus_eq(X1, X2):
+  return torch.logsumexp(torch.cat([X1.unsqueeze(0), X2.unsqueeze(0)],axis=0),axis=0)
+
+class HMMLog():
+  def __init__(self, train_loader, hidden_dim, nb_iter = 10, nb_start= 5, use_cuda = True, 
+               train_hmm = True, save_weights=True, path_weights = None,
+               ):
+    aux = next(iter(train_loader))
+    if len(aux) == 3:
+      data, target, index = aux
+    else :
+      data, target = aux
+      index = None
+      
+    batch_size, output_dim, sequence_len = data.shape
+    self.sequence_len = sequence_len
+    self.output_dim = output_dim
+    self.hidden_dim = hidden_dim
+    self.nb_iter = nb_iter
+    self.nb_start = nb_start
+    self.use_cuda = use_cuda
+    self.name = f"HMM_{self.output_dim}_{self.hidden_dim}_{self.sequence_len}"
+    self.train_hmm = train_hmm
+    self.save_weights = save_weights
+
+
+    self.path_weights = path_weights
+    if self.path_weights is not None :
+      self.complete_path_weights = os.path.join(self.path_weights, self.name)
+      self.path_init_weights = os.path.join(self.complete_path_weights, "init_weights.pt")
+      self.path_transition_weights = os.path.join(self.complete_path_weights, "transition_weights.pt")
+      self.path_emission_weights = os.path.join(self.complete_path_weights, "emission_weights.pt")
+
+    else :
+      if self.save_weights :
+        print(f"No path to save weights for {self.name}")
+        self.save_weights = False
+
+
+
+    if not (os.path.exists(self.path_init_weights) and os.path.exists(self.path_transition_weights) and os.path.exists(self.path_emission_weights)):
+      if not self.train_hmm:
+        print("Need_training because no weights are stored there")
+      self.init_probability = None
+      self.transition_probability = None
+      self.emission_probability = None
+      self.train_hmm = True
+    else :
+      self.init_probability = torch.load(self.path_init_weights)
+      self.transition_probability = torch.load(self.path_transition_weights)
+      self.emission_probability = torch.load(self.path_emission_weights)
+
+      if self.use_cuda :
+        self.init_probability = self.init_probability.cuda()
+        self.transition_probability = self.transition_probability.cuda()
+        self.emission_probability = self.emission_probability.cuda()
+
+      self.log_init_probability = torch.log(self.init_probability)
+      self.log_transition_probability = torch.log(self.transition_probability)
+      self.log_emission_probability = torch.log(self.emission_probability)
+
+      self.train_hmm = train_hmm
+
+
+
+    if self.train_hmm:
+       self.train(train_loader, nb_iter=self.nb_iter, nb_start=self.nb_start)
+    
+    
+    if self.save_weights :
+      print(f"Weights will be saved at {self.complete_path_weights}")
+      if not os.path.exists(self.complete_path_weights):
+        os.makedirs(self.complete_path_weights)
+      torch.save(self.init_probability, self.path_init_weights)
+      torch.save(self.transition_probability, self.path_transition_weights)
+      torch.save(self.emission_probability, self.path_emission_weights)
+
+
+
+   
+
+
+  def forward(self, data, masks):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+    masks_expanded = masks.unsqueeze(-1).expand((-1, -1, self.hidden_dim))
+    message = torch.zeros((batch_size, self.sequence_len, self.hidden_dim))
+    if self.use_cuda :
+      message = message.cuda()
+    log_emission_probability_transpose = self.log_emission_probability.transpose(0,1)
+
+    auxiliary_ones = torch.log(torch.ones(message[:,0,:].shape, dtype = torch.float32))
+    if self.use_cuda :
+      auxiliary_ones = auxiliary_ones.cuda()
+
+    # Forward :
+    message[:, 0, :] = self.log_init_probability.unsqueeze(0).expand(batch_size,-1)
+    emission_message = torch.matmul(data[:,:,0], log_emission_probability_transpose)
+    message[:, 0, :] += torch.where(masks_expanded[:,0,:] == 1, emission_message, auxiliary_ones) # message I is arriving at i
+    message[:, 0, :] -= torch.logsumexp(message[:,0,:],axis=-1, keepdim = True)
+    for i in range(1, self.sequence_len):
+        message[:, i] = torch.matmul(message[:, i-1], self.log_transition_probability)
+        emission_message = torch.matmul(data[:,:,i].type(torch.float32), log_emission_probability_transpose)
+        emission_message_masked = torch.where(masks_expanded[:,i,:] == 1, emission_message, auxiliary_ones)
+        message[:, i] += emission_message_masked
+        message[:, i] -= torch.logsumexp(message[:,i,:],axis=-1, keepdim = True)
+
+    return message
+
+
+
+  def backward(self, data, masks):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+    masks_expanded = masks.unsqueeze(-1).expand((-1, -1, self.hidden_dim))
+
+    message = torch.zeros((batch_size, self.sequence_len, self.hidden_dim), dtype=torch.float32)
+    log_emission_probability_transpose = self.log_emission_probability.transpose(0,1)
+    log_transition_probability_expand = self.log_transition_probability.unsqueeze(0).expand(batch_size, self.hidden_dim, self.hidden_dim)
+    auxiliary_ones = torch.log(torch.ones(message[:,0,:].shape))
+    if self.use_cuda :
+      auxiliary_ones = auxiliary_ones.cuda()
+      message = message.cuda()
+
+    # Backward :
+    message[:, -1, :] = torch.log(torch.ones(message[:,-1].shape)/self.hidden_dim)
+  
+    for i in range(self.sequence_len-2, -1, -1):
+      emission_part = torch.matmul(data[:,:,i+1], log_emission_probability_transpose)
+      emission_part = torch.where(masks_expanded[:,i+1]==1, emission_part, auxiliary_ones)
+      previous_message = (emission_part+message[:,i+1,:]).unsqueeze(-2).expand(-1,self.hidden_dim, -1)
+      message[:, i, :] = torch.logsumexp(log_transition_probability_expand + previous_message, axis=-1)
+
+    return message
+
+
+
+  def backward_sample_hidden(self, data, masks, message, nb_imputation):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+
+    output_sample = torch.zeros((batch_size, nb_imputation, self.sequence_len))
+    masks_imputation = masks.unsqueeze(-2).expand((-1, nb_imputation, -1))
+    data_argmax_imputation = data_argmax.unsqueeze(-2).expand((-1, nb_imputation, -1))
+
+    message = message.unsqueeze(2).expand(-1, -1, nb_imputation, -1).clone() # batch size, sequence len, nb_imputation, hidden_dim ?
+    dist = torch.distributions.categorical.Categorical(probs = torch.exp(message[:,-1]))
+    output_sample[:, :, -1] = dist.sample()
+    if self.use_cuda:
+      output_sample = output_sample.cuda()
+
+    for i in range(self.sequence_len-2, -1, -1):
+      aux_transition = self.log_transition_probability.unsqueeze(0).unsqueeze(0).expand(batch_size, nb_imputation, self.hidden_dim, self.hidden_dim)
+      output_sample_masks =  torch.nn.functional.one_hot(output_sample[:, :, i+1].type(torch.int64), num_classes=self.hidden_dim).unsqueeze(-2).expand(-1,-1, self.hidden_dim, -1)>0.5
+      aux_transition = torch.masked_select(aux_transition, output_sample_masks).reshape(batch_size, nb_imputation, self.hidden_dim)
+      message[:,i,:,:] +=aux_transition
+      message[:,i,:,:] -= torch.logsumexp(message[:,i,:,:], axis=-1).unsqueeze(-1).expand(-1,-1, self.hidden_dim)
+      dist = torch.distributions.categorical.Categorical(probs=torch.exp(message[:,i,:,:]))
+      output_sample[:, :, i] = dist.sample()
+    return output_sample
+
+  def backward_maximum(self, data, masks, message):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+    nb_imputation = 1
+
+    output_sample = torch.zeros((batch_size, nb_imputation, self.sequence_len))
+    masks_imputation = masks.unsqueeze(-2).expand((-1, nb_imputation, -1))
+    data_argmax_imputation = data_argmax.unsqueeze(-2).expand((-1, nb_imputation, -1))
+    
+    message = message.unsqueeze(2).expand(-1, -1, nb_imputation, -1).clone() # batch size, sequence len, nb_imputation, output_dim
+    dist = torch.distributions.categorical.Categorical(probs = torch.exp(message[:,-1]))
+    output_sample[:, :, -1] = torch.argmax(message[:,-1], axis=-1)
+
+    for i in range(self.sequence_len-2, -1, -1):
+      aux_transition = self.log_transition_probability.unsqueeze(0).unsqueeze(0).expand(batch_size, nb_imputation, self.hidden_dim, self.hidden_dim)
+      output_sample_masks =  torch.nn.functional.one_hot(output_sample[:, :, i+1].type(torch.int64), num_classes=self.hidden_dim).unsqueeze(-2).expand(-1,-1, self.hidden_dim, -1)>0.5
+      aux_transition = torch.masked_select(aux_transition, output_sample_masks).reshape(batch_size, nb_imputation, self.hidden_dim)
+      message[:,i,:,:] +=aux_transition
+      message[:,i,:,:] -= torch.logsumexp(message[:,i,:,:], axis=-1).unsqueeze(-1).expand(-1,-1, self.hidden_dim)
+      output_sample[:, :, i] = torch.argmax(message[:,i,:,:], axis=-1)
+    return output_sample
+
+
+
+  def sample_observation(self, data, mask, latent):
+    """ Given latent, data and mask, this function will sample the observations according to the latent state and the emission probability if mask == 1 or will put the data instead
+        
+        mask : torch.tensor Shape (batch_size, sequence_len)
+        data : torch.tensor Shape (batch_size, output_dim, sequence_len)
+        latent: torch.tensor Shape (batch_size, nb_imputation, sequence_len)     
+    """
+    batch_size = data.shape[0]
+    nb_imputation = latent.shape[1]
+    output_sample_latent = torch.nn.functional.one_hot(latent.type(torch.int64), num_classes=self.hidden_dim) # Shape (batch_size, nb_imputation, sequence_len, hidden_dim)
+    data_expanded = data.unsqueeze(1).expand(-1, latent.shape[1], -1, -1).transpose(-1,-2) # Shape (batch_size, nb_imputation, sequence_len, output_dim)
+    mask_expanded = mask.unsqueeze(1).unsqueeze(-1).expand(data_expanded.shape) # Shape (batch_size, nb_imputation, sequence_len, output_dim)
+
+    probs = torch.matmul(output_sample_latent.type(torch.float32), self.emission_probability)
+    probs = torch.where(mask_expanded == 1, data_expanded, probs)
+    dist = torch.distributions.categorical.Categorical(probs=probs)
+    observations = dist.sample()
+
+    return observations
+
+
+  def train(self, train_loader, nb_iter=25, nb_start = 1):
+    dic_best ={}
+    dic_best["init"] = self.init_probability 
+    dic_best["transition"] = self.transition_probability
+    dic_best["emission"] = self.emission_probability
+    if self.init_probability is None or self.transition_probability is None or self.emission_probability is None :
+      dic_best["likelihood"] = -float("inf")
+    else :
+      log_likelihood = self.likelihood_total(train_loader)
+      dic_best["likelihood"] = log_likelihood
+
+
+    for num_start in range(nb_start):
+      self.log_init_probability = torch.log(torch.rand((self.hidden_dim)))
+      self.log_init_probability -=torch.logsumexp(self.log_init_probability, dim=-1, keepdim=True)
+      self.log_transition_probability = torch.log(torch.rand((self.hidden_dim, self.hidden_dim)))
+      self.log_transition_probability -=torch.logsumexp(self.log_transition_probability, -1, keepdim=True)
+      self.log_emission_probability = torch.log(torch.rand((self.hidden_dim, self.output_dim)))
+      self.log_emission_probability -=torch.logsumexp(self.log_emission_probability, -1, keepdim=True)
+
+      if self.use_cuda :
+        self.log_init_probability = self.log_init_probability.cuda()
+        self.log_transition_probability = self.log_transition_probability.cuda()
+        self.log_emission_probability = self.log_emission_probability.cuda()
+
+      for num_iter in tqdm.tqdm(range(nb_iter)):
+        total_element = 0
+        log_gamma = torch.zeros((self.sequence_len, self.hidden_dim), dtype=torch.float32)
+        log_gamma_aux = torch.zeros((self.sequence_len, self.hidden_dim, self.output_dim), dtype=torch.float32)
+        log_zeta = torch.zeros((self.sequence_len-1, self.hidden_dim,self.hidden_dim), dtype=torch.float32)
+        log_gamma_limited = torch.zeros((self.sequence_len-1, self.hidden_dim), dtype = torch.float32)
+
+        gamma = torch.zeros((self.sequence_len, self.hidden_dim), dtype=torch.float32)
+        gamma_aux = torch.zeros((self.sequence_len, self.hidden_dim, self.output_dim), dtype=torch.float32)
+        zeta = torch.zeros((self.sequence_len-1, self.hidden_dim,self.hidden_dim), dtype=torch.float32)
+        gamma_limited = torch.zeros((self.sequence_len-1, self.hidden_dim), dtype = torch.float32)
+
+        if self.use_cuda :
+          gamma = gamma.cuda()
+          gamma_aux = gamma_aux.cuda()
+          zeta = zeta.cuda()
+          gamma_limited = gamma_limited.cuda()
+
+        for batch_number, aux in enumerate(iter(train_loader)):
+            element = aux[0]
+            batch_size, _, _ = element.shape
+            mask = torch.ones(torch.argmax(element,axis=1).shape)
+            if self.use_cuda :
+              mask = mask.cuda()
+              element = element.cuda()
+            element_transpose = element.transpose(1,2) # batch_size, sequence_len, num_hidden
+
+            message_forward = self.forward(element, mask)
+            message_forward = message_forward.unsqueeze(-1).expand(batch_size, self.sequence_len, self.hidden_dim, self.hidden_dim)
+            message_forward_limited = message_forward[:,:-1]
+
+            emission_message = torch.matmul(element_transpose, self.log_emission_probability.transpose(-1,-2)).unsqueeze(-2).expand(batch_size, self.sequence_len, self.hidden_dim, self.hidden_dim)
+            emission_message_limited = emission_message[:,1:]
+
+            transition_expanded = self.log_transition_probability.unsqueeze(0).unsqueeze(0).expand(batch_size, self.sequence_len-1, self.hidden_dim, self.hidden_dim)
+            message_backward = self.backward(element, mask).unsqueeze(-2).expand(batch_size, self.sequence_len, self.hidden_dim, self.hidden_dim)
+            message_backward_limited = message_backward[:,1:]
+
+
+            total_element+=batch_size
+
+            zeta_aux =  torch.exp(message_forward_limited+emission_message_limited+transition_expanded+message_backward_limited)
+            zeta += torch.sum(zeta_aux, axis=0)
+            gamma_limited += torch.sum(torch.sum(zeta_aux, axis=-1),axis=0)
+            gamma_current = torch.sum(torch.exp(message_forward+emission_message+message_backward), axis=-1)
+            gamma += torch.sum(gamma_current, axis=0)
+            element_transpose_expanded = element_transpose.unsqueeze(-2).expand(batch_size, self.sequence_len, self.hidden_dim, self.output_dim)
+            gamma_aux += torch.sum(element_transpose_expanded*gamma_current.unsqueeze(-1).expand(-1,-1,-1,self.output_dim), axis=0)
+        
+
+
+        self.transition_probability = torch.sum(zeta, axis=0)/torch.sum(gamma_limited, axis=0).unsqueeze(-1).expand(self.hidden_dim, self.hidden_dim)
+        self.init_probability = gamma[0]/torch.sum(gamma[0],axis=0,keepdim=True)
+        self.emission_probability = torch.sum(gamma_aux, axis=0)/torch.sum(gamma,axis=0).unsqueeze(-1).expand(self.hidden_dim, self.output_dim)
+
+        
+        self.log_transition_probability = torch.log(self.transition_probability)
+        self.log_init_probability = torch.log(self.init_probability)
+        self.log_emission_probability = torch.log(self.emission_probability)
+
+
+      log_likelihood = self.likelihood_total(train_loader)
+      print(f"\n Likelihood after iteration {num_start} is {log_likelihood}")
+
+
+
+      if log_likelihood > dic_best["likelihood"]:
+        dic_best["likelihood"] = log_likelihood
+        dic_best["init"] = self.init_probability.clone()
+        dic_best["transition"] = self.transition_probability.clone()
+        dic_best["emission"] = self.emission_probability.clone()
+    
+
+
+
+
+    self.init_probability = dic_best["init"].clone()
+    self.transition_probability = dic_best["transition"].clone()
+    self.emission_probability = dic_best["emission"].clone()
+    self.log_transition_probability = torch.log(self.transition_probability)
+    self.log_init_probability = torch.log(self.init_probability)
+    self.log_emission_probability = torch.log(self.emission_probability)
+
+
+
+
+    
+  def calculate_likelihood(self, data, masks):
+    batch_size = data.shape[0]
+    data_argmax = torch.argmax(data, axis=-2)
+    masks_expanded = masks.unsqueeze(-1).expand((-1, -1, self.hidden_dim))
+
+    message = torch.zeros((batch_size, self.sequence_len, self.hidden_dim))
+    emission_probability_transpose = self.log_emission_probability.transpose(0,1)
+    auxiliary_ones = torch.log(torch.ones(message[:,0,:].shape, dtype = torch.float32)/self.hidden_dim)
+    if self.use_cuda :
+      auxiliary_ones = auxiliary_ones.cuda()
+      message = message.cuda()
+
+
+    # Forward :
+    current_message = self.log_init_probability.unsqueeze(0).expand(batch_size,-1).clone()
+    emission_message = torch.matmul(data[:,:,0], emission_probability_transpose)
+    current_message += torch.where(masks_expanded[:,0,:] == 1, emission_message, auxiliary_ones) # message I is arriving at i
+    for i in range(1, self.sequence_len):
+        previous_message = current_message
+        current_message = torch.matmul(previous_message, self.transition_probability)
+        emission_message = torch.matmul(data[:,:,i].type(torch.float32), emission_probability_transpose)
+        emission_message_masked = torch.where(masks_expanded[:,i,:] == 1, emission_message, auxiliary_ones)
+        current_message += emission_message_masked
+
+    proba = torch.exp(torch.logsumexp(current_message,axis=-1))
+    return proba   
+
+
+    
+  def likelihood_total(self, train_loader):
+      log_likelihood = torch.tensor(0.)
+      nb_element = torch.tensor(0.)
+      if self.use_cuda :
+        log_likelihood = log_likelihood.cuda()
+      for batch_number, aux in enumerate(iter(train_loader)):
+        batch_size, output_dim, sequence_len = aux[0].shape
+        element = aux[0]
+        masks = torch.ones(torch.argmax(element,-2).shape)
+        if self.use_cuda :
+          element = element.cuda()
+          masks = masks.cuda()
+        log_likelihood += torch.sum(torch.log(self.calculate_likelihood(element, masks) + 1e-8))
+        nb_element += batch_size
+      
+      log_likelihood -= torch.log(nb_element)
+      return log_likelihood
+
+  def impute(self, data, masks, nb_imputation):
+    message_forward = self.forward(data, masks)
+    latent = self.backward_sample_hidden(data, masks, message_forward, nb_imputation)
+    output_total = self.sample_observation(data, masks, latent)
+    output_total = torch.nn.functional.one_hot(output_total.squeeze(),self.output_dim).transpose(-1,-2)
+    return output_total
 
 
 class HMMimputation(MultipleImputation):

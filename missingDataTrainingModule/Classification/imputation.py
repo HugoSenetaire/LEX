@@ -6,24 +6,28 @@ from .post_process_imputation import *
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils_missing import *
 import torch
-
+import torch.nn as nn
 
 def prepare_process(input_process):
   """ Utility function to make sure that the input_process is a list of function or None"""
-  if input_process is not list and input_process is not None :
-    input_process = [input_process]
-  return input_process
+  if input_process is None:
+    return None
+  else :
+    if input_process is not list :
+      input_process = [input_process]
+    input_process = nn.ModuleList(input_process)
 
-class Imputation():
+    return input_process
+
+class Imputation(nn.Module):
   def __init__(self, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
                add_mask = False, post_process_regularization = None,
-               use_cuda = False):
+             ):
+    super().__init__()
     self.isRounded = isRounded
     self.input_size = input_size
-    self.kernel_updated = False
     self.add_mask = add_mask
-    self.use_cuda = use_cuda
     self.reconstruction_reg = prepare_process(reconstruction_reg)
     self.post_process_regularization = prepare_process(post_process_regularization)
     self.sample_b_reg = prepare_process(sample_b_reg)
@@ -34,77 +38,14 @@ class Imputation():
       for element in self.post_process_regularization :
         if element.multiple_imputation :
           self.nb_imputation *= element.nb_imputation
-          
-
-    if self.add_mask :
-      self.add_channels = True
-
-
-  def is_learnable(self):
-    """ Check if any process for the imputation needs training """
-    
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        if process.to_train :
-          return True
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        if process.to_train :
-          return True
-
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        if process.to_train:
-          return True
-
+    self.use_cuda = False
+  
+  def has_constant(self):
+    return False
+ 
+  def has_rate(self):
     return False
 
-  def get_learnable_parameter(self):
-    """ Check every element in the imputation method and add it to the parameters_list if it needs training"""
-
-    parameter =[]
-    network_list = []
-
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        if process.to_train :
-          network_list.append(process.network)
-          parameter.append({"params":process.parameters()})
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        if process.to_train :
-          parameter.append({"params":process.parameters()})
-    
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        if process.to_train:
-            if process.network not in network_list :
-              network_list.append(process.network)
-              parameter.append({"params":process.parameters()})
-
-    return parameter
-
-
-  def cuda(self):
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        if process.to_train :
-          process.cuda()
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        if process.to_train :
-          process.cuda()
-
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        if process.to_train:
-          process.cuda()
-
-
-    
 
   def round_sample(self, sample_b):
     """ Round sample so that we only have a discrete mask. Unadvised as the training becomes very unstable"""
@@ -114,7 +55,9 @@ class Imputation():
     else :
       return sample_b
 
-  
+  def cuda(self):
+    super().cuda()
+    self.use_cuda = True
             
   def __str__(self):
     """ Make sure of what is printed when everything is in it """
@@ -163,69 +106,16 @@ class Imputation():
       return sample_b
 
 
-
-
   def imputation_function(self, data_expanded, sample_b):
     raise NotImplementedError
 
-  def impute(self,data_expanded, sample_b, index = None):
+  def forward(self, data_expanded, sample_b, index = None):
     sample_b = self.round_sample(sample_b)
     loss_reconstruction = self.imputation_reconstruction(data_expanded, None, sample_b)
     sample_b = self.sample_b_regularization(data_expanded, sample_b)
     data_imputed = self.imputation_function(data_expanded, sample_b)
     data_imputed = self.post_process(data_expanded, data_imputed, sample_b, index = index)
     return data_imputed, loss_reconstruction
-
-  def eval(self):
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        process.eval()
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        process.eval()
-
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        process.eval()
-
-  def train(self):
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        process.train()
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        process.train()
-
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        process.train()
-
-  def zero_grad(self):
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        if process.to_train :
-          process.zero_grad()
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        if process.to_train :
-          process.zero_grad()
-
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        if process.to_train:
-          process.zero_grad()
-
-    
-    
-
-  def has_constant(self):
-    return False
-
-  def has_rate(self):
-    return False
 
 
 
@@ -236,14 +126,10 @@ class NoDestructionImputation(Imputation):
   def __init__(self, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
                add_mask = False, post_process_regularization = None,
-               use_cuda = False):
-    # self.cste = torch.tensor(cste).cuda()
-    # self.cste = torch.tensor(cste) #TODO
+             ):
     super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization, use_cuda = use_cuda)
+                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization,)
 
-  def has_constant(self):
-    return False
     
   def imputation_function(self, data_expanded, sample_b):
     return data_expanded
@@ -252,29 +138,26 @@ class SelectionAsInput(Imputation):
   def __init__(self, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
                add_mask = False, post_process_regularization = None,
-               use_cuda = False):
+             ):
     super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization, use_cuda = use_cuda)
+                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization,)
 
-  def has_constant(self):
-    return False
+
     
   def imputation_function(self, data_expanded, sample_b):
     return sample_b
 
   
 class ConstantImputation(Imputation):
-
- 
   def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None,  use_cuda = False):
+               add_mask = False, post_process_regularization = None,):
     # self.cste = torch.tensor(cste).cuda()
-    self.cste = torch.tensor(cste) #TODO
-    if use_cuda :
-      self.cste = self.cste.cuda()
+    # self.cste = torch.tensor(cste) #TODO
     super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization, use_cuda = use_cuda)
+                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization,)
+
+    self.cste = nn.parameter.Parameter(torch.tensor(cste), requires_grad=False)
 
   def has_constant(self):
     return True
@@ -286,81 +169,18 @@ class ConstantImputation(Imputation):
     return data_expanded *  sample_b + (1-sample_b) * self.cste 
 
 
-class ConstantImputation_ContinuousAddMask(Imputation):
-
- 
-  def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
-               reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None,  use_cuda = False):
-    self.cste = torch.tensor(cste).cuda()
-    super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization, use_cuda = use_cuda)
-
-  def has_constant(self):
-    return True
-
-  def get_constant(self):
-    return self.cste
-
-  def imputation_function(self, data_expanded, sample_b):
-    return data_expanded *  sample_b + (1-sample_b) * self.cste 
-
-  def add_mask_method(self, data_imputed, sample_b):
-    zero_sample_b = torch.rand(sample_b.shape).cuda() * 0.5
-    one_sample_b = torch.rand(sample_b.shape).cuda()*0.5 +0.5
-    sample_b = torch.where(sample_b<0.5, zero_sample_b, one_sample_b)
-
-    if len(sample_b.shape)>2:
-      sample_b_aux = sample_b[:,0].unsqueeze(1)
-    else :
-      sample_b_aux = sample_b
-    return torch.cat([data_imputed, sample_b_aux], axis =1)
-
-class ConstantImputation_ContinuousAddMaskV2(Imputation):
-  def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
-               reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None,  use_cuda = False):
-    self.cste = torch.tensor(cste).cuda()
-    super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization, use_cuda = use_cuda)
-
-  def has_constant(self):
-    return True
-
-  def get_constant(self):
-    return self.cste
-
-  def imputation_function(self, data_expanded, sample_b):
-    return data_expanded *  sample_b + (1-sample_b) * self.cste 
-
-  def add_mask_method(self, data_imputed, sample_b):
-    zero_sample_b = torch.rand(sample_b.shape).cuda() * -1
-    one_sample_b = torch.rand(sample_b.shape).cuda()
-    sample_b = torch.where(sample_b<0.5, zero_sample_b, one_sample_b)
-
-    if len(sample_b.shape)>2:
-      sample_b_aux = sample_b[:,0].unsqueeze(1)
-    else :
-      sample_b_aux = sample_b
-    return torch.cat([data_imputed, sample_b_aux], axis =1)
 
 class NoiseImputation(Imputation):
   def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None,  use_cuda = False):
-    self.cste = torch.tensor(cste).cuda()
+               add_mask = False, post_process_regularization = None,):
     super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization, use_cuda = use_cuda)
+                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization,)
 
-  def has_constant(self):
-    return True
-
-  def get_constant(self):
-    return self.cste
 
   def imputation_function(self, data_expanded, sample_b):
-    normal = torch.distributions.normal.Normal(torch.zeros(sample_b.shape), torch.ones(sample_b.shape))
-    noise = normal.sample().cuda()
+    normal = torch.distributions.normal.Normal(torch.zeros_like(sample_b), torch.ones_like(sample_b))
+    noise = normal.sample()
     return data_expanded * sample_b + (1-sample_b) *  noise 
 
 
@@ -368,10 +188,11 @@ class NoiseImputation(Imputation):
 class LearnConstantImputation(Imputation):
   def __init__(self, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None,  use_cuda = False):
-    self.cste = torch.rand(1, requires_grad=True)
+               add_mask = False, post_process_regularization = None,):
+
     super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization, use_cuda = use_cuda)
+                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization,)
+    self.cste = nn.Parameter(torch.rand(1,), requires_grad = True)
 
   def imputation_function(self, data_expanded, sample_b):
     return data_expanded * sample_b + (1-sample_b) * self.cste 
@@ -383,20 +204,6 @@ class LearnConstantImputation(Imputation):
   def get_constant(self):
     return self.cste
     
-
-  def get_learnable_parameter(self):
-    parameters = super().get_learnable_parameter()
-    parameters.append({"params":self.cste})
-    return parameters
-
-  def train(self):
-    super().train()
-    self.cste.requires_grad_(True)
-  
-  def eval(self):
-    super().eval()
-    self.cste.requires_grad_(False)
-
   def cuda(self):
     super().cuda()
     self.cste = torch.rand(1, requires_grad=True, device = "cuda")
@@ -413,11 +220,9 @@ class LearnConstantImputation(Imputation):
 class SumImpute(Imputation):
   def __init__(self, input_size = (1,28,28), isRounded = False,
                reconstruction_reg = None, sample_b_reg = None,
-               add_mask = True, post_process_regularization = None,  use_cuda = False):
-      self.cste = torch.tensor(cste).cuda()
-      add_mask = True
+               add_mask = True, post_process_regularization = None,):
       super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                      sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization, use_cuda = use_cuda)
+                      sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization,)
       
   def imputation_function(self, data_expanded, sample_b):
       data_expanded_flatten = data_expanded.flatten(1)

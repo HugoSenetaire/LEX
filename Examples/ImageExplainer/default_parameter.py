@@ -5,15 +5,17 @@ sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
 sys.path.append("/home/hhjs/MissingDataTraining")
 from missingDataTrainingModule import *
 from datasets import *
-from interpretation_regression import *
+
 
 from torch.distributions import *
 from torch.optim import *
 import torch
 from functools import partial
 
+
+
 def get_default():
-    
+
 
     args_output = {}
     args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
@@ -30,35 +32,21 @@ def get_default():
     args_complete_trainer["comply_with_dataset"] = True
 
 
-
     args_dataset = {}
     # args_dataset["dataset"] = LinearSeparableDataset
-    args_dataset["dataset"] = CircleDataset
-    args_dataset["loader"] = LoaderArtificial
-    args_dataset["root_dir"] = None
-    args_dataset["batch_size_train"] = 512
-    args_dataset["batch_size_test"] = 512
+    args_dataset["dataset"] = MnistDataset
+    args_dataset["loader"] = LoaderEncapsulation
+    args_dataset["root_dir"] = os.path.join(args_output["path"], "datasets")
+    args_dataset["batch_size_train"] = 128
+    args_dataset["batch_size_test"] = 128
     args_dataset["noise_function"] = None
+    args_dataset["download"] = True
 
-    # Case for numerical point :
-    args_dataset["nb_shape"] = 2
-    args_dataset["nb_dim"] = 2
-    args_dataset["ratio_sigma"] = 0.25
-    args_dataset["sigma"] = 1.0
-    args_dataset["prob_simplify"] = 0.25
-    args_dataset["give_index"]= True
-    args_dataset["nb_sample_train"] = 1000
-    args_dataset["nb_sample_test"] = 1000
-    args_dataset["generate_new"] = True
-    args_dataset["save"] = False
-    args_dataset["centroids_path"] = None
-    args_dataset["generate_each_time"] = False
-    args_dataset["exact_sel_dim"] = False
-    args_dataset["max_sel_dim"] = 2
+
 
     args_classification = {}
-    args_classification["input_size_classification_module"] = (1,4) # Size before imputation
-    args_classification["classifier"] = ClassifierLinear
+    args_classification["input_size_classification_module"] = (1,28,28) # Size before imputation
+    args_classification["classifier"] = ClassifierLVL3
 
     args_classification["imputation"] = ConstantImputation
     args_classification["cste_imputation"] = 0
@@ -77,8 +65,8 @@ def get_default():
 
     args_destruction = {}
 
-    args_destruction["input_size_destructor"] = (1,4)
-    args_destruction["output_size_destructor"] = (1,4)
+    args_destruction["input_size_destructor"] = (1,28,28)
+    args_destruction["output_size_destructor"] = (1,28,28)
     args_destruction["destructor"] = Destructor
     args_destruction["destructor_var"] = None #DestructorSimilarVar
     args_destruction["activation"] = torch.nn.LogSigmoid()
@@ -101,7 +89,6 @@ def get_default():
 
 
 
-
     args_distribution_module = {}
     args_distribution_module["distribution_module"] = DistributionModule
     args_distribution_module["distribution"] = Bernoulli
@@ -114,6 +101,9 @@ def get_default():
 
 
 
+
+
+
     args_train = {}
     # args_train["nb_epoch"] = 500 # Training the complete model
     args_train["nb_epoch"] = 15 # Training the complete model
@@ -123,7 +113,7 @@ def get_default():
     args_train["nb_sample_z_train"] = 10 # Number K in the IWAE-similar loss 
     args_train["print_every"] = 1
 
-
+    args_train["sampling_subset_size"] = 2 # Sampling size for the subset 
     args_train["temperature_train_init"] = 1.0
     args_train["temperature_decay"] = 0.9
     args_train["use_cuda"] = torch.cuda.is_available()
@@ -133,13 +123,13 @@ def get_default():
     args_train["post_hoc_guidance"] = None
 
     args_compiler = {}
-    args_compiler["optim_classification"] = partial(Adam, lr=1e-2) #Learning rate for classification module
-    args_compiler["optim_destruction"] = partial(Adam, lr=1e-2) # Learning rate for destruction module
+    args_compiler["optim_classification"] = partial(Adam, lr=1e-3) #Learning rate for classification module
+    args_compiler["optim_destruction"] = partial(Adam, lr=1e-3) # Learning rate for destruction module
     args_compiler["optim_destruction_var"] = partial(Adam, lr=1e-4) # Learning rate for the variationnal destruction module used in Variationnal Training
     args_compiler["optim_distribution_module"] = partial(Adam, lr=1e-4) # Learning rate for the feature extractor if any
     args_compiler["optim_baseline"] = partial(Adam, lr=1e-4) # Learning rate for the baseline network
     args_compiler["optim_autoencoder"] = partial(Adam, lr=1e-4)
-    args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-2)
+    args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-4)
 
     args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) #Learning rate for classification module
     args_compiler["scheduler_destruction"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for destruction module

@@ -63,9 +63,3 @@ class DropOutNoise(NoiseFunction):
         return img_noised
     
 
-
-# def noise_gaussian(img, sigma = 1.0):
-#     noise = np.random.normal(0, sigma, np.shape(img))
-#     # noise = np.zeros(np.shape(img))
-#     img_noised = img + noise
-#     return img_noised

@@ -6,88 +6,45 @@ from utils_missing import *
 from collections.abc import Iterable
 
 from .destructive_network import *
-from .regularization import *
+from .regularization_module import *
 import torch
+import torch.nn as nn
 
+class DestructionModule(nn.Module):
 
-class DestructionModule():
-
-    def __init__(self, destructor, activation = torch.nn.LogSigmoid(), regularization = None, feature_extractor = None, use_cuda = False):
+    def __init__(self, destructor, activation = torch.nn.LogSigmoid(), regularization = None,):
+        super(DestructionModule, self).__init__()
         self.destructor = destructor
         self.regularization = regularization
-        self.use_cuda = use_cuda
         self.activation = activation
 
-        self.feature_extractor = feature_extractor
-        if self.feature_extractor is None :
-            self.need_extraction = False
-        else :
-            self.need_extraction = True
-
-
-        if not self.regularization is list and self.regularization is not None:
-           self.regularization = [self.regularization]
-        # if self.use_cuda :
-        #     for regul in self.regularization :
-        #         regul = regul.cuda()
-
-
-    def kernel_update(self, kernel_patch, stride_patch):
-        self.destructor.kernel_update(kernel_patch, stride_patch)
-
-    def train(self):
-        self.destructor.train()
-
-    def zero_grad(self):
-        self.destructor.zero_grad()
-
-
-                
-    def eval(self):
-        self.destructor.eval()
-   
-                
-
-
-
-    def cuda(self):
-        self.destructor = self.destructor.cuda()
-
-
-    def parameters(self):
-        return self.destructor.parameters()
-
-
+        if self.regularization is not None :
+            if not self.regularization is list :
+                self.regularization = [self.regularization]
+            # self.regularization = nn.ModuleList(self.regularization)
+        self.cuda = False
+    
+    def cuda(self,):
+        super(DestructionModule, self).cuda()
+        self.cuda = True
 
     def __call__(self, data_expanded, one_hot_target = None, test=False):
-        if self.need_extraction :
-            data_expanded = self.feature_extractor(data_expanded)
+        
+        loss_reg = torch.tensor(0.)
+        if self.cuda :
+            loss_reg.cuda()
 
         if one_hot_target is not None :
-            log_pi_list = self.activation(self.destructor(data_expanded, one_hot_target))
-
-            loss_reg = torch.zeros((1)).cuda()
-            if not test and self.regularization is not None :
-                for reg in self.regularization :
-
-                    print(torch.exp(log_pi_list[0]))
-                    log_pi_list, loss_reg_aux = reg(log_pi_list)
-                    print(torch.exp(log_pi_list[0]))
-                    loss_reg +=loss_reg_aux
-                    
-
-            return log_pi_list, loss_reg
-
+            log_pi_list = self.destructor(data_expanded, one_hot_target)
         else :
-            log_pi_list = self.activation(self.destructor(data_expanded))
-            
-            loss_reg = torch.zeros((1))
-            if self.use_cuda :
-                loss_reg = loss_reg.cuda()
-            
-            if not test and self.regularization is not None :
-                for reg in self.regularization :
-                    log_pi_list, loss_reg_aux = reg(log_pi_list)
-                    loss_reg +=loss_reg_aux
-                    
+            log_pi_list = self.destructor(data_expanded)
+
+        if self.activation is not None :
+            log_pi_list = self.activation(log_pi_list)
+
+        if self.regularization is not None :
+            for reg in self.regularization :
+                log_pi_list, loss_reg_aux = reg(log_pi_list)
+                loss_reg +=loss_reg_aux
+                
             return log_pi_list, loss_reg

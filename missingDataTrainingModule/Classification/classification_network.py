@@ -18,22 +18,6 @@ from torchvision.utils import save_image
 
 
 
-class ClassifierModel(nn.Module):
-    def __init__(self,input_size = (1,28,28), output = 10, middle_size = 400):
-        super().__init__()
-        self.input_size = input_size
-        self.fc1 = nn.Linear(np.prod(input_size), middle_size)
-        self.fc2 = nn.Linear(middle_size, int(middle_size/2))
-        self.fc3 = nn.Linear(int(middle_size/2),output)
-        self.logsoftmax = nn.LogSoftmax(-1)
-        self.elu = nn.ELU()
-    
-    def __call__(self, x):
-
-        x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
-        x = F.elu(self.fc1(x))
-        x = F.elu(self.fc2(x))
-        return self.logsoftmax(self.elu(self.fc3(x))) #N_expectation * Batch_size, Category
 
     
 class ClassifierLinear(nn.Module):
@@ -95,7 +79,7 @@ class ClassifierLVL3(nn.Module):
     
     def __call__(self, x):
 
-        x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
+        x = x.flatten(1)  
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
         x = F.elu(self.fc3(x))
@@ -103,25 +87,6 @@ class ClassifierLVL3(nn.Module):
         x = self.fc5(x)
         return self.logsoftmax(x)
 
-
-class FeatureExtraction(nn.Module):
-    def __init__(self, input_size = (1,28,28), middle_size = [400,200]):
-        super().__init__()
-        self.middle_size = middle_size
-        self.input_size = input_size
-        self.layers = []
-        previous_size = np.prod(self.input_size)
-        for layer in middle_size :
-            self.layers.append(nn.Linear(previous_size, layer))
-            previous_size = layer
-        self.modules = torch.nn.ModuleList(self.layers)
-    
-
-    def __call__(self, x):
-        x = x.flatten(1)
-        for layer in self.layers:
-            x = F.elu(layer(x))
-        return x
 
 
 class StupidClassifier(nn.Module):
@@ -215,17 +180,6 @@ class VGGSimilar(nn.Module):
         x = self.logsoftmax(self.elu(x))
         return x
 
-class ClassifierFromFeature(nn.Module):
-    
-    def __init__(self, input_size = 200, output_size = 10 ):
-        super().__init__()
-        self.input_size = input_size
-        self.output_size = output_size
-        self.fc = nn.Linear(input_size, output_size)
-        self.logsoftmax = nn.LogSoftmax(-1)
-        self.elu = nn.ELU()
-    def __call__(self, x):
-        return self.logsoftmax(self.elu(self.fc(x)))
 
 class ConvClassifier(nn.Module):
     def __init__(self, input_size = (1,28,28),output_size = 10):
@@ -247,46 +201,7 @@ class ConvClassifier(nn.Module):
         return result #N_expectation, Batch_size, Category
 
 
-class ConvClassifierV2(nn.Module):
-    def __init__(self, input_size = (1,28,28),output_size = 10, nb_filters = 32):
-        super().__init__()
-        self.conv1 = nn.Conv2d(input_size[0], nb_filters, 3, stride=1, padding=1)
-        self.maxpool1 = nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
-        self.fc1 = nn.Linear(int(np.prod(input_size)/4)*nb_filters, 100)
-        self.fc2 = nn.Linear(100,output_size)
-        self.logsoftmax = nn.LogSoftmax(-1)
-        self.elu = nn.ELU()
-    
-    def __call__(self, x):
-        batch_size = x.shape[0]
-        x = self.maxpool1(self.conv1(x))
-        x = torch.flatten(x,1)
-        x=F.elu(self.fc1(x), inplace = False)
-        result = self.logsoftmax(self.elu(self.fc2(x))).reshape(batch_size, -1)
-        return result #N_expectation, Batch_size, Category
 
-
-class AutoEncoder(nn.Module):
-    def __init__(self, input_size = (1, 28, 28), output_size = 20):
-        super().__init__()
-        input_size_flatten = np.prod(input_size)
-
-        self.fc1 = nn.Linear(input_size_flatten, int(input_size_flatten/2))
-        self.fc2 = nn.Linear(int(input_size_flatten/2), int(input_size_flatten/4))
-    
-        self.fc2_output = nn.Linear(int(input_size_flatten/4), int(input_size_flatten/2))
-        self.fc1_output = nn.Linear(int(input_size_flatten/2), input_size_flatten)
-
-
-    def __call__(self, x):
-        input_shape = x.shape
-        x = x.flatten(1)
-        x = F.elu(self.fc1(x))
-        x = F.elu(self.fc2(x))
-        x = F.elu(self.fc2_output(x))
-        x = F.elu(self.fc1_output(x))
-        x = x.reshape(input_shape)
-        return x
 
 class ProteinCNN(nn.Module):
     def __init__(self, input_size = (21,19), output_size = 8):

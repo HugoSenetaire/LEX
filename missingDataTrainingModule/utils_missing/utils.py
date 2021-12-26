@@ -9,7 +9,20 @@ def calculate_pi_dimension(input_size, stride):
     return nb_patch_x, nb_patch_y
 
 
+def parse_batch(data):
+    if len(data)==3 :
+        data, target, index = data
+    else :
+        data, target = data
+        index = None
 
+    return data, target, index
+    
+def get_item(tensor):
+    if tensor is not None :
+        return tensor.item()
+    else :
+        return None
 
 def prepare_data(data, target, num_classes=10, use_cuda = False):
     if use_cuda:
@@ -19,10 +32,10 @@ def prepare_data(data, target, num_classes=10, use_cuda = False):
 
     return data, target, one_hot_target
 
-def get_extended_data(data, Nexpectation):
+def get_extended_data(data, nb_sample_z):
     shape = data.shape
     data_unsqueezed = data.unsqueeze(0)
-    wanted_transform = tuple(np.insert(-np.ones(len(shape),dtype = int),0,Nexpectation))
+    wanted_transform = tuple(np.insert(-np.ones(len(shape),dtype = int),0,nb_sample_z))
     
     data_expanded = data_unsqueezed.expand(wanted_transform) # N_expectation, batch_size, channels, size:...
 
@@ -46,13 +59,13 @@ def get_one_hot(target, num_classes = 10):
 
     return one_hot_target
 
-def extend_input(input, Nexpectation = 1, nb_imputation = 1):
+def extend_input(input, nb_sample_z = 1, nb_imputation = 1):
     shape = input.shape
     if nb_imputation is not None :
-        wanted_shape = torch.Size((nb_imputation, Nexpectation)) + shape
+        wanted_shape = torch.Size((nb_imputation, nb_sample_z)) + shape
         input_expanded = input.unsqueeze(0).unsqueeze(0).expand(wanted_shape)
     else :
-        wanted_shape = torch.Size((Nexpectation,)) + shape
+        wanted_shape = torch.Size((nb_sample_z,)) + shape
         input_expanded = input.unsqueeze(0).expand(wanted_shape)
 
 
@@ -60,35 +73,36 @@ def extend_input(input, Nexpectation = 1, nb_imputation = 1):
     
 
     
-def prepare_data_augmented(data, target = None, index=None, one_hot_target = None, Nexpectation = 1, nb_imputation = None):
+def prepare_data_augmented(data, target = None, index=None, one_hot_target = None, nb_sample_z = 1, nb_imputation = None):
     if index is not None :
-        index_expanded = extend_input(index, Nexpectation, nb_imputation)
+        index_expanded = extend_input(index, nb_sample_z, nb_imputation)
     else :
         index_expanded = None
 
     if one_hot_target is not None :
-        one_hot_target_expanded = extend_input(one_hot_target, Nexpectation, nb_imputation)
+        one_hot_target_expanded = extend_input(one_hot_target, nb_sample_z, nb_imputation)
     else :
         one_hot_target_expanded = None
 
     
     
     if target is not None :
-        target_expanded = extend_input(target, Nexpectation, nb_imputation)
+        target_expanded = extend_input(target, nb_sample_z, nb_imputation)
     else :
         target_expanded = None
-    data_expanded = extend_input(data, Nexpectation, nb_imputation)
+    data_expanded = extend_input(data, nb_sample_z, nb_imputation)
      
 
 
     return data_expanded, target_expanded, index_expanded, one_hot_target_expanded
 
 
-def print_dic(epoch, batch_idx, dic, dataset):
-    percent = 100. * batch_idx / len(dataset.train_loader)
-    to_print = "Train Epoch: {} [{}/{} ({:.0f}%)]\t".format(epoch, batch_idx * dataset.batch_size_train, len(dataset.train_loader.dataset), percent)
+def print_dic(epoch, batch_idx, dic, loader):
+    percent = 100. * batch_idx / len(loader.train_loader)
+    to_print = "Train Epoch: {} [{}/{} ({:.0f}%)]\t".format(epoch, batch_idx * loader.batch_size_train, len(loader.train_loader.dataset), percent)
     for key in dic.keys():
-        to_print += "{}: {:.5f} \t".format(key, dic[key])
+        if dic[key] is not None :
+            to_print += "{}: {:.5f} \t".format(key, dic[key])
     print(to_print)
 
 def save_dic_helper(total_dic, dic):

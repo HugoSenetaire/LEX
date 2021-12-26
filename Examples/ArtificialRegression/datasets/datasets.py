@@ -176,47 +176,19 @@ def redraw_dependency(S, nb_dim):
 
 
 class TensorDatasetAugmented(TensorDataset):
-    def __init__(self, x, y, noisy = False, noise_function = None, give_index = False):
+    def __init__(self, x, y, noise_function = None, give_index = False):
         super().__init__(x,y)
-        self.noisy = noisy
         self.noise_function = noise_function
         self.give_index = give_index 
 
 
     def __getitem__(self, idx):
-        if not self.noisy :
-            input_tensor, target = self.tensors[0][idx].type(torch.float32), self.tensors[1][idx]
-        else :
-            input_tensor, target = self.tensors[0][idx].type(torch.float32), self.tensors[1][idx].type(torch.float32)
-            
-            input_tensor = input_tensor.numpy()
-            target = target.numpy()
+
+        input_tensor, target = self.tensors[0][idx].type(torch.float32), self.tensors[1][idx].type(torch.int64)    
+        input_tensor = input_tensor.numpy()
+        target = target.numpy()
+        if self.noise_function is not None :
             input_tensor = torch.tensor(self.noise_function(input_tensor)).type(torch.float32)
-
-
-
-        if self.give_index :
-            return input_tensor, target, idx
-        else :
-            return input_tensor, target
-
-class GeneratingTensorDataset(Dataset):
-    def __init__(self, function, len, noisy=False, noise_function=None, give_index = False):
-        super().__init__()
-        self.function = function
-        self.len = len
-        self.give_index = give_index
-
-
-    def __len__(self):
-        return self.len
-    
-    def __getitem__(self, idx):
-        data, y = self.function()
-        input_tensor, target = torch.tensor(data.type(torch.float32)), torch.tensor(y.type(torch.int64))
-        
-
-
 
         if self.give_index :
             return input_tensor, target, idx
@@ -226,8 +198,7 @@ class GeneratingTensorDataset(Dataset):
 
 
 class CircleDataset():
-    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, noise = False, factor =.6, noisy = False, noise_function = None):
-
+    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, center = [0,0], factor =.6, noise = False, noise_function = None, **kwargs):
         self.nb_sample_train = nb_sample_train
         self.nb_sample_test = nb_sample_test
         self.noise = noise
@@ -247,8 +218,8 @@ class CircleDataset():
         self.targets_train = torch.tensor(self.targets_train)
         self.targets_test = torch.tensor(self.targets_test)
 
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.targets_train, noisy = noisy)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
+        self.dataset_train = TensorDatasetAugmented(self.data_train, self.targets_train, noise_function = noise_function)
+        self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noise_function= noise_function)
 
 
     def impute_result(self, mask, value, index = None , dataset_type= None):
@@ -317,194 +288,24 @@ class CircleDataset():
 
         return complete_output
 
-class CircleDatasetAndNoise():
-    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, noise = False, factor =.6, noisy = False, noise_function = None):
-
-        self.nb_sample_train = nb_sample_train
-        self.nb_sample_test = nb_sample_test
-        self.noise = noise
-        self.factor = factor
-     
-        total_samples = self.nb_sample_train + self.nb_sample_test
-        test_size = self.nb_sample_test/float(total_samples)
-
-        self.data, self.targets = datasets.make_circles(n_samples=total_samples, factor=.6,
-                                      noise=noise)
-
-        self.noise = np.random.normal(loc=0.0, scale=1.0, size=(total_samples, 1))
-        self.data = np.concatenate([self.data, self.noise], axis = 1)
-
-        self.data_train, self.data_test, self.targets_train, self.targets_test = train_test_split(
-            self.data, self.targets, test_size=test_size, random_state=0)
-
-        self.data_train = torch.tensor(self.data_train)
-        self.data_test = torch.tensor(self.data_test)
-        self.targets_train = torch.tensor(self.targets_train)
-        self.targets_test = torch.tensor(self.targets_test)
-
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.targets_train, noisy = noisy)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
 
 
-    def impute_result(self, mask, value, index = None, dataset_type=None):
-        mask_aux = mask.detach()
-        value_aux = value.detach()
-        ratio = torch.tensor(self.factor).cuda()
-        batch_size = value.shape[0]
-
-        x_1_missing = torch.where(mask_aux[:,0] == 0, True, False)
-        x_2_missing = torch.where(mask_aux[:,1] == 0, True, False)
-
-        both_missing = torch.where(x_1_missing, x_2_missing, False)
-        none_missing = torch.where(x_1_missing, False , True)
-        none_missing = torch.where(x_2_missing, False, none_missing).unsqueeze(-1).expand(-1,2)
-        ratio_vector = torch.empty(0).new_full(value.shape, ratio).cuda()
-
-        x_1_missing = torch.where(both_missing, False, x_1_missing)
-        x_1_missing_sup_r1 = torch.where(torch.abs(value[:,1])>ratio_vector[:,1], x_1_missing, False)
-        
-        x_2_missing = torch.where(both_missing, False, x_2_missing)
-        x_2_missing_sup_r2 = torch.where(torch.abs(value[:,0])>ratio_vector[:,1], x_2_missing, False)
-
-        both_missing = both_missing.unsqueeze(-1).expand(-1,2)
-
-        complete_output = copy.deepcopy(value_aux)
-
-        # First both_missing :
-        bernoulli = torch.bernoulli(torch.ones(batch_size) * 0.5).unsqueeze(-1).expand(-1,2).cuda()
-        uniform = 2*torch.pi* torch.rand(batch_size).cuda()
-        new_output = (bernoulli + (1-bernoulli) * ratio) * torch.cat([torch.cos(uniform).unsqueeze(-1), torch.sin(uniform).unsqueeze(-1)],-1)
-        complete_output[:,:2] = torch.where(both_missing, new_output, complete_output[:,:2])
-
-        # x_1 missing :
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5).cuda()
-        x_1_missing_new_value_sup_r1 = (2*bernoulli-1) * torch.sqrt(1 - value[:,1]**2) 
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5).cuda()
-        x_1_missing_new_value_inf_r1 = (2*bernoulli-1) * torch.sqrt(torch.maximum(ratio**2 - (value[:,1])**2, torch.zeros(batch_size).cuda()))
-
-        complete_output[:,0] = torch.where(x_1_missing,
-                            bernoulli * x_1_missing_new_value_sup_r1 + (1-bernoulli) * x_1_missing_new_value_inf_r1,
-                            complete_output[:,0])
-
-        complete_output[:,0] = torch.where(x_1_missing_sup_r1, x_1_missing_new_value_sup_r1,
-                            complete_output[:,0]) 
-
-
-        # x_2 missing :
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5).cuda()
-        x_2_missing_new_value_sup_r2 = (2*bernoulli-1) * torch.sqrt(1 - value[:,0]**2) 
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5).cuda()
-        x_2_missing_new_value_inf_r2 = (2*bernoulli-1) * torch.sqrt(torch.maximum(ratio**2 - (value[:,0])**2,torch.zeros(batch_size).cuda()))
-        bernoulli = torch.bernoulli(torch.ones(batch_size)*0.5).cuda()
-
-        complete_output[:,1] = torch.where(x_2_missing,
-                            bernoulli * x_2_missing_new_value_sup_r2 + (1-bernoulli) * x_2_missing_new_value_inf_r2,
-                            complete_output[:,1])
-
-        complete_output[:,1] = torch.where(x_2_missing_sup_r2, x_2_missing_new_value_sup_r2,
-                            complete_output[:,1])
-
-        
-        # None missing 
-        complete_output[:,:2] = torch.where(none_missing, value[:,:2], complete_output[:,:2])
-        complete_output[:,2] =  torch.tensor(np.random.normal(loc=0.0, scale=1.0, size=(batch_size))).cuda()
-
-        return complete_output
-
-
-class CircleDatasetNotCentered():
-    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, noise = False, shift = [2,2], factor =.6, noisy = False, noise_function = None):
-
-        self.nb_sample_train = nb_sample_train
-        self.nb_sample_test = nb_sample_test
-        self.noise = noise
-     
-        total_samples = self.nb_sample_train + self.nb_sample_test
-        test_size = self.nb_sample_test/float(total_samples)
-
-        self.data, self.targets = datasets.make_circles(n_samples=total_samples, factor=.6,
-                                      noise=noise)
-        self.noise = np.random.normal(loc=0.0, scale=1.0, size=(total_samples, 1))
-        self.data = np.concatenate([self.data, self.noise], axis = 1)
-
-
-        self.data_train, self.data_test, self.targets_train, self.targets_test = train_test_split(
-            self.data, self.targets, test_size=test_size, random_state=0)
-
-
-
-        self.data_train = torch.tensor(self.data_train + np.array(shift))
-        self.data_test = torch.tensor(self.data_test + np.array(shift))
-        self.targets_train = torch.tensor(self.targets_train)
-        self.targets_test = torch.tensor(self.targets_test)
-
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.targets_train, noisy = noisy)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
-
-
-class CircleDatasetNotCenteredAndNoise():
-    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, noise = False, shift = [2,2], factor =.6, noisy = False, noise_function = None):
-
-        self.nb_sample_train = nb_sample_train
-        self.nb_sample_test = nb_sample_test
-        self.noise = noise
-     
-        total_samples = self.nb_sample_train + self.nb_sample_test
-        test_size = self.nb_sample_test/float(total_samples)
-
-        self.data, self.targets = datasets.make_circles(n_samples=total_samples, factor=.6,
-                                      noise=noise)
-
-        self.data_train, self.data_test, self.targets_train, self.targets_test = train_test_split(
-            self.data, self.targets, test_size=test_size, random_state=0)
-
-        self.data_train = torch.tensor(self.data_train + np.array(shift))
-        self.data_test = torch.tensor(self.data_test + np.array(shift))
-        self.targets_train = torch.tensor(self.targets_train)
-        self.targets_test = torch.tensor(self.targets_test)
-
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.targets_train, noisy = noisy)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
-
-class LinearSeparableDataset():
-    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, noise = False, shift = [2,2], factor =.1, noisy = False, noise_function = None):
-        self.nb_sample_train = nb_sample_train
-        self.nb_sample_test = nb_sample_test
-        self.noise = noise
-     
-        total_samples = self.nb_sample_train + self.nb_sample_test
-        test_size = self.nb_sample_test/float(total_samples)
-
-        self.data, self.targets = datasets.make_blobs(n_samples=total_samples,centers=2, cluster_std=.1)
-        self.data -= np.mean(self.data)
-        # self.data /= np.linalg.norm(self.data)
-
-        self.data_train, self.data_test, self.targets_train, self.targets_test = train_test_split(
-            self.data, self.targets, test_size=test_size, random_state=0)
-
-        self.data_train = torch.tensor(self.data_train + np.array(shift))
-        self.data_test = torch.tensor(self.data_test + np.array(shift))
-        self.targets_train = torch.tensor(self.targets_train, dtype = torch.int64)
-        self.targets_test = torch.tensor(self.targets_test, dtype = torch.int64)
-
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.targets_train, noisy = noisy)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noisy= noisy)
-
-
-
-class ArtificialDataset(Dataset):
-    def __init__(self, nb_sample_train = 20, nb_sample_test = 20, give_index = False, batch_size_train = None,
-                 noisy = None, use_cuda = False,) -> None:
-        super().__init__()
+class ArtificialDataset():
+    def __init__(self, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs) -> None:
         self.nb_sample_train = nb_sample_train
         self.nb_sample_test = nb_sample_test
         self.give_index = give_index
-        self.batch_size_train = batch_size_train
-        self.noisy = noisy
-        self.use_cuda = use_cuda
+        self.noise_function = noise_function
+        self.batch_size_calculate = 100
 
     def get_true_output(self, value, mask = None, index=None, dataset_type = None):
         raise NotImplementedError("Using abstract class ArtificialDataset")
+
+    def get_dim_input(self):
+        return (self.nb_dim, )
+
+    def get_dim_output(self):
+        return self.nb_classes
 
     def impute(self, value, mask=None, index=None, dataset_type = None):
         raise NotImplementedError("Using abstract class ArtificialDataset")
@@ -518,16 +319,16 @@ class ArtificialDataset(Dataset):
         if classifier is None :
             classifier = lambda x: self.get_true_output(x)
         
-        nb_batch = X.shape[0] // self.batch_size_train + 1
+        nb_batch = X.shape[0] // self.batch_size_calculate + 1
 
         for k in range(nb_batch) :
             if k != nb_batch - 1 :
-                X_batch = X[k*self.batch_size_train:(k+1)*self.batch_size_train]
+                X_batch = X[k*self.batch_size_calculate:(k+1)*self.batch_size_calculate]
             else :
-                X_batch = X[k*self.batch_size_train:]
+                X_batch = X[k*self.batch_size_calculate:]
 
         
-            if k*self.batch_size_train == len(X):
+            if k*self.batch_size_calculate == len(X):
   
                 continue
 
@@ -555,11 +356,11 @@ class ArtificialDataset(Dataset):
                 true_selection_seconddim = torch.mean(torch.std(Y_second_dim, dim=0), axis=-1)
         
                 if k != nb_batch - 1 :
-                    output_S[k*self.batch_size_train:(k+1)*self.batch_size_train,0] = true_selection_firstdim.detach().cpu().numpy()
-                    output_S[k*self.batch_size_train:(k+1)*self.batch_size_train,1] = true_selection_seconddim.detach().cpu().numpy()                
+                    output_S[k*self.batch_size_calculate:(k+1)*self.batch_size_calculate,0] = true_selection_firstdim.detach().cpu().numpy()
+                    output_S[k*self.batch_size_calculate:(k+1)*self.batch_size_calculate,1] = true_selection_seconddim.detach().cpu().numpy()                
                 else :
-                    output_S[k*self.batch_size_train:,0] = true_selection_firstdim.detach().cpu().numpy()
-                    output_S[k*self.batch_size_train:,1] = true_selection_seconddim.detach().cpu().numpy()   
+                    output_S[k*self.batch_size_calculate:,0] = true_selection_firstdim.detach().cpu().numpy()
+                    output_S[k*self.batch_size_calculate:,1] = true_selection_seconddim.detach().cpu().numpy()   
                 
 
             else :
@@ -571,20 +372,23 @@ class ArtificialDataset(Dataset):
 
         return output_S
 
-class HypercubeDataset(ArtificialDataset):
-    def __init__(self, nb_shape = None, nb_dim = None,  sigma=1.0, ratio_sigma = 0.25, prob_simplify=0.2,
-                 nb_sample_train = 20, nb_sample_test = 20, give_index = False, batch_size_train = None,
-                 noisy = None, use_cuda = False, centroids_path = None,
-                 generate_new = False, save = False, generate_each_time = True,
-                 exact_sel_dim = False, max_sel_dim = 2):
 
-        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, batch_size_train = batch_size_train,
-                 noisy = noisy, use_cuda = use_cuda,)
+
+
+class HypercubeDataset(ArtificialDataset):
+    def __init__(self, nb_shape = None, nb_dim = None, nb_classes=2,  sigma=1.0, ratio_sigma = 0.25, prob_simplify=0.2,
+                 nb_sample_train = 20, nb_sample_test = 20, give_index = False,
+                 noise_function = None,  centroids_path = None,
+                 generate_new = False, save = False, generate_each_time = True,
+                 exact_sel_dim = False, max_sel_dim = 2, **kwargs):
+
+        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
 
         self.nb_shape = nb_shape
         self.nb_dim = nb_dim
         self.sigma = sigma  
-        self.nb_classes = 2
+        assert(nb_classes == 2) ## TODO : Can change this to multiclass ?
+        self.nb_classes = nb_classes
         print(f"Given sigma is {sigma}")
         self.prob_simplify = prob_simplify
         self.ratio_sigma = ratio_sigma
@@ -650,27 +454,18 @@ class HypercubeDataset(ArtificialDataset):
 
 
 
-        if self.use_cuda :
-            self.centroids = self.centroids.cuda()
-            self.centroids_Y =self.centroids_Y.cuda()
-        self.generate_each_time = generate_each_time
 
+        self.generate_each_time = generate_each_time
         self.S_exactdef = redraw_dependency(self.S, self.nb_dim)
-        if self.use_cuda :
-            self.S_exactdef = self.S_exactdef.cuda()
+
         self.X_train, self.Y_train, self.S_train_exactdef, self.X_test, self.Y_test, self.S_test_exactdef = generate_distribution(self.centroids, self.centroids_Y, self.S_exactdef, self.gaussian_noise, self.nb_sample_train, self.nb_sample_test)
         
         
         self.S_train_dataset_based_unnormalized = self.calculate_true_selection_variation(self.X_train,)
         self.S_test_dataset_based_unnormalized = self.calculate_true_selection_variation(self.X_test,)
         
-        
-
-        if self.generate_each_time :
-            self.dataset_train = GeneratingTensorDataset(function=self.sample_function, len= self.batch_size_train, give_index = self.give_index)
-        else :
-            self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
-        self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
+        self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index, noise_function=self.noise_function)
+        self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index, noise_function=self.noise_function)
 
     def sample_function(self):
         index = np.random.randint(low=0, high = len(self.centroids))
@@ -709,8 +504,6 @@ class HypercubeDataset(ArtificialDataset):
         batch_size, _ = value.shape
         nb_centroids, dim = self.centroids.shape
         
-        # mask = mask.cpu()
-        # value = value.cpu()
         
         mask_reshape = mask.unsqueeze(1).expand(batch_size, nb_centroids, dim)
         value_reshape = value.unsqueeze(1).expand(batch_size, nb_centroids, dim)
@@ -746,8 +539,6 @@ class HypercubeDataset(ArtificialDataset):
             one_vector = one_vector.cuda()
         out_y = torch.cat([out_y, one_vector - out_y], dim = -1)
 
-    
-
         return out_y
 
     def impute_result(self, mask, value, index = None, dataset_type=None): 
@@ -779,85 +570,18 @@ class HypercubeDataset(ArtificialDataset):
 
         return sampled
 
-    # def calculate_local_neighboors(self, dataset_type = None, epsilon_selection = 0.5):
-    #     if dataset_type == "train" :
-    #         X = self.X_train
-    #     elif dataset_type == "test" :
-    #         X = self.X_test
-    #     else :
-    #         raise ValueError("dataset_type must be train or test")
-    #     nb_centroids, dim = self.centroids.shape
-    #     index_neighboors = []
-    #     for x in X :
-    #         x = x.unsqueeze(0)
-    #         distance = torch.linalg.norm(X - x.expand(X.shape), dim = -1)
-    #         index_neighboors.append(torch.where(distance < epsilon_selection)[0])
-    #     if dataset_type=="train" :
-    #         self.index_neighboors_train = index_neighboors
-    #     else :
-    #         self.index_neighboors_test = index_neighboors    
-        
-
-
-
-
-    # def local_impute(self, mask, value, index=None, dataset_type=None, epsilon_selection = 0.5, sigma_impute = 0.05):
-    #     # TODO : Could be improved by adding some methods
-    #     if index is None :
-    #         raise ValueError("You need to give the index in the distribution if you want to use local imputation")
-
-    #     batch_size, _ = value.shape
-    #     if dataset_type == "train" :
-    #         X = self.X_train
-    #         if self.index_neighboors_train is None :
-    #             self.calculate_local_neighboors(dataset_type = "train", epsilon_selection=epsilon_selection)
-    #         index_neighboors = self.index_neighboors_train
-    #     else :
-    #         X = self.X_test
-    #         if self.index_neighboors_test is None :
-    #             self.calculate_local_neighboors(dataset_type = "test", epsilon_selection=epsilon_selection)
-    #         index_neighboors = self.index_neighboors_test
-
-
-    #     samples_list = []
-    #     for i in range(len(value)):
-    #         current_mask = mask[i]
-    #         current_value = value[i]
-    #         current_neighboors = X[index_neighboors[i]]
-    #         current_value = current_value.unsqueeze(0).expand(current_neighboors.shape)
-    #         current_mask = current_mask.unsqueeze(0).expand(current_neighboors.shape)
-            
-    #         dependency = (((current_value - current_neighboors)/sigma_impute)**2)/2
-    #         dependency = torch.where(current_mask == 0, torch.ones_like(dependency), dependency)
-    #         dependency = torch.exp(-torch.prod(dependency, axis=-1))  +1e-8
-    #         dependency /= torch.sum(dependency, axis=-1, keepdim = True)
-
-    #         index_resampling = torch.distributions.Multinomial(probs = dependency).sample().type(torch.int64)
-    #         index_resampling = torch.argmax(index_resampling,axis=-1)
-
-    #         wanted_centroid = current_neighboors[index_resampling]
-    #         sampled = wanted_centroid + torch.normal(torch.zeros_like(wanted_centroid), self.gaussian_noise)
-            
-            
-
 
 
 
 
 
 class LinearDataset(ArtificialDataset):
-    def __init__(self, nb_sample_train = 1000, nb_sample_test = 1000, give_index = False, 
-                 batch_size_train = None, use_cuda = False, noisy = None):
-        
-        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, batch_size_train = batch_size_train,
-                 noisy = noisy, use_cuda = use_cuda,)
+    def __init__(self, nb_sample_train = 1000, nb_sample_test = 1000, give_index = False, noise_function = None, **kwargs):
+        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
 
-        
         self.nb_sample_train = nb_sample_train
         self.nb_sample_test = nb_sample_test
         self.give_index = give_index
-        self.batch_size_train = batch_size_train
-        self.use_cuda = use_cuda
         self.nb_dim = 2
         self.nb_classes = 2
 
@@ -884,8 +608,7 @@ class LinearDataset(ArtificialDataset):
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
     
 
-    def get_dim(self):
-        return self.nb_dim
+
  
     def get_true_selection(self, index,  train_dataset = True):
         if not self.give_index :
@@ -922,7 +645,6 @@ class LinearDataset(ArtificialDataset):
         resampled_value = uniform.sample(value.shape).type(torch.float32)
         if value.is_cuda :
             resampled_value = resampled_value.cuda()
-        
         try :
             sampled = torch.where(mask>0.5, value, resampled_value)
         except(RuntimeError):
@@ -934,16 +656,12 @@ class LinearDataset(ArtificialDataset):
 ## Dataset based on standard gaussian
 
 class StandardGaussianDataset(ArtificialDataset):
-    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
-                 batch_size_train = None, use_cuda = False, ):
-        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, batch_size_train = batch_size_train,
-                 use_cuda = use_cuda,)
+    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
+        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function=noise_function, **kwargs)
         self.sigma = sigma  
         self.nb_sample_train = nb_sample_train
         self.nb_sample_test = nb_sample_test
         self.give_index = give_index
-        self.batch_size_train = batch_size_train
-        self.use_cuda = use_cuda
 
 
     def get_true_selection(self, index,  train_dataset = True):
@@ -989,13 +707,10 @@ def generate_XOR(sigma, nb_sample_train, nb_sample_test,):
     return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
 
 class XOR(StandardGaussianDataset):
-    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
-                 batch_size_train = None, use_cuda = False, ):
+    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
 
-        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, 
-                 batch_size_train = batch_size_train, use_cuda = use_cuda, )
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
         print(f"Given sigma is {self.sigma}")
-        self.use_cuda = use_cuda
         self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate_XOR(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
@@ -1024,13 +739,9 @@ def generateOrangeSkin(sigma, nb_sample_train, nb_sample_test,):
     return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
 
 class OrangeSkin(StandardGaussianDataset):
-    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
-                 batch_size_train = None, use_cuda = False, ):
-
-        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, 
-                 batch_size_train = batch_size_train, use_cuda = use_cuda, )
+    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function=noise_function, **kwargs)
         print(f"Given sigma is {self.sigma}")
-        self.use_cuda = use_cuda
         self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generateOrangeSkin(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
@@ -1059,13 +770,9 @@ def generateNonLinearAdditiveModel(sigma, nb_sample_train, nb_sample_test,):
     return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
 
 class NonLinearAdditiveModel(StandardGaussianDataset):
-    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
-                 batch_size_train = None, use_cuda = False, ):
-
-        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, 
-                 batch_size_train = batch_size_train, use_cuda = use_cuda, )
+    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function= noise_function, **kwargs)
         print(f"Given sigma is {self.sigma}")
-        self.use_cuda = use_cuda
         self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generateNonLinearAdditiveModel(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
@@ -1119,19 +826,14 @@ def generateSwitchFeature(sigma, nb_sample_train, nb_sample_test,): # In the swi
   
 
 class SwitchFeature(StandardGaussianDataset):
-    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, 
-                 batch_size_train = None, use_cuda = False, ):
-
-        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, 
-                 batch_size_train = batch_size_train, use_cuda = use_cuda, )
+    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function= noise_function, **kwargs)
         print(f"Given sigma is {self.sigma}")
-        self.use_cuda = use_cuda
         self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generateSwitchFeature(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
     
     def impute_result(self, mask, value, index = None, dataset_type=None):
-        
         bern = torch.bernoulli(torch.full(mask.shape, fill_value=torch.tensor(0.5)))
         mean = bern * 3 + (1 - bern) * -3
         
@@ -1144,9 +846,8 @@ class SwitchFeature(StandardGaussianDataset):
 ##### ENCAPSULATION :
 
 class LoaderArtificial():
-    def __init__(self, dataset, batch_size_train = 512, batch_size_test = 512, nb_sample_train = 10000, nb_sample_test=512*100, noisy = False, root_dir = None):
-
-        self.dataset = dataset(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, noisy = noisy, batch_size_train = batch_size_train)
+    def __init__(self, dataset, batch_size_train = 512, batch_size_test = 512,):
+        self.dataset = dataset
         self.dataset_train = self.dataset.dataset_train
         self.dataset_test = self.dataset.dataset_test
         self.batch_size_test = batch_size_test
@@ -1161,8 +862,3 @@ class LoaderArtificial():
                             batch_size=batch_size_test, shuffle=False
                             )
 
-    def get_category(self):
-        return 2
-
-    def get_shape(self):
-        return (2)

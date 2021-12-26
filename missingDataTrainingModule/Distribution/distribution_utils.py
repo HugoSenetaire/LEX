@@ -141,6 +141,8 @@ from torch.distributions import *
 from functools import partial
 
 
+# Changer les modes de distributions pour les rendre NN Modules :
+
 def get_distribution(distribution, temperature, args_train):
 
     if distribution in [RelaxedBernoulli, RelaxedBernoulli_thresholded_STE, RelaxedSubsetSampling, RelaxedSubsetSampling_STE, L2X_Distribution_STE, L2X_Distribution]:
@@ -153,7 +155,6 @@ def get_distribution(distribution, temperature, args_train):
     
     if distribution in [RelaxedBernoulli_thresholded_STE]:
         current_sampling = partial(current_sampling, threshold = args_train["sampling_threshold"])
-
-
+        
 
     return current_sampling
