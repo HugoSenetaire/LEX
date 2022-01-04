@@ -18,7 +18,9 @@ def get_default():
 
 
     args_output = {}
-    args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
+    # args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
+    args_output["path"] = "\scratch\hhjs" # Path to results
+
     args_output["experiment_name"] = "REINFORCE"
 
 
