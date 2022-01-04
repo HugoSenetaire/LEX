@@ -1,6 +1,8 @@
 from random import sample
 import sys
 import os
+
+from numpy.core.fromnumeric import var
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils_missing import *
 import numpy as np
@@ -13,6 +15,8 @@ from .vaeac import *
 import inspect
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
+import pickle as pkl
+import numpy.ma as ma
 
 #### UTILS 
 
@@ -172,7 +176,7 @@ class NetworkAdd(NetworkBasedPostProcess):
     super().__init__(network = network, to_train = to_train, use_cuda= use_cuda, deepcopy = deepcopy)
 
 
-  def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
+  def __call__(self, data_expanded, data_imputed, sample_b, index = None,):
     data_reconstructed = self.network(data_imputed)
     data_imputed = torch.cat([data_imputed,data_reconstructed],axis = 1)
     return data_reconstructed, data_expanded, sample_b
@@ -188,6 +192,72 @@ class NetworkTransformMask(NetworkBasedPostProcess):
     return data_reconstructed, data_expanded, sample_b
 
 
+
+
+class GaussianMixtureImputation(MultipleImputation):
+  def __init__(self, imputation_network_weights_path, nb_imputation, **kwargs):
+    super().__init__(nb_imputation)
+    if not os.path.exists(imputation_network_weights_path):
+      raise ValueError("Weights path does not exist for the Gaussian Mixture at {}".format(imputation_network_weights_path))
+    with open(imputation_network_weights_path, "rb") as f:
+      means, covariances = pkl.load(f)
+    self.means = torch.tensor(means, dtype = torch.float32)
+    self.covariances = torch.tensor(covariances, dtype = torch.float32)
+    self.nb_centers = np.shape(means)[0]
+
+  def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
+    imputation_number = self.check_mode()
+
+    batch_size = torch.Size((data_imputed.shape[0],))
+    other_dim = data_imputed.shape[1:]
+
+    data_expanded_flatten = data_expanded.flatten(1)
+    sample_b_expanded_flatten = sample_b.flatten(1)
+    data_imputed_flatten = data_imputed.flatten(1)
+
+    
+    wanted_shape_flatten = batch_size + torch.Size((self.nb_centers,np.prod(other_dim)))
+    data_imputed_flatten = data_imputed_flatten.unsqueeze(1).expand(wanted_shape_flatten)
+    sample_b_expanded_flatten = sample_b_expanded_flatten.unsqueeze(1).expand(wanted_shape_flatten)
+  
+    centers = self.means.unsqueeze(0).expand(wanted_shape_flatten)
+    variance = self.covariances.unsqueeze(0).expand(wanted_shape_flatten)
+
+
+    # data_masked = ma.masked_array(data_imputed_flatten.detach().cpu().numpy(), mask = 1-sample_b_expanded_flatten)
+    # centers_masked = ma.masked_array(centers.detach().cpu().numpy(), mask =1-sample_b_expanded_flatten)
+    # variance_masked = ma.masked_array(variance.detach().cpu().numpy(), mask =1-sample_b_expanded_flatten)
+
+    # dependency = -(data_masked - centers_masked)**2/2/variance_masked - ma.log(variance)/2
+    # dependency_average = ma.expand_dims(ma.average(dependency, axis = -1),axis=-1)
+    # dependency_sum = ma.exp(ma.sum(dependency - dependency_average, axis = -1) + dependency_average.squeeze())
+    # dependency_sum /= ma.sum(dependency_sum, axis = -1, keepdims = True)
+    # dependency = dependency_sum
+    # print("=========================")
+    dependency = -(data_imputed_flatten - centers)**2/2/variance - torch.log(variance)/2
+    dependency = torch.sum(dependency* sample_b_expanded_flatten,axis=-1) 
+    dependency_max, _ = torch.max(dependency, axis = -1, keepdim = True)
+    dependency -= torch.log(torch.sum(torch.exp(dependency - dependency_max), axis = -1, keepdim=True)) + dependency_max
+
+
+    dependency = torch.exp(dependency)
+
+
+    data_imputed, data_expanded, sample_b_expanded, index_expanded = expand_for_imputations(data_imputed, data_expanded, sample_b, imputation_number, index)
+    wanted_shape = data_imputed.shape
+
+    dependency = torch.tensor(dependency)
+    index_resampling = torch.distributions.Multinomial(probs = dependency).sample((imputation_number,)).type(torch.int64)
+    index_resampling = torch.argmax(index_resampling,axis=-1)
+
+
+    wanted_centroids = self.means[index_resampling]
+    wanted_covariances = self.covariances[index_resampling]
+    sampled = torch.normal(wanted_centroids, wanted_covariances).type(torch.float32).reshape(wanted_shape)
+
+    data_imputed_gm = sample_b_expanded * data_imputed + (1-sample_b_expanded) * sampled
+
+    return data_imputed_gm, data_expanded, sample_b_expanded
 
     
 class DatasetBasedImputation(MultipleImputation):

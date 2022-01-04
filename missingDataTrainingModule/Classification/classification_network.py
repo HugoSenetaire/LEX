@@ -78,8 +78,8 @@ class ClassifierLVL3(nn.Module):
         self.logsoftmax = nn.LogSoftmax(-1)
     
     def __call__(self, x):
-
         x = x.flatten(1)  
+
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
         x = F.elu(self.fc3(x))

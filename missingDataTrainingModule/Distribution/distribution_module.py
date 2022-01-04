@@ -37,8 +37,10 @@ def get_distribution_module_from_args(args_distribution_module):
 
 
 class DistributionModule(nn.Module):
-    def __init__(self, distribution, **kwargs):
+    def __init__(self, distribution, antitheis_sampling = False, **kwargs):
         super().__init__()
+        self.antitheis_sampling = antitheis_sampling
+        print(antitheis_sampling)
         self.distribution = distribution
         self.current_distribution = distribution
 
@@ -47,8 +49,31 @@ class DistributionModule(nn.Module):
         self.current_distribution = self.distribution(torch.exp(log_distribution_parameters))
         return self.current_distribution
 
-    def sample(self, sample_shape):
+    def sample_function(self, sample_shape):
         return self.current_distribution.sample(sample_shape)
+
+
+    def sample(self, sample_shape= (1,)):
+        if self.antitheis_sampling :
+            # aux_sample_shape = sample_shape
+
+            if sample_shape[-1] == 1 and self.training :
+                raise(AttributeError("Antitheis sampling only works for nb_sample_z > 1"))
+            
+            aux_sample_shape = torch.Size(sample_shape[:-1]) + torch.Size((sample_shape[-1] // 2,) )
+
+            # print(aux_sample_shape)
+            # print(sample_shape)
+            sample = self.sample_function(aux_sample_shape)
+            sample = torch.cat((sample, torch.ones_like(sample)-sample), dim = len(sample_shape)-1)
+
+            if sample_shape[-1] %2 == 1:
+                rest_sample_shape = torch.Size(sample_shape[:-1]) + torch.Size((1,) )
+                sample_rest = self.sample_function(rest_sample_shape)
+                sample = torch.cat((sample, sample_rest), dim = len(sample_shape) - 1)
+            return sample
+        else :
+            return self.sample_function(sample_shape)
 
 
 
@@ -57,8 +82,8 @@ class DistributionModule(nn.Module):
 
 
 class DistributionWithSchedulerParameter(DistributionModule):
-    def __init__(self, distribution, temperature_init = 1.0, scheduler_parameter = regular_scheduler, test_temperature = 0.0,  **kwargs):
-        super(DistributionWithSchedulerParameter, self).__init__(distribution)
+    def __init__(self, distribution, temperature_init = 1.0, scheduler_parameter = regular_scheduler, test_temperature = 0.0, antitheis_sampling=False,  **kwargs):
+        super(DistributionWithSchedulerParameter, self).__init__(distribution, antitheis_sampling= antitheis_sampling)
         self.current_distribution = None
         self.temperature_total = temperature_init
         self.temperature = None
@@ -76,7 +101,7 @@ class DistributionWithSchedulerParameter(DistributionModule):
     def train(self,):
         self.temperature = self.temperature_total 
 
-    def sample(self, sample_shape):
+    def sample_function(self, sample_shape):
         if self.training :
             return self.current_distribution.rsample(sample_shape)
         else :
@@ -91,8 +116,10 @@ class DistributionWithSchedulerParameter(DistributionModule):
 
 
 class REBAR_Distribution(DistributionModule):
-    def __init__(self, distribution, distribution_relaxed, temperature_init = 1.0, trainable = False, **kwargs):
-        super(REBAR_Distribution, self).__init__(distribution)
+    def __init__(self, distribution, distribution_relaxed, temperature_init = 1.0, trainable = False, antitheis_sampling = False, **kwargs):
+        super(REBAR_Distribution, self).__init__(distribution, antitheis_sampling=antitheis_sampling)
+        if self.antitheis_sampling :
+            raise AttributeError("Antitheis sampling only works for regular distribution")
         self.distribution_relaxed = distribution_relaxed
         self.trainable = trainable
         self.temperature_total = torch.nn.Parameter(torch.tensor(temperature_init), requires_grad = trainable)
@@ -103,7 +130,7 @@ class REBAR_Distribution(DistributionModule):
         self.distribution_parameters = distribution_parameters
         return self.current_distribution, self.current_distribution_relaxed
 
-    def sample(self, sample_shape):
+    def sample(self, sample_shape= (1,)):
 
         nb_sample = np.prod(sample_shape)
         shape_distribution_parameters = self.distribution_parameters.shape()

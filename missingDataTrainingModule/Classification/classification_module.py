@@ -29,8 +29,10 @@ class ClassificationModule(nn.Module):
             self.input_size = self.classifier.input_size
         self.kernel_updated = False
 
-
-
+    def get_imputation(self, data, mask, index = None):
+        data = data.reshape(mask.shape) # Quick fix when the reshape function do not match the shape of the data (change the dataset might be better), TODO
+        x_imputed, _ = self.imputation(data, mask, index)
+        return x_imputed
 
     def __call__(self, data, mask = None, index = None):
         """ Using the data and the mask, do the imputation and classification 
@@ -52,8 +54,9 @@ class ClassificationModule(nn.Module):
             Some regularization term that can be added to the loss (for instance in the case of version Autoencoder regularisation)
 
         """
-
-
+        
+        if mask is not None :
+            data = data.reshape(mask.shape) # Quick fix when the reshape function do not match the shape of the data (change the dataset might be better), TODO
         if self.imputation is not None and mask is not None :
             x_imputed, loss_reconstruction = self.imputation(data, mask, index)
             y_hat = self.classifier(x_imputed)

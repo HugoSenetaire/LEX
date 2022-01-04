@@ -19,7 +19,6 @@ default_MNIST_transform = torchvision.transforms.Compose([
                                         (0.1307,), (0.3081,))
                                     ])
 
-
 class fromImageToTensor(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -186,55 +185,115 @@ class MnistDataset():
 #     def __str__(self):
 #         return "MnistVariation1quadrant"
 
+class DatasetFromData(Dataset):
+    def __init__(self, data, target, transforms = None, target_transforms = None, give_index = False, noise_function = None) -> None:
+        self.data = data
+        self.targets = target
+        self.transforms = transforms
+        self.target_transforms = target_transforms
+        self.noise_function = noise_function
+        self.give_index = give_index
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        img, target = self.data[idx], int(self.targets[idx])
+        img = img.numpy()
+
+        if self.noise_function is not None :
+            img = self.noise_function(img)
+
+        if self.transforms is not None:
+            img = self.transforms(img)
+
+        
+        if self.target_transforms is not None:
+            target = self.target_transforms(target)
+
+        if self.give_index :
+            return img, target, idx
+        else :
+            return img, target
+      
+
 
 
 class MNIST_and_FASHIONMNIST():
     def __init__(self,
             root_dir: str,
-            transforms = None,
+            transforms_mnist = default_MNIST_transform,
             target_transforms = None,
             download: bool = False,
             noise_function = None,
-    ) :
-        self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, )
-        self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, )
-        self.fashion_mnist_train = torchvision.datasets.FashionMNIST(root_dir, train=True, download=download)
-        self.fashion_mnist_test = torchvision.datasets.FashionMNIST(root_dir, train=False, download=download)
+            **kwargs,):
+        self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, transform = transforms_mnist)
+        self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, transform = transforms_mnist)
+        self.fashion_mnist_train = torchvision.datasets.FashionMNIST(root_dir, train=True, download=download, transform = transforms_mnist)
+        self.fashion_mnist_test = torchvision.datasets.FashionMNIST(root_dir, train=False, download=download, transform = transforms_mnist)
 
 
-        self.data_train_mnist = self.mnist_train.data
-        self.data_test_mnist = self.mnist_test.data
-        self.target_mnist_train = self.mnist_train.targets
-        self.target_mnist_test = self.mnist_test.targets
+        self.data_train_mnist = torch.zeros((len(self.mnist_train), 28, 28))
+        for k in range(len(self.data_train_mnist)):
+          self.data_train_mnist[k],_ = self.mnist_train.__getitem__(k) 
 
-        self.data_train_fashion = self.fashion_mnist_train
-        self.data_test_fashion = self.fashion_mnist_test
+        self.data_test_mnist = torch.zeros((len(self.mnist_test), 28, 28))
+        for k in range(len(self.data_test_mnist)):
+          self.data_test_mnist[k], _ = self.mnist_test.__getitem__(k)
+
+  
+        self.data_train_fashion = torch.zeros((len(self.fashion_mnist_train), 28, 28))
+        for k in range(len(self.data_train_fashion)):
+          self.data_train_fashion[k],_ = self.fashion_mnist_train.__getitem__(k) 
+        self.data_test_fashion = torch.zeros((len(self.fashion_mnist_test), 28, 28))
+        for k in range(len(self.data_test_fashion)):
+          self.data_test_fashion[k], _ = self.fashion_mnist_test.__getitem__(k)
+
+
+        self.target_train = self.mnist_train.targets
+        self.target_test = self.mnist_test.targets
+
+        # # TODO : CHANGE THIS
+        self.data_train_mnist = self.data_train_mnist[:1000]
+        self.data_test_mnist = self.data_test_mnist[:1000]
+
 
         # Create the data :
-        self.data_train = torch.zeros((len(self.data_train_mnist),56,28,))
-        bernoulli_sample = np.random.bernoulli(0.5, size = len(self.data_train_mnist))
-        for k in range(len(self.data_train_mnist)):
-            i = bernoulli_sample[k]
-            j = 1-i
-            self.data_train[k, i*28:(i+1)*28] = self.data_train_mnist[k]
-            self.data_train[k, j*28:(j+1)*28] = self.data_train_fashion[k]
-        
-        self.data_test = torch.zeros((len(self.data_test_mnist),56,28,))
-        bernoulli_sample = np.random.bernoulli(0.5, size = len(self.data_test_mnist))
-        for k in range(len(self.data_train_mnist)):
-            i = bernoulli_sample[k]
-            j = 1-i
-            self.data_test[k, i*28:(i+1)*28] = self.data_test_mnist[k]
-            self.data_test[k, j*28:(j+1)*28] = self.data_test_fashion[k]
-        
-        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = transforms, target_transforms = target_transforms, noise_function = noise_function)
-        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = transforms, target_transforms = target_transforms, noise_function = noise_function)
+        self.data_train = torch.zeros((len(self.data_train_mnist),28,56,))
+        self.quadrant_train = torch.zeros((len(self.data_train_mnist),28,56))
+        bernoulli_sample = np.random.binomial(1, 0.5, size = len(self.data_train_mnist))
 
-    def get_output_dim(self):
+        for k in range(len(self.data_train_mnist)):
+            i = bernoulli_sample[k]
+            j = 1-i
+            self.data_train[k, :, i*28:(i+1)*28] = self.data_train_mnist[k]
+            self.quadrant_train[k, :, i*28:(i+1)*28] = torch.ones((28,28))
+            self.data_train[k, :, j*28:(j+1)*28] = self.data_train_fashion[k]
+        
+
+        # self.data_train.reshape((-1, 1, 28, 56))
+        
+        self.data_test = torch.zeros((len(self.data_test_mnist),28,56,))
+        bernoulli_sample = np.random.binomial(1, 0.5, size = len(self.data_test_mnist))
+        self.quadrant_test = torch.zeros((len(self.data_test_mnist),28,56))
+
+        for k in range(len(self.data_test_mnist)):
+            i = bernoulli_sample[k]
+            j = 1-i
+            self.data_test[k, :, i*28:(i+1)*28] = self.data_test_mnist[k]
+            self.quadrant_test[k, :, i*28:(i+1)*28] = torch.ones((28,28))
+            self.data_test[k, :, j*28:(j+1)*28] = self.data_test_fashion[k]
+        
+        # self.data_test.reshape((-1, 1, 28, 56))
+
+        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+
+    def get_dim_input(self,):
+        return (1,28,56)
+
+    def get_dim_output(self,):
         return 10
-
-    def get_input_dim(self):
-        return (1, 28, 28)
 
     def __str__(self):
         return "Mnist_and_FashionMNIST"

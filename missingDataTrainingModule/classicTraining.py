@@ -368,7 +368,6 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
         total_dic = {}
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
-
             dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z = nb_sample_z)
             
             if batch_idx % 100 == 0 :
@@ -433,7 +432,8 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
 
                 log_pi_list, _ = self.selection_module(data)
                 pi_list_total.append(torch.exp(log_pi_list).cpu().numpy())
-                z = self.distribution_module(log_pi_list).sample((nb_sample_z,))
+                p_z = self.distribution_module(log_pi_list)
+                z = self.distribution_module.sample((nb_sample_z,))
                 z = self.reshape(z)
 
                 if self.post_hoc_guidance is not None:
@@ -775,7 +775,7 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
         # Distribution :
 
         p_z = self.distribution_module(log_pi_list)
-        z = p_z.sample((nb_sample_z,))
+        z = self.distribution_module.sample((nb_sample_z,))
         log_prob_pz = torch.sum(p_z.log_prob(z).flatten(2), axis = -1) # TODO : torch.logsumexp ou torch.Sum ? It's supposed to be sum as we want the product of the bernoulli hence, the sum of the log bernoulli
         z = self.reshape(z)
 

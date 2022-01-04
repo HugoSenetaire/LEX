@@ -166,7 +166,8 @@ class ConstantImputation(Imputation):
     return self.cste
 
   def imputation_function(self, data_expanded, sample_b):
-    return data_expanded *  sample_b + (1-sample_b) * self.cste 
+    result = data_expanded *  sample_b + (1-sample_b) * self.cste 
+    return result
 
 
 

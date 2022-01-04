@@ -43,10 +43,10 @@ def save_parameters(path, args_dataset, args_classification, args_destruction, a
         f.write(str(args_output))
 
 def get_dataset(args_dataset,):
-
     dataset = args_dataset["dataset"](**args_dataset)
     loader = args_dataset["loader"](dataset, batch_size_test=args_dataset["batch_size_test"], batch_size_train=args_dataset["batch_size_train"],)
     return dataset, loader
+
 
 def comply_size(dataset, args_classification, args_destruction, args_complete_trainer):
     dim_shape = dataset.get_dim_input()
@@ -73,18 +73,20 @@ def get_imputation_method(args_class):
 
 def get_multiple_imputation(args_classification, args_train, loader):
     post_process_regularization = args_classification["post_process_regularization"]
-    if args_classification["post_process_regularization"] is VAEAC_Imputation_DetachVersion :
+    if post_process_regularization is VAEAC_Imputation_DetachVersion :
         model, sampler = load_VAEAC(args_classification["VAEAC_dir"])
         post_proc_regul = post_process_regularization(model, sampler, args_classification["nb_imputation"])
+    elif post_process_regularization is GaussianMixtureImputation :
+        post_proc_regul = post_process_regularization(**args_classification)
     elif post_process_regularization is DatasetBasedImputation :
         post_proc_regul = post_process_regularization(loader.dataset, args_classification["nb_imputation"])
-    elif args_classification["post_process_regularization"] is MICE_imputation :
+    elif post_process_regularization is MICE_imputation :
         post_proc_regul = post_process_regularization(args_classification["nb_imputation"])
-    elif args_classification["post_process_regularization"] is MarkovChainImputation :
+    elif post_process_regularization is MarkovChainImputation :
         print("Training Markov Chain")
         markov_chain = MarkovChain(loader.train_loader, use_cuda=args_train["use_cuda"])
         post_proc_regul = post_process_regularization(markov_chain, args_classification["nb_imputation"], use_cuda=args_train["use_cuda"])
-    elif args_classification["post_process_regularization"] is HMMimputation:
+    elif post_process_regularization is HMMimputation:
         print("Train HMM")
         if args_classification["log_hmm"] :
             hmm = HMMLog(loader.train_loader, hidden_dim = args_classification["hidden_state_hmm"],
@@ -380,6 +382,7 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
         total_dic_test_no_var_2 = {}
         total_dic_test_var = {}
         for epoch in range(args_train["nb_epoch"]):
+            print(args_train["nb_sample_z_train"])
             dic_train = trainer.train_epoch(
                 epoch, loader,
                 save_dic = True,

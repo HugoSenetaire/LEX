@@ -19,7 +19,7 @@ def get_default():
 
     args_output = {}
     args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
-    args_output["experiment_name"] = "all_z"
+    args_output["experiment_name"] = "REINFORCE"
 
 
 
@@ -34,7 +34,7 @@ def get_default():
 
     args_dataset = {}
     # args_dataset["dataset"] = LinearSeparableDataset
-    args_dataset["dataset"] = MnistDataset
+    args_dataset["dataset"] = MNIST_and_FASHIONMNIST
     args_dataset["loader"] = LoaderEncapsulation
     args_dataset["root_dir"] = os.path.join(args_output["path"], "datasets")
     args_dataset["batch_size_train"] = 128
@@ -45,7 +45,7 @@ def get_default():
 
 
     args_classification = {}
-    args_classification["input_size_classification_module"] = (1,28,28) # Size before imputation
+    args_classification["input_size_classification_module"] = (1,28,56) # Size before imputation
     args_classification["classifier"] = ClassifierLVL3
 
     args_classification["imputation"] = ConstantImputation
@@ -55,18 +55,19 @@ def get_default():
     args_classification["post_process_network"] = None # Autoencoder Network to use
     args_classification["trainable_post_process"] = False # If true, free the parameters of network during the training (loss guided by classification)
     args_classification["pretrain_post_process"] = False # If true, pretrain the autoencoder with the training data
-    args_classification["post_process_regularization"] = None # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
     args_classification["reconstruction_regularization"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
     args_classification["lambda_reconstruction"] = 0.01 # Parameter for controlling the reconstruction regularization
     args_classification["train_reconstruction_regularization"] = False # If true, free the parameters of autoencoder during the training (loss guided by a reconstruction loss)
     args_classification["noise_function"] = DropOutNoise(pi = 0.3) # Noise used to pretrain the autoencoder
-    args_classification["nb_imputation"] = 1
+    args_classification["nb_imputation"] = 2
 
+    args_classification["post_process_regularization"] = GaussianMixtureImputation # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
+    args_classification["imputation_network_weights_path"] = os.path.join(os.path.join(args_dataset["root_dir"], "imputation_weights"), "100_components.pkl") # Path to the weights of the network to use for post processing
 
     args_destruction = {}
 
-    args_destruction["input_size_destructor"] = (1,28,28)
-    args_destruction["output_size_destructor"] = (1,28,28)
+    args_destruction["input_size_destructor"] = (1,28,56)
+    args_destruction["output_size_destructor"] = (1,28,56)
     args_destruction["destructor"] = Destructor
     args_destruction["destructor_var"] = None #DestructorSimilarVar
     args_destruction["activation"] = torch.nn.LogSigmoid()
@@ -98,6 +99,7 @@ def get_default():
     args_distribution_module["scheduler_parameter"] = None
     args_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
     args_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
+    args_distribution_module["antitheis_sampling"] = True 
 
 
 
@@ -106,11 +108,11 @@ def get_default():
 
     args_train = {}
     # args_train["nb_epoch"] = 500 # Training the complete model
-    args_train["nb_epoch"] = 15 # Training the complete model
+    args_train["nb_epoch"] = 1 # Training the complete model
     args_train["nb_epoch_post_hoc"] = 0 # Training the complete model
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training auto encoder
     args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
-    args_train["nb_sample_z_train"] = 10 # Number K in the IWAE-similar loss 
+    args_train["nb_sample_z_train"] = 2 # Number K in the IWAE-similar loss 
     args_train["print_every"] = 1
 
     args_train["sampling_subset_size"] = 2 # Sampling size for the subset 
@@ -131,13 +133,13 @@ def get_default():
     args_compiler["optim_autoencoder"] = partial(Adam, lr=1e-4)
     args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-4)
 
-    args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) #Learning rate for classification module
-    args_compiler["scheduler_destruction"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for destruction module
-    args_compiler["scheduler_destruction_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for the variationnal destruction module used in Variationnal Training
-    args_compiler["scheduler_distribution_module"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for the feature extractor if any
-    args_compiler["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6) # Learning rate for the baseline network
-    args_compiler["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6)
-    args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=2, gamma = 0.6)
+    args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=5, gamma = 0.6) #Learning rate for classification module
+    args_compiler["scheduler_destruction"] = partial(torch.optim.lr_scheduler.StepLR, step_size=5, gamma = 0.6) # Learning rate for destruction module
+    args_compiler["scheduler_destruction_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=5, gamma = 0.6) # Learning rate for the variationnal destruction module used in Variationnal Training
+    args_compiler["scheduler_distribution_module"] = partial(torch.optim.lr_scheduler.StepLR, step_size=5, gamma = 0.6) # Learning rate for the feature extractor if any
+    args_compiler["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=5, gamma = 0.6) # Learning rate for the baseline network
+    args_compiler["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=5, gamma = 0.6)
+    args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=5, gamma = 0.6)
     
     args_test = {}
     args_test["temperature_test"] = 0.001
