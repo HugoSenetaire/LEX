@@ -26,12 +26,12 @@ class DestructionModule(nn.Module):
     
     def cuda(self,):
         super(DestructionModule, self).cuda()
-        self.cuda = True
+        self.use_cuda = True
 
     def __call__(self, data_expanded, one_hot_target = None, test=False):
         
         loss_reg = torch.tensor(0.)
-        if self.cuda :
+        if self.use_cuda :
             loss_reg.cuda()
 
         if one_hot_target is not None :
