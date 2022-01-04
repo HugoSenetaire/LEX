@@ -24,7 +24,7 @@ class LossRegularization():
       self.function = lambda x: torch.pow(x, 2)
     else :
       raise AttributeError("regul_loss must be L1 or L2")
-
+    print("lambda_reg", lambda_reg)
     self.batched = batched
     
   def __call__(self, log_pi_list):
@@ -34,6 +34,7 @@ class LossRegularization():
 
     regularizing_vector = torch.ones_like(pi_list)
     loss_reg = self.lambda_reg * torch.mean(self.function(regularizing_vector - pi_list))
+    print("loss_reg", loss_reg)
     return log_pi_list, loss_reg
       
 class SoftmaxRegularization():
