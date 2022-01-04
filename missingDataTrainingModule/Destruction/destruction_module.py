@@ -32,7 +32,7 @@ class DestructionModule(nn.Module):
         
         loss_reg = torch.tensor(0.)
         if self.use_cuda :
-            loss_reg.cuda()
+            loss_reg = loss_reg.cuda()
 
         if one_hot_target is not None :
             log_pi_list = self.destructor(data_expanded, one_hot_target)

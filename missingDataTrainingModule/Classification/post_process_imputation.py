@@ -223,6 +223,9 @@ class GaussianMixtureImputation(MultipleImputation):
   
     centers = self.means.unsqueeze(0).expand(wanted_shape_flatten)
     variance = self.covariances.unsqueeze(0).expand(wanted_shape_flatten)
+    if data_expanded.cuda:
+      centers = centers.cuda()
+      variance = variance.cuda()
 
 
     # data_masked = ma.masked_array(data_imputed_flatten.detach().cpu().numpy(), mask = 1-sample_b_expanded_flatten)
@@ -254,6 +257,9 @@ class GaussianMixtureImputation(MultipleImputation):
 
     wanted_centroids = self.means[index_resampling]
     wanted_covariances = self.covariances[index_resampling]
+    if data_expanded.cuda :
+      wanted_centroids = wanted_centroids.cuda()
+      wanted_covariances = wanted_covariances.cuda()
     sampled = torch.normal(wanted_centroids, wanted_covariances).type(torch.float32).reshape(wanted_shape)
 
     data_imputed_gm = sample_b_expanded * data_imputed + (1-sample_b_expanded) * sampled
