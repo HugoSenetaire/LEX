@@ -59,6 +59,8 @@ class ClassificationModule(nn.Module):
             data = data.reshape(mask.shape) # Quick fix when the reshape function do not match the shape of the data (change the dataset might be better), TODO
         if self.imputation is not None and mask is not None :
             x_imputed, loss_reconstruction = self.imputation(data, mask, index)
+            if x_imputed.cuda :
+                loss_reconstruction = loss_reconstruction.cuda() # TODO : PUT IT ELSEWHERE
             y_hat = self.classifier(x_imputed)
         else :
             y_hat = self.classifier(data)
