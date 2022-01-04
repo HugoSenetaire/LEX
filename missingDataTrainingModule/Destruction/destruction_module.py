@@ -45,6 +45,8 @@ class DestructionModule(nn.Module):
         if self.regularization is not None :
             for reg in self.regularization :
                 log_pi_list, loss_reg_aux = reg(log_pi_list)
+                if loss_reg.cuda:
+                    loss_reg_aux.cuda()
                 loss_reg +=loss_reg_aux
                 
             return log_pi_list, loss_reg
