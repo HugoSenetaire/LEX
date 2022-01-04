@@ -19,7 +19,7 @@ def get_default():
 
     args_output = {}
     # args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
-    args_output["path"] = "\scratch\hhjs" # Path to results
+    args_output["path"] = "/scratch/hhjs" # Path to results
 
     args_output["experiment_name"] = "REINFORCE"
 
@@ -70,7 +70,7 @@ def get_default():
 
     args_destruction["input_size_destructor"] = (1,28,56)
     args_destruction["output_size_destructor"] = (1,28,56)
-    args_destruction["destructor"] = Destructor
+    args_destruction["destructor"] = DestructorLVL3
     args_destruction["destructor_var"] = None #DestructorSimilarVar
     args_destruction["activation"] = torch.nn.LogSigmoid()
     # args_destruction["activation"] = torch.nn.LogSoftmax(dim=-1)
@@ -79,7 +79,7 @@ def get_default():
     args_destruction["trainable_regularisation"] = False
     args_destruction["regularization"] = LossRegularization
     args_destruction["lambda_reg"] = 0.0 # Entre 1 et 10 maintenant
-    args_destruction["rate"] = 0.1
+    args_destruction["rate"] = 0.0
     args_destruction["loss_regularization"] = "L1" # L1, L2 
     args_destruction["batched"] = False
 
