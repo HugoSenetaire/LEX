@@ -22,7 +22,7 @@ class DestructionModule(nn.Module):
             if not self.regularization is list :
                 self.regularization = [self.regularization]
             # self.regularization = nn.ModuleList(self.regularization)
-        self.cuda = False
+        self.use_cuda = False
     
     def cuda(self,):
         super(DestructionModule, self).cuda()
