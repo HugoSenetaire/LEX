@@ -253,10 +253,6 @@ class MNIST_and_FASHIONMNIST():
         self.target_train = self.mnist_train.targets
         self.target_test = self.mnist_test.targets
 
-        # # TODO : CHANGE THIS
-        self.data_train_mnist = self.data_train_mnist[:1000]
-        self.data_test_mnist = self.data_test_mnist[:1000]
-
 
         # Create the data :
         self.data_train = torch.zeros((len(self.data_train_mnist),28,56,))
