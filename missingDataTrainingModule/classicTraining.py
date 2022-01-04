@@ -339,7 +339,7 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
             print("CUDA not found, using cpu instead")
         else :
             self.classification_module.cuda()
-            self.destruction_module.cuda()
+            self.selection_module.cuda()
             self.distribution_module.cuda()
             self.use_cuda = True
 
