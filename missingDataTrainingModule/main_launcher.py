@@ -228,6 +228,8 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
         else :
             scheduler_post_hoc = None
         trainer = ordinaryTraining(classification_module = post_hoc_guidance,)
+        if args_train["use_cuda"]:
+            trainer.cuda()
         trainer.compile(optimizer=optim_post_hoc, scheduler_classification = scheduler_post_hoc)
 
         nb_epoch = args_train["nb_epoch_post_hoc"]
@@ -265,6 +267,8 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
             nb_epoch = args_train["nb_epoch_pretrain"]
 
         vanilla_classification_module = ClassificationModule(classifier, imputation = imputation)
+        if args_train["use_cuda"]:
+            vanilla_classification_module.cuda()
         optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
 
 
@@ -334,6 +338,8 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
             argmax_post_hoc = args_train["argmax_post_hoc"],
         )
 
+        if args_train["use_cuda"]:
+            trainer.cuda()
 
         ####Optimizer :
         optim_classification = args_compiler["optim_classification"](classification_module.parameters(), weight_decay = 1e-5)
