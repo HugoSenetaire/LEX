@@ -32,7 +32,7 @@ class LossRegularization():
       pi_list = torch.mean(pi_list, -1)
 
     regularizing_vector = torch.ones_like(pi_list)
-    loss_reg = self.lambda_reg * torch.mean(self.function(regularizing_vector - pi_list))
+    loss_reg = -self.lambda_reg * torch.mean(self.function(regularizing_vector - pi_list))
     return log_pi_list, loss_reg
       
 class SoftmaxRegularization():
