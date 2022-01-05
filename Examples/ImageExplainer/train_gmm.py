@@ -44,5 +44,7 @@ if __name__=="__main__":
         gm.fit(data)
         mu = gm.means_
         covariances = gm.covariances_
-        pkl.dump((mu, covariances), open(save_path, "wb"))
+        weights = gm.weights_
+        pkl.dump((weights, mu, covariances), open(save_path, "wb"))
+        print("save at ", save_path)
         print(f"{n_components} components saved")
