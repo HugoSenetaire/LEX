@@ -54,7 +54,7 @@ class DistributionModule(nn.Module):
 
 
     def sample(self, sample_shape= (1,)):
-        if self.antitheis_sampling :
+        if self.antitheis_sampling and self.training:
             # aux_sample_shape = sample_shape
 
             if sample_shape[-1] == 1 and self.training :
