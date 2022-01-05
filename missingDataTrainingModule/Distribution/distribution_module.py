@@ -45,9 +45,11 @@ class DistributionModule(nn.Module):
         self.current_distribution = distribution
 
     def forward(self, log_distribution_parameters,):
-
         self.current_distribution = self.distribution(torch.exp(log_distribution_parameters))
-        return self.current_distribution
+        return self
+
+    def log_prob(self, x):
+        return self.current_distribution.log_prob(x)
 
     def sample_function(self, sample_shape):
         return self.current_distribution.sample(sample_shape)
@@ -55,9 +57,10 @@ class DistributionModule(nn.Module):
 
     def sample(self, sample_shape= (1,)):
         if self.antitheis_sampling and self.training:
+            # print("ANTITHEIS SAMPLING")
             # aux_sample_shape = sample_shape
 
-            if sample_shape[-1] == 1 and self.training :
+            if sample_shape[-1] == 1 :
                 raise(AttributeError("Antitheis sampling only works for nb_sample_z > 1"))
             
             aux_sample_shape = torch.Size(sample_shape[:-1]) + torch.Size((sample_shape[-1] // 2,) )
@@ -73,6 +76,7 @@ class DistributionModule(nn.Module):
                 sample = torch.cat((sample, sample_rest), dim = len(sample_shape) - 1)
             return sample
         else :
+            # print("NORMAL SAMPLING")
             return self.sample_function(sample_shape)
 
 
@@ -111,6 +115,17 @@ class DistributionWithSchedulerParameter(DistributionModule):
         if self.scheduler_parameter is not None :
             self.temperature_total = self.scheduler_parameter(self.temperature_total, epoch)
 
+
+class Bernoulli(DistributionModule):
+    def __init__(self, **kwargs):
+        super(Bernoulli, self).__init__(distribution = torch.distributions.Bernoulli)
+    
+    def forward(self, distribution_parameters, ):
+        self.current_distribution = self.distribution(torch.exp(distribution_parameters),)
+        
+    
+    def sample_function(self, sample_shape):
+        return self.current_distribution.sample(sample_shape)
 
 
 

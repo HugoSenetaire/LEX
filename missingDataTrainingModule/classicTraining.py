@@ -224,7 +224,8 @@ class EVAL_X(ordinaryTraining):
         else :
             index_expanded_flatten = None
 
-        z = self.fixed_distribution(nb_sample_z * batch_size)
+        p_z = self.fixed_distribution(data,)
+        z = p_z.sample((nb_sample_z,))
         if self.reshape_mask_function is not None :
             z = self.reshape_mask_function(z)
 
@@ -432,7 +433,7 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
 
                 log_pi_list, _ = self.selection_module(data)
                 pi_list_total.append(torch.exp(log_pi_list).cpu().numpy())
-                p_z = self.distribution_module(log_pi_list)
+                self.distribution_module(log_pi_list)
                 z = self.distribution_module.sample((nb_sample_z,))
                 z = self.reshape(z)
 
@@ -550,32 +551,92 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
                         reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters,
                         post_hoc_guidance = post_hoc_guidance, argmax_post_hoc = argmax_post_hoc,
                         show_variance_gradient = show_variance_gradient)
-
+        if self.post_hoc_guidance is not None :
+            raise NotImplementedError("REALX does not support post hoc guidance")
+        assert(distribution_module is REBAR_Distribution)
         self.classification_distribution = classification_distribution
 
     def _train_step(self, data, target, dataset, index = None, nb_sample_z = 10):
 
-        data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
-        batch_size = data.size(0)
+        self.zero_grad()
+        
+        nb_imputation = self.classification_module.imputation.nb_imputation
+        batch_size = data.shape[0]
+        if self.use_cuda :
+            data, target, index = on_cuda(data, target = target, index = index,)
+        one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
         data_expanded, target_expanded, index_expanded, one_hot_target_expanded = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z = nb_sample_z, nb_imputation = None)
-
-        if index_expanded is not None :
+        data_expanded_multiple_imputation, target_expanded_multiple_imputation, index_expanded_multiple_imputation, one_hot_target_expanded_multiple_imputation = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z = nb_sample_z, nb_imputation = nb_imputation)
+        if index is not None :
             index_expanded_flatten = index_expanded.flatten(0,1)
+            index_expanded_multiple_imputation_flatten = index_expanded_multiple_imputation.flatten(0,1)
         else :
             index_expanded_flatten = None
+        
+        # Destructive module :
+        log_pi_list, loss_reg = self.selection_module(data)
 
-        z = self.fixed_distribution(nb_sample_z * batch_size)
+
+        # Train classification module :
+        self.classification_distribution(log_pi_list)
+        z = self.classification_distribution.sample((nb_sample_z,))
+        log_prob_pz = torch.sum(self.distribution_module.log_prob(z).flatten(2), axis = -1)
         z = self.reshape(z)
+        
+        
+        
 
         log_y_hat, _ = self.classification_module(data_expanded.flatten(0,1), z, index_expanded_flatten)
         log_y_hat = log_y_hat.reshape(nb_sample_z * batch_size, dataset.get_dim_output())
 
-        neg_likelihood = F.nll_loss(log_y_hat, target)
-        mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1))
-        loss = neg_likelihood
-        dic = self._create_dic(loss, neg_likelihood, mse_loss,)
-        loss.backward()
+        neg_likelihood = F.nll_loss(log_y_hat, target_expanded_multiple_imputation.flatten(0,2), reduce = False).reshape(nb_imputation, nb_sample_z, batch_size)
+        mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target_expanded_multiple_imputation.flatten(0,2))**2,1)) 
+        
+        
+        neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
+        neg_likelihood += torch.exp(log_prob_pz).detach() # This is + because this is the definition of the data
+        neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z).type(torch.float32))
+        neg_likelihood = torch.sum(neg_likelihood)
+        loss_classification_module = neg_likelihood
+
+        loss_classification_module.backward()
         self.optim_classification.step()
+
+        # Train destruction module :
+        log_pi_list, loss_reg = self.selection_module(data)
+        self.distribution_module(log_pi_list)
+        z, s, z_tilde = self.distribution_module.sample((nb_sample_z,))
+        z = self.reshape(z)
+        s = self.reshape(s)
+        z_tilde = self.reshape(z_tilde)
+
+        # f_s
+        f_s, _ = self.classification_module(data_expanded.flatten(0,1), s)
+        # 2. c(z)
+        c_z, _ = self.classification_module(data_expanded.flatten(0,1), z)
+        # 3. c(z~)
+        c_z_tilde, _ = self.classification_module(data_expanded.flatten(0,1), z_tilde)
+
+        # Compute the probabilities 
+        # 1. f(s)
+        p_f_s = F.nll_loss(f_s, target_expanded_multiple_imputation.flatten(0,2), reduce = False).reshape(nb_imputation, nb_sample_z, batch_size)
+        # 2. c(z)
+        p_c_z = F.nll_loss(c_z, target_expanded_multiple_imputation.flatten(0,2), reduce = False).reshape(nb_imputation, nb_sample_z, batch_size)
+        # 3. c(z~)
+        p_c_z_tilde = F.nll_loss(c_z_tilde, target_expanded_multiple_imputation.flatten(0,2), reduce = False).reshape(nb_imputation, nb_sample_z, batch_size)
+        # 4. q(s)
+        log_prob_pz = torch.sum(self.distribution_module.log_prob(s).flatten(2), axis = -1)
+
+        # Compute the loss
+        # Reward
+        Reward = torch.sum(p_f_s - p_c_z_tilde, axis = -1)
+        Reward = Reward.detach()
+
+        # Terms to Make Expection Zero
+        E_0 = torch.sum(p_c_z,axis = -1) - torch.sum(p_c_z_tilde,axis = -1)
+
+        # Losses
+        destruction_module_loss = Reward*  + E_0 + loss_reg
         return dic
 
 class ReparametrizedTraining(SELECTION_BASED_CLASSIFICATION):
@@ -603,7 +664,7 @@ class ReparametrizedTraining(SELECTION_BASED_CLASSIFICATION):
         log_pi_list, loss_reg = self.selection_module(data)
 
         # Distribution :
-        p_z = self.distribution_module(log_pi_list)
+        self.distribution_module(log_pi_list)
         z = self.distribution_module.sample((nb_sample_z,))
         z = self.reshape(z)
 
@@ -688,11 +749,12 @@ class AllZTraining(SELECTION_BASED_CLASSIFICATION):
         # Destructive module :
         log_pi_list, loss_reg = self.selection_module(data)
         # Distribution :
-        p_z = self.distribution_module(log_pi_list)
+        self.distribution_module(log_pi_list)
 
 
         # z = p_z.sample((nb_sample_z,))
-        log_prob_pz = torch.sum(p_z.log_prob(z.flatten(2)), axis = -1) # TODO : torch.logsumexp ou torch.Sum ? It's supposed to be sum as we want the product of the bernoulli hence, the sum of the log bernoulli
+        
+        log_prob_pz = torch.sum(self.distribution_module.log_prob(z.flatten(2)), axis = -1) # TODO : torch.logsumexp ou torch.Sum ? It's supposed to be sum as we want the product of the bernoulli hence, the sum of the log bernoulli
         z = self.reshape(z)
         
         # Classification module :
@@ -715,7 +777,7 @@ class AllZTraining(SELECTION_BASED_CLASSIFICATION):
 
         # Loss for selection :
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
-        neg_likelihood *= torch.exp(log_prob_pz) # I used to do + but not correct ?
+        neg_likelihood += torch.exp(log_prob_pz) # It is + here because we use log
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z).type(torch.float32))
         neg_likelihood = torch.sum(neg_likelihood)
 
@@ -774,9 +836,9 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
 
         # Distribution :
 
-        p_z = self.distribution_module(log_pi_list)
+        self.distribution_module(log_pi_list)
         z = self.distribution_module.sample((nb_sample_z,))
-        log_prob_pz = torch.sum(p_z.log_prob(z).flatten(2), axis = -1) # TODO : torch.logsumexp ou torch.Sum ? It's supposed to be sum as we want the product of the bernoulli hence, the sum of the log bernoulli
+        log_prob_pz = torch.sum(self.distribution_module.log_prob(z).flatten(2), axis = -1) # TODO : torch.logsumexp ou torch.Sum ? It's supposed to be sum as we want the product of the bernoulli hence, the sum of the log bernoulli
         z = self.reshape(z)
 
 
@@ -800,10 +862,9 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
 
         # Loss for classification
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
-        # neg_likelihood *= torch.exp(log_prob_pz).detach()
+        neg_likelihood +=log_prob_pz.detach() # TODO : IT IS + BECAUSE we have expectation inside the log ( IF THERE IS NONE, THIS IS INVASE METHOD)
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z).type(torch.float32))
         neg_likelihood = torch.sum(neg_likelihood)
-        # print(neg_likelihood)
         loss_classification_module = neg_likelihood
 
         # Loss for selection :
@@ -812,7 +873,7 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
             neg_reward = neg_reward - log_y_hat_baseline_masked.unsqueeze(0).unsqueeze(1).expand(nb_imputation, nb_sample_z, batch_size).detach()
 
         neg_reward = torch.logsumexp(neg_reward, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
-        loss_hard =  log_prob_pz*neg_reward
+        loss_hard = log_prob_pz*neg_reward 
         loss_destruction = torch.logsumexp(loss_hard, axis=0) - torch.log(torch.tensor(nb_sample_z).type(torch.float32))
         loss_destruction = torch.sum(loss_destruction) 
 
@@ -993,7 +1054,7 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
 
         # Loss calculation
         z = z.reshape(z_real_sampled.shape)
-        log_prob_z_sampled = p_z.log_prob(z.detach()).reshape(nb_sample_z, batch_size, -1)
+        log_prob_z_sampled = self.distribution_module.log_prob(z.detach()).reshape(nb_sample_z, batch_size, -1)
         log_prob_z = torch.sum(torch.sum(log_prob_z_sampled,axis=0), axis=-1) 
 
         likelihood_hard = log_y_hat_iwae_masked_hard_z.detach() * log_prob_z + log_y_hat_iwae_masked_hard_z
