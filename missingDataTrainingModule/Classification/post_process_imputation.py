@@ -242,7 +242,7 @@ class GaussianMixtureImputation(MultipleImputation):
     # dependency = dependency_sum
     # print("=========================")
     dependency = -(data_imputed_flatten - centers)**2/2/variance - torch.log(variance)/2
-    dependency = torch.sum(dependency* sample_b_expanded_flatten,axis=-1) + torch.log(self.weights)
+    dependency = torch.sum(dependency* sample_b_expanded_flatten,axis=-1) + torch.log(weights)
     dependency_max, _ = torch.max(dependency, axis = -1, keepdim = True)
     dependency -= torch.log(torch.sum(torch.exp(dependency - dependency_max), axis = -1, keepdim=True)) + dependency_max
 
