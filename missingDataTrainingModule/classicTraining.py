@@ -566,17 +566,37 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
 
                 ## Check the prediction with the selection method
                 log_y_hat_destructed, _ = self.classification_module(data_expanded.flatten(0,1), z, index = index_expanded_flatten)
+                
                 log_y_hat_destructed = log_y_hat_destructed.reshape(nb_sample_z, batch_size, loader.dataset.get_dim_output())
-                log_y_hat_iwae = torch.logsumexp(log_y_hat_destructed,0)
-                print(log_y_hat_iwae)
-                print(target)
-                print(F.nll_loss(log_y_hat_iwae,target))
-                test_loss_likelihood += F.nll_loss(log_y_hat_iwae,target)
-                print(test_loss_likelihood)
+                log_y_hat_iwae = torch.logsumexp(log_y_hat_destructed,0) - torch.log(torch.tensor(nb_sample_z).type(torch.float32))
+                log_y_hat_mean = torch.mean(log_y_hat_destructed, axis=0)
+                # print("====================")
+                # print(z.shape)
+                # print(torch.where(torch.isnan(log_y_hat_destructed)))
+                # print(z[torch.where(torch.isnan(log_y_hat_destructed))])
+                # print("data expanded", data_expanded.shape)
+                # print("log y hat", log_y_hat_destructed.shape)
+                index = torch.where(torch.any(torch.isnan(log_y_hat_destructed), axis=-1))[1]
+                # print(torch.where(torch.any(torch.isnan(log_y_hat_destructed), axis=-1)))
+                # print(data_expanded.flatten(0,1)[index,])
 
-                test_loss_mse += torch.mean(torch.sum((torch.exp(log_y_hat_iwae)-one_hot_target)**2,1))
+                test_loss_likelihood += F.nll_loss(log_y_hat_destructed.flatten(0,1),target_expanded.flatten(0,1))
+                # print(test_loss_likelihood)
+                # if torch.any(torch.isnan(test_loss_likelihood)):
+                    # to_show = data_expanded.flatten(0,1)[index,].reshape(-1, 28 ,56)
+                    # to_show_z = z.reshape(-1,28,56)[index,]
+                    # for img_index in range(len(to_show)) :
+                        # img = to_show[img_index]
+                        # current_z = to_show_z[img_index]
+                        # fig, axs = plt.subplots(1, 2, figsize = (10, 5))
+                        # axs[0].imshow(img.detach().cpu().numpy(), cmap = "gray")
+                        # axs[1].imshow(current_z.detach().cpu().numpy(), cmap = "gray")
+                        # plt.show()
+                    # assert 1 == 0
 
-                pred_destructed = torch.argmax(log_y_hat_iwae, dim=1)
+                test_loss_mse += torch.mean(torch.sum((torch.exp(log_y_hat_mean)-one_hot_target)**2,1))
+
+                pred_destructed = torch.argmax(log_y_hat_mean, dim=1)
                 correct_destructed += pred_destructed.eq(target).sum()
 
 
@@ -980,75 +1000,13 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
 
 
 class REBAR(SELECTION_BASED_CLASSIFICATION):
-    def __init__(self, classification_module, selection_module, baseline = None, feature_extractor = None, kernel_patch = (1,1), stride_patch = (1,1), fix_classifier_parameters = False, post_hoc_guidance = None, argmax_post_hoc_classification = False, feature_extractor_training = False, use_cuda = True, update_temperature = False, pytorch_relax = False):
-        super().__init__(classification_module, selection_module,baseline=baseline, feature_extractor= feature_extractor, kernel_patch = kernel_patch, stride_patch = stride_patch, use_cuda=use_cuda, fix_classifier_parameters=fix_classifier_parameters, post_hoc_guidance=post_hoc_guidance, argmax_post_hoc_classification=argmax_post_hoc_classification)
-        self.compteur = 0
-        self.update_temperature = update_temperature
-        self.pytorch_relax = pytorch_relax
-        self.eta_classif = {}
-        self.eta_selection = {}
-        # self._initialize_eta(self.eta_classif, self.classification_module.classifier.named_parameters())
-        self._initialize_eta(self.eta_selection, self.selection_module.selector.named_parameters())
-        self.temperature_lambda = torch.tensor(0., requires_grad = self.update_temperature, device='cuda:0')
-        self.create_optimizer()
-
-    def zero_grad(self):
-        super().zero_grad()
-        for name in self.eta_selection.keys():
-            if self.eta_selection[name].grad is not None :
-                self.eta_selection[name].grad.zero_()
-        if self.temperature_lambda.grad is not None :
-            self.temperature_lambda.grad.zero_()
-        # for name in self.eta_classif.keys():
-            # if self.eta_classif[name].grad is not None :
-                # self.eta_classif[name].grad.zero_()
-
-    def _destructive_train(self, data, sampling_distribution, nb_sample_z):
-        pi_list, loss_reg = self._get_pi(data)
-        if (pi_list<0).any() or torch.isnan(pi_list).any() or torch.isinf(pi_list).any():
-            print(pi_list)
-        assert((pi_list>=0).any())
-        assert((pi_list<=1).any())
-        z, p_z = self._sample_z_test(pi_list, sampling_distribution, nb_sample_z)
-        return pi_list, loss_reg, z, p_z
-
-
-    def create_optimizer(self, lr = 1e-4):
-        list = []
-        for name in self.eta_selection:
-            list.append(self.eta_selection[name])
-        if self.update_temperature :
-            list.append(self.temperature_lambda)
-        self.optimizer_eta = torch.optim.SGD(list, lr=lr)
-
-
-    def _multiply_by_eta_per_layer(self, parameters, eta):
-        for (name, p) in parameters:
-            if p.grad is None :
-                continue
-            else :
-                p.grad = p.grad * eta[name]
-
-    def _multiply_by_eta_per_layer_gradient(self, gradients, eta, named_parameters):
-        g_dic = {}
-        for g,(name, _) in zip(gradients,named_parameters):
-            if g is None :
-                g_dic[name] = None
-            else :
-                g_dic[name] = g * eta[name]
-        return g_dic
-
-
-    def _initialize_eta(self, eta, parameters):
-        for (name, _) in parameters:
-            if name in eta.keys() :
-                print("Doubling parameters here")
-            if self.use_cuda :
-                eta[name] = torch.rand(1, requires_grad=True, device="cuda:0") # TODO
-                # eta[name] = torch.ones(1, requires_grad=True, device='cuda:0')
-            else :
-                eta[name] = torch.rand(1, requires_grad=True, device="cpu") # TODO
-
+    def __init__(self, classification_module, selection_module, distribution_module, baseline = None,
+                reshape_mask_function = None, fix_classifier_parameters = False,
+                post_hoc_guidance = None, argmax_post_hoc = False, show_variance_gradient = False,  ):
+        
+        super().__init__(classification_module, selection_module, distribution_module, baseline = baseline,
+                        reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters,
+                        post_hoc_guidance = post_hoc_guidance, argmax_post_hoc = argmax_post_hoc, show_variance_gradient=show_variance_gradient,)
 
     def _create_dic(self, loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_selection = None, variance = None):
         dic = super()._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_selection)
