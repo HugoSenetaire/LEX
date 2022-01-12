@@ -82,8 +82,8 @@ class DistributionWithSchedulerParameter(DistributionModule):
     def __init__(self, distribution, temperature_init = 1.0, scheduler_parameter = regular_scheduler, test_temperature = 0.0, antitheis_sampling=False,  **kwargs):
         super(DistributionWithSchedulerParameter, self).__init__(distribution, antitheis_sampling= antitheis_sampling)
         self.current_distribution = None
-        self.temperature_total = temperature_init
-        self.temperature = temperature_init
+        self.temperature_total = torch.tensor(temperature_init, dtype=torch.float32)
+        self.temperature = torch.tensor(temperature_init, dtype=torch.float32)
         self.test_temperature = test_temperature
         self.scheduler_parameter = scheduler_parameter
 
@@ -92,7 +92,7 @@ class DistributionWithSchedulerParameter(DistributionModule):
         if self.training :
             self.current_distribution = self.distribution(probs = torch.exp(distribution_parameters), temperature = self.temperature)
         else :
-            self.current_distribution = self.distribution(probs = torch.exp(distribution_parameters), temperature = 0.)
+            self.current_distribution = self.distribution(probs = torch.exp(distribution_parameters), temperature = torch.tensor(0., dtype=torch.float32))
         return self.current_distribution
 
     # TODO : WHAT IS GOING ON HERE ?
