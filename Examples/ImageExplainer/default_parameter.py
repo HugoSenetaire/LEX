@@ -50,7 +50,7 @@ def get_default():
     args_classification["input_size_classification_module"] = (1,28,56) # Size before imputation
     args_classification["classifier"] = ClassifierLVL3
 
-    args_classification["imputation"] = ConstantImputation
+    args_classification["imputation"] = NoDestructionImputation
     args_classification["cste_imputation"] = 0
     args_classification["add_mask"] = False
 
@@ -109,11 +109,10 @@ def get_default():
 
 
     args_train = {}
-    # args_train["nb_epoch"] = 500 # Training the complete model
-    args_train["nb_epoch"] = 1 # Training the complete model
+    args_train["nb_epoch"] = 10 # Training the complete model
     args_train["nb_epoch_post_hoc"] = 0 # Training the complete model
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training auto encoder
-    args_train["nb_epoch_pretrain_selector"] = 2 # Pretrain selector
+    args_train["nb_epoch_pretrain_selector"] = 0 # Pretrain selector
     args_train["nb_epoch_pretrain"] = 2 # Training the complete model 
     args_train["nb_sample_z_train_monte_carlo"] = 3 # Number K in the IWAE-similar loss 
     args_train["nb_sample_z_train_IWAE"] = 3
@@ -147,6 +146,6 @@ def get_default():
     
     args_test = {}
     args_test["temperature_test"] = 0.001
-    args_test["nb_sample_z_test"] = 10
+    args_test["nb_sample_z_test"] = 1
 
     return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler
