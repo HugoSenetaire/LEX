@@ -3,7 +3,6 @@ import sys
 from numpy.core.function_base import linspace
 
 from missingDataTrainingModule.Classification.classification_network import ClassifierLVL3, ClassifierLinear
-from missingDataTrainingModule.Destruction import destruction_module
 sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
 sys.path.append("/home/hhjs/MissingDataTraining")
 
@@ -151,8 +150,8 @@ def save_interpretation_artificial_bar(path, sample, target, pred):
 
 
 global_keys = ["accuracy_selection_pi", "accuracy_selection_z", "accuracy_selection_thresholded_pi","accuracy_selection_thresholded_z",
- "proportion_pi", "proportion_z", "proportion_thresholded_pi", "proportion_thresholded_z", "accuracy_prediction_no_destruction",
-  "accuracy_prediction_destruction", "mean_pi_list", "pi_list_q1", "pi_list_q2", "pi_list_median","auc_score_pi", "auc_score_z"]
+ "proportion_pi", "proportion_z", "proportion_thresholded_pi", "proportion_thresholded_z", "accuracy_prediction_no_selection",
+  "accuracy_prediction_selection", "mean_pi_list", "pi_list_q1", "pi_list_q2", "pi_list_median","auc_score_pi", "auc_score_z"]
 
 global_keys_to_count_batch_size = ["proportion_pi", "proportion_z", "proportion_thresholded_pi", "proportion_thresholded_z"]
 global_keys_to_count_dim_batch_size = ["accuracy_selection_pi", "accuracy_selection_z", "accuracy_selection_thresholded_pi","accuracy_selection_thresholded_z","auc_score_pi", "auc_score_z"]
@@ -382,7 +381,7 @@ def plot_true_interpretation_v3(dataset, path, train_data = False, nb_train_data
   plt.close(fig)
 
 
-def plot_destructor_output(destructor, dataset, path, train_data = False, nb_train_data = 1000, interpretation= False, figsize = (15,5),):
+def plot_selector_output(selector, dataset, path, train_data = False, nb_train_data = 1000, interpretation= False, figsize = (15,5),):
   try :
     centroids = dataset.centroids
   except :
@@ -410,9 +409,9 @@ def plot_destructor_output(destructor, dataset, path, train_data = False, nb_tra
   xaux2 = grid_y.reshape(1, -1)
   complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
 
-  if next(destructor.destructor.parameters()).is_cuda:
+  if next(selector.selector.parameters()).is_cuda:
     complete_X = complete_X.cuda()
-  log_pi_list, _ = destructor(complete_X)
+  log_pi_list, _ = selector(complete_X)
   pi_list = torch.exp(log_pi_list.detach().cpu())
   pi_list = pi_list.clamp(min = 0.0, max=1.0)
 
@@ -500,9 +499,16 @@ def plot_complete_model_output(trainer_var, dataset, sampling_distribution, path
   if next(trainer_var.classification_module.classifier.parameters()).is_cuda:
     complete_X = complete_X.cuda()
 
-  if hasattr(trainer_var, "destruction_module"):
-    log_y_hat_destructed = trainer_var._predict(complete_X, sampling_distribution, nb_classes, Nexpectation = 20, index = None)  
-    pred_destruction = torch.exp(log_y_hat_destructed).detach().cpu()
+  if hasattr(trainer_var, "selection_module"):
+    trainer_var.eval()
+    log_pi_list, _ = trainer_var.selection_module(complete_X)
+    trainer_var.distribution_module(log_pi_list)
+    z = trainer_var.distribution_module.sample((1,))
+    z = trainer_var.reshape(z)
+
+    log_y_hat_destructed, _ = trainer_var.classification_module(complete_X, z)
+    # log_y_hat_destructed = trainer_var._predict(complete_X, sampling_distribution, nb_classes, Nexpectation = 20, index = None)  
+    pred_selection = torch.exp(log_y_hat_destructed).detach().cpu()
     destructive= True
   else :
     destructive = False
@@ -524,7 +530,7 @@ def plot_complete_model_output(trainer_var, dataset, sampling_distribution, path
     fig, axs = plt.subplots(nrows = nb_classes, ncols = 2, figsize = (10, nb_classes*5))
     for category_index in range(nb_classes):
       axs[category_index, 0,].contourf(grid_x, grid_y, pred_classic[:,category_index].reshape(grid_x.shape),  vmin=0, vmax=1.0)
-      axs[category_index, 1,].contourf(grid_x, grid_y, pred_destruction[:,category_index].reshape(grid_x.shape), vmin=0, vmax=1.0)
+      axs[category_index, 1,].contourf(grid_x, grid_y, pred_selection[:,category_index].reshape(grid_x.shape), vmin=0, vmax=1.0)
       if centroids is not None:
         for k in range(2):
           axs[category_index, k,].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
@@ -563,7 +569,7 @@ def plot_complete_model_output(trainer_var, dataset, sampling_distribution, path
 
 
    
-def compare_selection_single(dic, mask, true_masks, normalized_output = True, threshold_destructor = 0.5, suffix = "pi", true_masks_int = False):
+def compare_selection_single(dic, mask, true_masks, normalized_output = True, threshold_selector = 0.5, suffix = "pi", true_masks_int = False):
     batch_size = len(mask)
     nb_dim = mask.shape[1]
 
@@ -571,7 +577,7 @@ def compare_selection_single(dic, mask, true_masks, normalized_output = True, th
       
       current_mask = mask.detach().cpu()[:, dim]
       true_current_masks = true_masks.detach().cpu()[:, dim]
-      current_mask_thresholded = torch.where(current_mask > threshold_destructor, torch.ones_like(current_mask), torch.zeros_like(current_mask))
+      current_mask_thresholded = torch.where(current_mask > threshold_selector, torch.ones_like(current_mask), torch.zeros_like(current_mask))
       accuracy = torch.sum(1-torch.abs(true_current_masks - current_mask))
       accuracy_thresholded = torch.sum(1-torch.abs(true_current_masks - current_mask_thresholded))
 
@@ -600,14 +606,14 @@ def compare_selection_single(dic, mask, true_masks, normalized_output = True, th
 
     return dic
 
-def compare_selection(mask, true_masks, normalized_output = False, train_dataset = False, sampling_distribution = None, threshold_destructor = 0.5, nb_sample_z = 100, true_masks_int = False): 
+def compare_selection(mask, true_masks, normalized_output = False, train_dataset = False, sampling_distribution = None, threshold_selector = 0.5, nb_sample_z = 100, true_masks_int = False): 
     dic = {}
-    dic = compare_selection_single(dic, mask, true_masks, normalized_output = normalized_output, threshold_destructor = threshold_destructor, suffix = "pi")
+    dic = compare_selection_single(dic, mask, true_masks, normalized_output = normalized_output, threshold_selector = threshold_selector, suffix = "pi")
 
     # if sampling_distribution is not None :
     #     mask_z = sampling_distribution(probs=mask).sample((nb_sample_z,)).flatten(0,1)
     #     true_masks_z = true_masks.unsqueeze(0).expand(torch.Size((nb_sample_z,)) + true_masks.shape).flatten(0,1)
-    #     dic = compare_selection_single(dic, mask_z, true_masks_z, normalized_output = normalized_output, threshold_destructor = threshold_destructor, suffix = "z", true_masks_int = true_masks_int)
+    #     dic = compare_selection_single(dic, mask_z, true_masks_z, normalized_output = normalized_output, threshold_selector = threshold_selector, suffix = "z", true_masks_int = true_masks_int)
     
     return dic
 

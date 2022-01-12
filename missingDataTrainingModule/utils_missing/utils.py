@@ -59,38 +59,46 @@ def get_one_hot(target, num_classes = 10):
 
     return one_hot_target
 
-def extend_input(input, nb_sample_z = 1, nb_imputation = 1):
+def extend_input(input, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = None, nb_imputation = None):
     shape = input.shape
+
+    wanted_shape = torch.Size((nb_sample_z_monte_carlo,)) + shape
+    input_expanded = input.unsqueeze(0)
+
+    if nb_sample_z_IWAE is not None :
+        wanted_shape = torch.Size((nb_sample_z_IWAE,)) + wanted_shape
+        input_expanded = input_expanded.unsqueeze(0)
+
     if nb_imputation is not None :
-        wanted_shape = torch.Size((nb_imputation, nb_sample_z)) + shape
-        input_expanded = input.unsqueeze(0).unsqueeze(0).expand(wanted_shape)
-    else :
-        wanted_shape = torch.Size((nb_sample_z,)) + shape
-        input_expanded = input.unsqueeze(0).expand(wanted_shape)
+        wanted_shape = torch.Size((nb_imputation,)) + wanted_shape
+        input_expanded = input_expanded.unsqueeze(0)
+
+
+    input_expanded = input.expand(wanted_shape)
 
 
     return input_expanded
     
 
     
-def prepare_data_augmented(data, target = None, index=None, one_hot_target = None, nb_sample_z = 1, nb_imputation = None):
+def prepare_data_augmented(data, target = None, index=None, one_hot_target = None, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = None, nb_imputation = None):
     if index is not None :
-        index_expanded = extend_input(index, nb_sample_z, nb_imputation)
+        index_expanded = extend_input(index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, nb_imputation = nb_imputation)
     else :
         index_expanded = None
 
     if one_hot_target is not None :
-        one_hot_target_expanded = extend_input(one_hot_target, nb_sample_z, nb_imputation)
+        one_hot_target_expanded = extend_input(one_hot_target, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, nb_imputation = nb_imputation)
     else :
         one_hot_target_expanded = None
 
     
     
     if target is not None :
-        target_expanded = extend_input(target, nb_sample_z, nb_imputation)
+        target_expanded = extend_input(target, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, nb_imputation = nb_imputation)
     else :
         target_expanded = None
-    data_expanded = extend_input(data, nb_sample_z, nb_imputation)
+    data_expanded = extend_input(data, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, nb_imputation = nb_imputation)
      
 
 

@@ -1,6 +1,3 @@
-# from .Destruction import * 
-# from .Classification import *
-# from .utils_missing import *
 import numpy as np
 from psutil import net_connections
 
@@ -16,7 +13,7 @@ from functools import partial
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-def save_parameters(path, args_dataset, args_classification, args_destruction, args_complete_trainer, args_train, args_test, args_output):
+def save_parameters(path, args_dataset, args_classification, args_selection, args_complete_trainer, args_train, args_test, args_output):
     complete_path = os.path.join(path, "parameters")
     if not os.path.exists(complete_path):
         os.makedirs(complete_path)
@@ -27,8 +24,8 @@ def save_parameters(path, args_dataset, args_classification, args_destruction, a
     with open(os.path.join(complete_path,"classification.txt"), "w") as f:
         f.write(str(args_classification))
     
-    with open(os.path.join(complete_path,"destruction.txt"), "w") as f:
-        f.write(str(args_destruction))
+    with open(os.path.join(complete_path,"selection.txt"), "w") as f:
+        f.write(str(args_selection))
 
     with open(os.path.join(complete_path,"complete_trainer.txt"), "w") as f:
         f.write(str(args_complete_trainer))
@@ -48,14 +45,14 @@ def get_dataset(args_dataset,):
     return dataset, loader
 
 
-def comply_size(dataset, args_classification, args_destruction, args_complete_trainer):
+def comply_size(dataset, args_classification, args_selection, args_complete_trainer):
     dim_shape = dataset.get_dim_input()
     args_classification["input_size_classification_module"] = dim_shape # Size before imputation
     args_classification["input_size_classifier"] = dim_shape # Size after imputation
     args_classification["input_size_baseline"] = dim_shape # Size before imputation (should be size of data)
-    args_destruction["input_size_destructor"] = dim_shape
-    args_destruction["output_size_destructor"] = dim_shape
-    args_destruction["input_size_autoencoder"] = dim_shape
+    args_selection["input_size_selector"] = dim_shape
+    args_selection["output_size_selector"] = dim_shape
+    args_selection["input_size_autoencoder"] = dim_shape
     args_complete_trainer["input_size_baseline"] = dim_shape
     args_complete_trainer["reshape_mask_function"] = partial(args_complete_trainer["reshape_mask_function"], size = dim_shape)
 
@@ -121,20 +118,20 @@ def get_multiple_imputation(args_classification, args_train, loader):
     return post_proc_regul
 
 
-def get_networks(args_classification, args_destruction, args_complete_trainer, output_category):
-    input_size_destructor = args_destruction["input_size_destructor"]
-    output_size_destructor = args_destruction["output_size_destructor"]
+def get_networks(args_classification, args_selection, args_complete_trainer, output_category):
+    input_size_selector = args_selection["input_size_selector"]
+    output_size_selector = args_selection["output_size_selector"]
     input_size_classifier = args_classification["input_size_classification_module"]
     input_size_baseline = args_classification["input_size_classification_module"]
 
     classifier =  args_classification["classifier"](input_size_classifier, output_category)
-    destructor = args_destruction["destructor"](input_size_destructor, output_size_destructor)
+    selector = args_selection["selector"](input_size_selector, output_size_selector)
     
 
-    if args_destruction["destructor_var"] is not None :
-        destructor_var = args_destruction["destructor_var"](input_size_destructor, output_size_destructor)
+    if args_selection["selector_var"] is not None :
+        selector_var = args_selection["selector_var"](input_size_selector, output_size_selector)
     else :
-        destructor_var = None
+        selector_var = None
 
     
     if args_complete_trainer["baseline"] is not None :
@@ -142,28 +139,29 @@ def get_networks(args_classification, args_destruction, args_complete_trainer, o
     else :
         baseline = None
  
-    return classifier, destructor, baseline, destructor_var
+    return classifier, selector, baseline, selector_var
 
-def get_regularization_method(args_destruction):
-    regularization = args_destruction["regularization"](**args_destruction)
+def get_regularization_method(args_selection):
+    print(args_selection)
+    regularization = args_selection["regularization"](**args_selection)
     return regularization
 
 
 
-def check_parameters_compatibility(args_classification, args_destruction, args_distribution_module, args_complete_trainer, args_train, args_test, args_output):
+def check_parameters_compatibility(args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_output):
     sampling_distrib = args_distribution_module["distribution"]
-    activation = args_destruction["activation"]
+    activation = args_selection["activation"]
     if args_distribution_module["distribution"] in [RelaxedSubsetSampling, RelaxedSubsetSampling_STE, L2X_Distribution_STE, L2X_Distribution] \
-        and args_destruction["activation"] != torch.nn.LogSoftmax() :
+        and args_selection["activation"] != torch.nn.LogSoftmax() :
         raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
     
-    if args_distribution_module["distribution"] in [RelaxedBernoulli_thresholded_STE, RelaxedBernoulli] \
-        and args_destruction["activation"] != torch.nn.LogSigmoid() :
-        raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
+    # if args_distribution_module["distribution"] in [RelaxedBernoulli_thresholded_STE, RelaxedBernoulli] \
+        # and args_selection["activation"] != torch.nn.LogSigmoid() :
+        # raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
 
 
-def experiment(args_output, args_dataset, args_classification, args_destruction, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = True):
-    
+def experiment(args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = True):
+    torch.random.manual_seed(0)
     dataset = args_dataset["dataset"]
     dic_list = {}
 
@@ -190,14 +188,14 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
     
     print(f"Save at {final_path}")
     save_parameters(final_path, args_dataset, args_classification,
-                     args_destruction, args_complete_trainer,
+                     args_selection, args_complete_trainer,
                       args_train, args_test, args_output)
-    check_parameters_compatibility(args_classification, args_destruction, args_distribution_module, args_complete_trainer, args_train, args_test, args_output)
+    check_parameters_compatibility(args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_output)
 
     ### Datasets :
     dataset, loader = get_dataset(args_dataset,)
     if args_complete_trainer["comply_with_dataset"] :
-        comply_size(dataset, args_classification, args_destruction, args_complete_trainer)
+        comply_size(dataset, args_classification, args_selection, args_complete_trainer)
 
     ## Sampling :
     distribution_module = get_distribution_module_from_args(args_distribution_module)
@@ -209,17 +207,21 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
     post_proc_regul = get_multiple_imputation(args_classification, args_train, loader)
 
     ### Regularization method :
-    regularization = get_regularization_method(args_destruction)
+    regularization = get_regularization_method(args_selection)
 
     ### Networks :
-    classifier, destructor, baseline, destructor_var = get_networks(args_classification, args_destruction, args_complete_trainer, dataset.get_dim_output())
+    classifier, selector, baseline, selector_var = get_networks(args_classification, args_selection, args_complete_trainer, dataset.get_dim_output())
 
     post_hoc_guidance = None
+
+
+
+
     ##### ============ Training POST-HOC ============= ####
 
     if args_train["post_hoc"] and args_train["post_hoc_guidance"] is not None :
         print("Training post-hoc guidance")
-        post_hoc_classifier =  args_train["post_hoc_guidance"](args_destruction["input_size_destructor"], dataset.get_dim_output())
+        post_hoc_classifier =  args_train["post_hoc_guidance"](args_selection["input_size_selector"], dataset.get_dim_output())
         post_hoc_guidance = ClassificationModule(post_hoc_classifier, imputation = None)
         optim_post_hoc = args_train["optim_post_hoc"](post_hoc_guidance.parameters())
 
@@ -230,7 +232,7 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
         trainer = ordinaryTraining(classification_module = post_hoc_guidance,)
         if args_train["use_cuda"]:
             trainer.cuda()
-        trainer.compile(optimizer=optim_post_hoc, scheduler_classification = scheduler_post_hoc)
+        trainer.compile(optim_classification=optim_post_hoc, scheduler_classification = scheduler_post_hoc)
 
         nb_epoch = args_train["nb_epoch_post_hoc"]
         total_dic_train = {}
@@ -269,22 +271,22 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
         vanilla_classification_module = ClassificationModule(classifier, imputation = imputation)
         if args_train["use_cuda"]:
             vanilla_classification_module.cuda()
-        optim_classifier = args_train["optim_classification"](vanilla_classification_module.parameters())
+        optim_classifier = args_compiler["optim_classification"](vanilla_classification_module.parameters())
 
 
-        if args_train["scheduler_classification"] is not None :
-            scheduler_classification = args_train["scheduler_classification"](optim_classifier)
+        if args_compiler["scheduler_classification"] is not None :
+            scheduler_classification = args_compiler["scheduler_classification"](optim_classifier)
         else :
             scheduler_classification = None
 
-        trainer = args_complete_trainer["complete_trainer"](vanilla_classification_module,)
-        trainer.compile(optimizer=optim_classifier, scheduler_classification = scheduler_classification,)
+        trainer = ordinaryTraining(vanilla_classification_module, )
+        trainer.compile(optim_classification=optim_classifier, scheduler_classification = scheduler_classification,)
 
 
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(nb_epoch):
-            dic_train = trainer.train_epoch(epoch, loader, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),)
+            dic_train = trainer.train_epoch(epoch, loader, save_dic = True,)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
                 dic_test = trainer.test(loader) 
             total_dic_train = fill_dic(total_dic_train, dic_train)
@@ -298,7 +300,29 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
 
         if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection:
             return final_path, trainer, loader, dic_list
+            
+    
+    #### Pretraining selector :
+    if args_train["nb_epoch_pretrain_selector"] >0:
+        print("Pretraining selector")
+        selection_module = SelectionModule(selector,
+                            activation=args_selection["activation"],
+                            regularization=regularization,
+                            )
 
+        optim_selection = args_compiler["optim_selection"](selection_module.parameters())
+        if args_compiler["scheduler_selection"] is not None :
+            scheduler_selection = args_compiler["scheduler_selection"](optim_selection)
+        else :
+            scheduler_selection = None
+        trainer_selector = GroundTruthSelectionTraining(selection_module, reshape_mask_function=args_complete_trainer["reshape_mask_function"])
+        if args_train["use_cuda"]:
+            trainer_selector.cuda()
+        trainer_selector.compile(optim_selection=optim_selection, scheduler_selection = scheduler_selection)
+        for epoch in range(args_train["nb_epoch_pretrain_selector"]):
+            trainer_selector.train_epoch(epoch, loader, verbose=True)
+            trainer_selector.test(epoch, loader)
+                
 
 
     ##### ============  Modules initialisation for complete training ===========:
@@ -309,8 +333,8 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
         else : 
             recons_regul = None
 
-        destruction_module = DestructionModule(destructor,
-                            activation=args_destruction["activation"],
+        selection_module = SelectionModule(selector,
+                            activation=args_selection["activation"],
                             regularization=regularization,
                             )
 
@@ -329,7 +353,7 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
 
         trainer = args_complete_trainer["complete_trainer"](
             classification_module,
-            destruction_module,
+            selection_module,
             distribution_module = distribution_module,
             baseline = baseline,
             reshape_mask_function = args_complete_trainer["reshape_mask_function"],
@@ -341,7 +365,7 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
         if args_train["use_cuda"]:
             trainer.cuda()
 
-        ####Optimizer :
+        ####Optim_optim_classification :
         optim_classification = args_compiler["optim_classification"](classification_module.parameters(), weight_decay = 1e-5)
         if args_compiler["scheduler_classification"] is not None :
             scheduler_classification = args_compiler["scheduler_classification"](optim_classification)
@@ -349,11 +373,11 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
             scheduler_classification = None
 
 
-        optim_destruction = args_compiler["optim_destruction"](destruction_module.parameters(), weight_decay = 1e-5)
-        if args_compiler["scheduler_destruction"] is not None :
-            scheduler_destruction = args_compiler["scheduler_destruction"](optim_destruction)
+        optim_selection = args_compiler["optim_selection"](selection_module.parameters(), weight_decay = 1e-5)
+        if args_compiler["scheduler_selection"] is not None :
+            scheduler_selection = args_compiler["scheduler_selection"](optim_selection)
         else :
-            scheduler_destruction = None
+            scheduler_selection = None
         
         if args_complete_trainer["baseline"] is not None :
             optim_baseline = args_compiler["optim_baseline"](baseline.parameters(), weight_decay = 1e-5)
@@ -370,9 +394,9 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
             scheduler_distribution_module = None
 
         trainer.compile(optim_classification = optim_classification,
-            optim_destruction = optim_destruction,
+            optim_selection = optim_selection,
             scheduler_classification = scheduler_classification,
-            scheduler_destruction = scheduler_destruction,
+            scheduler_selection = scheduler_selection,
             optim_baseline = optim_baseline,
             scheduler_baseline = scheduler_baseline,
             optim_distribution_module = optim_distribution_module,
@@ -388,11 +412,11 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
         total_dic_test_no_var_2 = {}
         total_dic_test_var = {}
         for epoch in range(args_train["nb_epoch"]):
-            print(args_train["nb_sample_z_train"])
             dic_train = trainer.train_epoch(
                 epoch, loader,
                 save_dic = True,
-                nb_sample_z=args_train["nb_sample_z_train"],
+                nb_sample_z_monte_carlo =args_train["nb_sample_z_train_monte_carlo"],
+                nb_sample_z_IWAE = args_train["nb_sample_z_train_IWAE"],
                 verbose = ((epoch+1) % args_train["print_every"] == 0),
             )
 
@@ -403,9 +427,9 @@ def experiment(args_output, args_dataset, args_classification, args_destruction,
            
         save_dic(os.path.join(final_path,"train"), total_dic_train)
         save_dic(os.path.join(final_path,"test"), total_dic_test)
-        if args_complete_trainer["complete_trainer"] is variationalTraining :
-            save_dic(os.path.join(final_path, "test_var"), total_dic_test_var)
-            dic_list["test_var"] = total_dic_test_var
+        # if args_complete_trainer["complete_trainer"] is variationalTraining :
+        #     save_dic(os.path.join(final_path, "test_var"), total_dic_test_var)
+        #     dic_list["test_var"] = total_dic_test_var
 
         dic_list["train"] = total_dic_train
         dic_list["test"]  = total_dic_test

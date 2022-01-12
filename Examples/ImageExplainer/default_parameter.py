@@ -66,42 +66,42 @@ def get_default():
     args_classification["post_process_regularization"] = GaussianMixtureImputation # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
     args_classification["imputation_network_weights_path"] = os.path.join(os.path.join(args_dataset["root_dir"], "imputation_weights"), "100_components.pkl") # Path to the weights of the network to use for post processing
 
-    args_destruction = {}
+    args_selection = {}
 
-    args_destruction["input_size_destructor"] = (1,28,56)
-    args_destruction["output_size_destructor"] = (1,28,56)
-    args_destruction["destructor"] = DestructorLVL3
-    args_destruction["destructor_var"] = None #DestructorSimilarVar
-    args_destruction["activation"] = torch.nn.LogSigmoid()
-    # args_destruction["activation"] = torch.nn.LogSoftmax(dim=-1)
+    args_selection["input_size_selector"] = (1,28,56)
+    args_selection["output_size_selector"] = (1,28,56)
+    args_selection["selector"] = SelectorLVL3
+    args_selection["selector_var"] = None #selectorSimilarVar
+    args_selection["activation"] = torch.nn.LogSigmoid()
+    # args_selection["activation"] = torch.nn.LogSoftmax(dim=-1)
 
     # For regularization :
-    args_destruction["trainable_regularisation"] = False
-    args_destruction["regularization"] = LossRegularization
-    args_destruction["lambda_reg"] = 0.0 # Entre 1 et 10 maintenant
-    args_destruction["rate"] = 0.0
-    args_destruction["loss_regularization"] = "L1" # L1, L2 
-    args_destruction["batched"] = False
+    args_selection["trainable_regularisation"] = False
+    args_selection["regularization"] = LossRegularization
+    args_selection["lambda_reg"] = 0.0 # Entre 1 et 10 maintenant
+    args_selection["rate"] = 0.0
+    args_selection["loss_regularization"] = "L1" # L1, L2 
+    args_selection["batched"] = False
 
 
-    args_destruction["regularization_var"] = LossRegularization
-    args_destruction["lambda_regularization_var"] = 0.0
-    args_destruction["rate_var"] = 0.1
-    args_destruction["loss_regularization_var"] = "L1"
-    args_destruction["batched_var"] = False
+    args_selection["regularization_var"] = LossRegularization
+    args_selection["lambda_regularization_var"] = 0.0
+    args_selection["rate_var"] = 0.1
+    args_selection["loss_regularization_var"] = "L1"
+    args_selection["batched_var"] = False
 
 
 
     args_distribution_module = {}
-    args_distribution_module["distribution_module"] = DistributionModule
-    args_distribution_module["distribution"] = Bernoulli
+    args_distribution_module["distribution_module"] = DistributionWithSchedulerParameter
+    args_distribution_module["distribution"] = RelaxedBernoulli_thresholded_STE
     args_distribution_module["distribution_relaxed"] = None
     args_distribution_module["temperature_init"] = 1.0
     args_distribution_module["test_temperature"] = 0.0
-    args_distribution_module["scheduler_parameter"] = None
+    args_distribution_module["scheduler_parameter"] = regular_scheduler
     args_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
     args_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
-    args_distribution_module["antitheis_sampling"] = True 
+    args_distribution_module["antitheis_sampling"] = False 
 
 
 
@@ -113,8 +113,10 @@ def get_default():
     args_train["nb_epoch"] = 1 # Training the complete model
     args_train["nb_epoch_post_hoc"] = 0 # Training the complete model
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training auto encoder
-    args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
-    args_train["nb_sample_z_train"] = 2 # Number K in the IWAE-similar loss 
+    args_train["nb_epoch_pretrain_selector"] = 2 # Pretrain selector
+    args_train["nb_epoch_pretrain"] = 2 # Training the complete model 
+    args_train["nb_sample_z_train_monte_carlo"] = 3 # Number K in the IWAE-similar loss 
+    args_train["nb_sample_z_train_IWAE"] = 3
     args_train["print_every"] = 1
 
     args_train["sampling_subset_size"] = 2 # Sampling size for the subset 
@@ -147,4 +149,4 @@ def get_default():
     args_test["temperature_test"] = 0.001
     args_test["nb_sample_z_test"] = 10
 
-    return  args_output, args_dataset, args_classification, args_destruction, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler
+    return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler

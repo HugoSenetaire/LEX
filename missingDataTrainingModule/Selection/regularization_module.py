@@ -1,6 +1,7 @@
 from math import log
 import sys
 import os
+from missingDataTrainingModule.Distribution.distribution_module import regular_scheduler
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # print(sys.path)
 from utils_missing import *
@@ -27,12 +28,20 @@ class LossRegularization():
     self.batched = batched
     
   def __call__(self, log_pi_list):
+    if self.lambda_reg == 0:
+      loss_reg = torch.tensor(0.)
+      if log_pi_list.is_cuda :
+        loss_reg = loss_reg.cuda()
+      return log_pi_list, loss_reg
     pi_list = torch.exp(log_pi_list)
     if self.batched:
       pi_list = torch.mean(pi_list, -1)
 
-    regularizing_vector = torch.ones_like(pi_list)
-    loss_reg = -self.lambda_reg * torch.mean(self.function(regularizing_vector - pi_list))
+    # regularizing_vector = torch.ones_like(pi_list, dtype=torch.float32) * self.rate
+    regularizing_vector = torch.full_like(pi_list, self.rate)
+    loss_reg = self.lambda_reg * torch.mean(self.function(regularizing_vector - pi_list))
+    # print(regularizing_vector)
+    # print(loss_reg)
     return log_pi_list, loss_reg
       
 class SoftmaxRegularization():

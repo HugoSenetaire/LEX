@@ -242,9 +242,14 @@ class GaussianMixtureImputation(MultipleImputation):
     # dependency = dependency_sum
     # print("=========================")
     dependency = -(data_imputed_flatten - centers)**2/2/variance - torch.log(variance)/2
+
+    # log_dependency_init = torch.clone(dependency)
+    # log_dependency_mask = torch.sum(dependency* sample_b_expanded_flatten,axis=-1).clone()
     dependency = torch.sum(dependency* sample_b_expanded_flatten,axis=-1) + torch.log(weights)
+    dependency[torch.where(torch.isnan(dependency))] = torch.zeros_like(dependency[torch.where(torch.isnan(dependency))]) #TODO : AWFUL WAY OF CLEANING THE ERROR, to change
+    # dependency_log_weights = torch.clone(dependency)
     dependency_max, _ = torch.max(dependency, axis = -1, keepdim = True)
-    dependency -= torch.log(torch.sum(torch.exp(dependency - dependency_max), axis = -1, keepdim=True)) + dependency_max
+    dependency -= torch.log(torch.sum(torch.exp(dependency - dependency_max) + 1e-8, axis = -1, keepdim=True)) + dependency_max
 
 
     dependency = torch.exp(dependency)
@@ -263,8 +268,8 @@ class GaussianMixtureImputation(MultipleImputation):
     if data_expanded.device.type == "cuda":
       wanted_centroids = wanted_centroids.cuda()
       wanted_covariances = wanted_covariances.cuda()
-    sampled = torch.normal(wanted_centroids, wanted_covariances).type(torch.float32).reshape(wanted_shape)
-
+    sampled = torch.normal(wanted_centroids, torch.sqrt(wanted_covariances)).type(torch.float32).reshape(wanted_shape)
+    # sampled = wanted_centroids.reshape(wanted_shape)
     data_imputed_gm = sample_b_expanded * data_imputed + (1-sample_b_expanded) * sampled
 
     return data_imputed_gm, data_expanded, sample_b_expanded
@@ -295,6 +300,7 @@ class DatasetBasedImputation(MultipleImputation):
       data_imputed, data_expanded, sample_b_expanded, index_expanded = expand_for_imputations(data_imputed, data_expanded, sample_b, imputation_number, index)
       
       imputed_output = self.dataset.impute_result(mask = sample_b_expanded.clone().detach(), value = data_imputed.clone().detach(), index = index_expanded, dataset_type = dataset_type)
+      imputed_output = sample_b_expanded * data_imputed + (1-sample_b_expanded) * imputed_output
       return imputed_output, data_expanded, sample_b_expanded
     else :
       return data_imputed, data_expanded, sample_b

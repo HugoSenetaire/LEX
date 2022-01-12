@@ -564,10 +564,6 @@ class HypercubeDataset(ArtificialDataset):
         wanted_centroids = self.centroids[index_resampling]
         sampled = wanted_centroids + torch.normal(torch.zeros_like(wanted_centroids), self.gaussian_noise).type(torch.float32)
 
-        no_imputation_index = torch.where(torch.all(mask==1,axis=-1), True, False).unsqueeze(-1).expand(batch_size, dim)
-
-        sampled = torch.where(no_imputation_index, value, sampled)
-
         return sampled
 
 
@@ -576,9 +572,9 @@ class HypercubeDataset(ArtificialDataset):
 
 
 class LinearDataset(ArtificialDataset):
-    def __init__(self, nb_sample_train = 1000, nb_sample_test = 1000, give_index = False, noise_function = None, **kwargs):
+    def __init__(self, nb_sample_train = 10000, nb_sample_test = 1000, give_index = False, noise_function = None, **kwargs):
         super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
-
+        np.random.seed(0)
         self.nb_sample_train = nb_sample_train
         self.nb_sample_test = nb_sample_test
         self.give_index = give_index
@@ -642,13 +638,7 @@ class LinearDataset(ArtificialDataset):
 
     def impute_result(self, mask, value, index = None, dataset_type=None): 
         uniform = torch.distributions.uniform.Uniform(-2.0,2.0)
-        resampled_value = uniform.sample(value.shape).type(torch.float32)
-        if value.is_cuda :
-            resampled_value = resampled_value.cuda()
-        try :
-            sampled = torch.where(mask>0.5, value, resampled_value)
-        except(RuntimeError):
-            print(mask, value, resampled_value)
+        sampled = uniform.sample(value.shape).type(torch.float32)
         return sampled
 
 
@@ -680,8 +670,7 @@ class StandardGaussianDataset(ArtificialDataset):
 
     def impute_result(self, mask, value, index = None, dataset_type=None): 
         normal_distrib = torch.distributions.normal.Normal(0,sigma)
-        resampled_value = normal_distrib.sample()
-        sampled = torch.where(mask == 1, value, resampled_value)
+        sampled = normal_distrib.sample()
         return sampled
 
 
@@ -838,8 +827,7 @@ class SwitchFeature(StandardGaussianDataset):
         mean = bern * 3 + (1 - bern) * -3
         
         normal_distrib = torch.distributions.normal.Normal(mean,self.sigma)
-        resampled_value = normal_distrib.sample()
-        sampled = torch.where(mask == 1, value, resampled_value)
+        sampled = normal_distrib.sample()
         return sampled
 
 

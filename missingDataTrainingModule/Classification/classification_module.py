@@ -1,5 +1,6 @@
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils_missing import *
 
@@ -59,13 +60,15 @@ class ClassificationModule(nn.Module):
             data = data.reshape(mask.shape) # Quick fix when the reshape function do not match the shape of the data (change the dataset might be better), TODO
         if self.imputation is not None and mask is not None :
             x_imputed, loss_reconstruction = self.imputation(data, mask, index)
-            if x_imputed.cuda :
+
+            
+            if x_imputed.device.type == 'cuda':
                 loss_reconstruction = loss_reconstruction.cuda() # TODO : PUT IT ELSEWHERE
             y_hat = self.classifier(x_imputed)
         else :
             y_hat = self.classifier(data)
             loss_reconstruction = torch.zeros((1))
-            if y_hat.is_cuda :
+            if y_hat.device.type == 'cuda': 
                 loss_reconstruction = loss_reconstruction.cuda()
 
         return y_hat, loss_reconstruction

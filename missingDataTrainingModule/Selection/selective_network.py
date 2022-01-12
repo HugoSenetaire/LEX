@@ -14,7 +14,7 @@ import numpy as np
 
 
 
-class AbstractDestructor(nn.Module):
+class AbstractSelector(nn.Module):
   def __init__(self,input_size = (1,28,28), output_size = (1,28,28)):
     super().__init__()
 
@@ -27,7 +27,7 @@ class AbstractDestructor(nn.Module):
     raise NotImplementedError
 
 
-class DestructorLinear(AbstractDestructor):
+class SelectorLinear(AbstractSelector):
     def __init__(self,input_size = (1,28,28), output_size = (1,28,28)):
       super().__init__(input_size = input_size, output_size = output_size)
       self.pi = nn.Linear(np.prod(self.input_size), np.prod(self.input_size))
@@ -37,7 +37,7 @@ class DestructorLinear(AbstractDestructor):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         return self.pi(x)
 
-class DestructorLVL1(AbstractDestructor):
+class SelectorLVL1(AbstractSelector):
     def __init__(self,input_size = (1,28,28), output_size = (1,28,28)):
       super().__init__(input_size = input_size, output_size = output_size)
 
@@ -51,7 +51,7 @@ class DestructorLVL1(AbstractDestructor):
         return self.pi(x)
   
 
-class DestructorLVL2(AbstractDestructor):
+class SelectorLVL2(AbstractSelector):
     def __init__(self,input_size = (1,28,28), output_size = (1,28,28)):
       super().__init__(input_size = input_size, output_size = output_size)
       
@@ -68,7 +68,7 @@ class DestructorLVL2(AbstractDestructor):
         return self.pi(x)
   
 
-class DestructorLVL3(AbstractDestructor):
+class SelectorLVL3(AbstractSelector):
     def __init__(self,input_size = (1,28,28), output_size = (1,28,28)):
       super().__init__(input_size = input_size, output_size = output_size)
 
@@ -89,7 +89,7 @@ class DestructorLVL3(AbstractDestructor):
         return self.pi(x)
   
 
-class Destructor(AbstractDestructor):
+class Selector(AbstractSelector):
     def __init__(self,input_size = (1,28,28), output_size = (1,28,28)):
       super().__init__(input_size = input_size, output_size = output_size)
       self.fc1 = nn.Linear(np.prod(self.input_size),200)
@@ -107,7 +107,7 @@ class Destructor(AbstractDestructor):
 
 
 
-class DestructorUNET(AbstractDestructor):
+class SelectorUNET(AbstractSelector):
     def __init__(self,input_size = (1,28,28), output_size = (1,28,28), bilinear = True):
       super().__init__(input_size = input_size, output_size = output_size)
       self.channels = self.input_size[0]
@@ -156,7 +156,7 @@ class DestructorUNET(AbstractDestructor):
 
       return x
 
-class DestructorUNET1D(AbstractDestructor):
+class SelectorUNET1D(AbstractSelector):
     def __init__(self, input_size = (22, 19), bilinear = False):
       super().__init__(input_size = input_size, output_size = output_size)
       self.channels = self.input_size[0]
@@ -216,7 +216,7 @@ class DestructorUNET1D(AbstractDestructor):
 
 
 
-class DestructorVariational(AbstractDestructor):
+class SelectorVariational(AbstractSelector):
   def __init__(self, input_size = (1,28,28), output_size = (1,28,28)):
     super().__init__(input_size = input_size, output_size = output_size)
     self.output_size = output_size
@@ -244,7 +244,7 @@ class DestructorVariational(AbstractDestructor):
 
 
 
-class ConvDestructor(nn.Module):
+class ConvSelector(nn.Module):
     def __init__(self, input_channel, input_size = (1,28,28), output_size= 10):
         super().__init__()
 
@@ -261,7 +261,7 @@ class ConvDestructor(nn.Module):
         x = torch.flatten(x,1)
         return self.fc(x) #N_expectation, Batch_size, Category
 
-class ConvDestructorVar(nn.Module):
+class ConvSelectorVar(nn.Module):
   def __init__(self, input_channel, input_size = (1,28,28), output_size= 10):
     super().__init__()
     

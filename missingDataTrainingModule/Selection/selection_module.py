@@ -5,16 +5,16 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils_missing import *
 from collections.abc import Iterable
 
-from .destructive_network import *
+from .selective_network import *
 from .regularization_module import *
 import torch
 import torch.nn as nn
 
-class DestructionModule(nn.Module):
+class SelectionModule(nn.Module):
 
-    def __init__(self, destructor, activation = torch.nn.LogSigmoid(), regularization = None,):
-        super(DestructionModule, self).__init__()
-        self.destructor = destructor
+    def __init__(self, selector, activation = torch.nn.LogSigmoid(), regularization = None,):
+        super(SelectionModule, self).__init__()
+        self.selector = selector
         self.regularization = regularization
         self.activation = activation
 
@@ -25,7 +25,7 @@ class DestructionModule(nn.Module):
         self.use_cuda = False
     
     def cuda(self,):
-        super(DestructionModule, self).cuda()
+        super(SelectionModule, self).cuda()
         self.use_cuda = True
 
     def __call__(self, data_expanded, one_hot_target = None, test=False):
@@ -35,9 +35,9 @@ class DestructionModule(nn.Module):
             loss_reg = loss_reg.cuda()
 
         if one_hot_target is not None :
-            log_pi_list = self.destructor(data_expanded, one_hot_target)
+            log_pi_list = self.selector(data_expanded, one_hot_target)
         else :
-            log_pi_list = self.destructor(data_expanded)
+            log_pi_list = self.selector(data_expanded)
 
         if self.activation is not None :
             log_pi_list = self.activation(log_pi_list)
@@ -45,7 +45,7 @@ class DestructionModule(nn.Module):
         if self.regularization is not None :
             for reg in self.regularization :
                 log_pi_list, loss_reg_aux = reg(log_pi_list)
-                if loss_reg.cuda:
+                if self.use_cuda:
                     loss_reg_aux.cuda()
                 loss_reg +=loss_reg_aux
                 
