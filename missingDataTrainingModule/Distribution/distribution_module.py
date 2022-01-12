@@ -57,16 +57,10 @@ class DistributionModule(nn.Module):
 
     def sample(self, sample_shape= (1,)):
         if self.antitheis_sampling and self.training:
-            # print("ANTITHEIS SAMPLING")
-            # aux_sample_shape = sample_shape
-
             if sample_shape[-1] == 1 :
-                raise(AttributeError("Antitheis sampling only works for nb_sample_z > 1"))
+                raise(AttributeError("Antitheis sampling only works for nb_sample_z_monte_carlo > 1"))
             
             aux_sample_shape = torch.Size(sample_shape[:-1]) + torch.Size((sample_shape[-1] // 2,) )
-
-            # print(aux_sample_shape)
-            # print(sample_shape)
             sample = self.sample_function(aux_sample_shape)
             sample = torch.cat((sample, torch.ones_like(sample)-sample), dim = len(sample_shape)-1)
 
@@ -76,7 +70,6 @@ class DistributionModule(nn.Module):
                 sample = torch.cat((sample, sample_rest), dim = len(sample_shape) - 1)
             return sample
         else :
-            # print("NORMAL SAMPLING")
             return self.sample_function(sample_shape)
 
 
@@ -90,20 +83,27 @@ class DistributionWithSchedulerParameter(DistributionModule):
         super(DistributionWithSchedulerParameter, self).__init__(distribution, antitheis_sampling= antitheis_sampling)
         self.current_distribution = None
         self.temperature_total = temperature_init
-        self.temperature = None
+        self.temperature = temperature_init
         self.test_temperature = test_temperature
         self.scheduler_parameter = scheduler_parameter
 
 
     def forward(self, distribution_parameters):
-        self.current_distribution = self.distribution(torch.exp(distribution_parameters), temperature = self.temperature)
+        if self.training :
+            self.current_distribution = self.distribution(probs = torch.exp(distribution_parameters), temperature = self.temperature)
+        else :
+            self.current_distribution = self.distribution(probs = torch.exp(distribution_parameters), temperature = 0.)
         return self.current_distribution
 
-    def eval(self,):
-        self.temperature = self.test_temperature
+    # TODO : WHAT IS GOING ON HERE ?
+
+    # def eval(self,):
+        # super().eval()
+        # self.temperature = self.test_temperature
     
-    def train(self,):
-        self.temperature = self.temperature_total 
+    # def train(self,):
+        # super().train()
+        # self.temperature = self.temperature_total 
 
     def sample_function(self, sample_shape):
         if self.training :
