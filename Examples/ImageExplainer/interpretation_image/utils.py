@@ -185,7 +185,7 @@ def accuracy_output(trainer, loader, final_path, batch_size = 100):
     
         data = data.cpu().detach().numpy()
         pi_list = pi_list.cpu().detach().numpy()
-        accuracy = np.sum( np.abs(quadrant_test - pi_list))
+        # accuracy = np.sum( np.abs(quadrant_test - pi_list))
 
         argmax_pi_list = np.round(pi_list).astype(int)
         argmax_pi_list = argmax_pi_list.reshape(batch_size, -1)
@@ -195,11 +195,11 @@ def accuracy_output(trainer, loader, final_path, batch_size = 100):
         target = target.cpu().detach().numpy()
         complete_size+=batch_size
 
-    mean_accuracy = accuracy/complete_size/np.prod(wanted_shape)
+    # mean_accuracy = accuracy/complete_size/np.prod(wanted_shape)
     # f1_score_avg = f1_score_avg/complete_size
-    with open(os.path.join(final_path, "accuracy_output.txt"), "w") as f:
-        f.write(f"mean accuracy: {mean_accuracy}\n")
-        f.write(f"f1 score: {f1_score_avg}")
+    # with open(os.path.join(final_path, "accuracy_output.txt"), "w") as f:
+        # f.write(f"mean accuracy: {mean_accuracy}\n")
+        # f.write(f"f1 score: {f1_score_avg}")
         
        
     
