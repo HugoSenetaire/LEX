@@ -142,7 +142,6 @@ def get_networks(args_classification, args_selection, args_complete_trainer, out
     return classifier, selector, baseline, selector_var
 
 def get_regularization_method(args_selection):
-    print(args_selection)
     regularization = args_selection["regularization"](**args_selection)
     return regularization
 
@@ -160,7 +159,7 @@ def check_parameters_compatibility(args_classification, args_selection, args_dis
         # raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
 
 
-def experiment(args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = True):
+def experiment(args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = False):
     torch.random.manual_seed(0)
     dataset = args_dataset["dataset"]
     dic_list = {}
@@ -264,7 +263,7 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
             imputation = None
             
         if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection :
-            nb_epoch = args_train["nb_epoch"]
+            nb_epoch = int(args_train["nb_epoch"])
         else :
             nb_epoch = args_train["nb_epoch_pretrain"]
 
@@ -285,7 +284,7 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
 
         total_dic_train = {}
         total_dic_test = {}
-        for epoch in range(nb_epoch):
+        for epoch in range(int(nb_epoch)):
             dic_train = trainer.train_epoch(epoch, loader, save_dic = True,)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
                 dic_test = trainer.test(loader) 
@@ -346,9 +345,7 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
         classification_module = ClassificationModule(classifier, imputation=imputation)
         
 
-        if args_train["post_hoc"] and args_train["post_hoc_guidance"] is None :
-            print("Training in PostHoc without a variational approximation")
-            post_hoc_guidance = classification_module
+
 
 
         trainer = args_complete_trainer["complete_trainer"](
@@ -359,6 +356,7 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
             reshape_mask_function = args_complete_trainer["reshape_mask_function"],
             fix_classifier_parameters = args_train["fix_classifier_parameters"],
             post_hoc_guidance = post_hoc_guidance,
+            post_hoc = args_train["post_hoc"],
             argmax_post_hoc = args_train["argmax_post_hoc"],
         )
 

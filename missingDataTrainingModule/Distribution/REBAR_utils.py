@@ -26,10 +26,10 @@ from functools import partial
 
 
 def safe_log_prob(x, eps=1e-8):
-    return torch.log(torch.clamp(x, eps, 1.0-1e-8))    
+    return torch.log(torch.clamp(x, eps, 1.0))    
 
 def sigma_lambda(z, lambda_value):
-  return F.sigmoid(z / lambda_value)+1e-9
+  return F.sigmoid(z / lambda_value)
 
 def binary_log_likelihood(y, log_y_hat):
     # standard LL for vectors of binary labels y and log predictions log_y_hat
@@ -47,31 +47,45 @@ def Heaviside(x):
 #   return torch.div(F.threshold(x, 0, 0), x) => This is very stupid
 
 
-def reparam_pz(u, theta):
-    return (safe_log_prob(theta) - safe_log_prob(1 - theta)) + (safe_log_prob(u) - safe_log_prob(1 - u))
+def reparam_pz(u, pi_list):
+    return (safe_log_prob(pi_list) - safe_log_prob(1 - pi_list)) + (safe_log_prob(u) - safe_log_prob(1 - u))
+
 
 def reparam_pz_b(v, b, theta):
     # From Appendix C of the paper, this is the reparameterization of p(z|b) for the 
     # case where b ~ Bernoulli($\theta$). Returns z_squiggle, a Gumbel RV
-    return(b * F.softplus(safe_log_prob(v) - safe_log_prob((1 - v) * (1 - theta)))) \
-        + ((1 - b) * (-F.softplus(safe_log_prob(v) - safe_log_prob(v * (1 - theta)))))
+    return(b * F.softplus(safe_log_prob(v) - safe_log_prob((1 - v) * (1 - torch.exp(theta))))) \
+        + ((1 - b) * (-F.softplus(safe_log_prob(v) - safe_log_prob(v * (1 - torch.exp(theta))))))
 
-def u_to_v(pi_list, u, eps = 1e-8):
+
+
+
+def u_to_v(pi_list, u, eps = 1e-8, force_same = True, s = None, v_prime = None):
     """Convert u to tied randomness in v."""
-    u_prime = F.sigmoid(safe_log_prob(pi_list/(1-pi_list)))  # g(u') = 0
-    v_1 = (u - u_prime) / torch.clamp(1 - u_prime, eps, 1)
-    v_1 = torch.clamp(v_1.clone(), 0, 1).detach()
-    v_1 = v_1.clone()*(1 - u_prime) + u_prime
-    v_0 = u / torch.clamp(u_prime, eps, 1)
-    v_0 = torch.clamp(v_0.clone(), 0, 1).detach()
-    v_0 = v_0.clone() * u_prime
-    v = u.clone()
-    v[(u > u_prime).detach()] = v_1[(u > u_prime).detach()]
-    v[(u <= u_prime).detach()] = v_0[(u <= u_prime).detach()]
-    # TODO: add pytorch check
-    #v = tf.check_numerics(v, 'v sampling is not numerically stable.')
-    vv = v + (-v + u).detach()  # v and u are the same up to numerical errors
-    return vv
+    u_prime = F.sigmoid(-safe_log_prob(pi_list/(1-pi_list)))  # g(u') = 0
+    
+    if not force_same:
+        v = s*(u_prime+v_prime*(1-u_prime)) + (1-s)*v_prime*u_prime
+    else :
+        v_1 = (u - u_prime) / torch.clamp(1 - u_prime, eps, 1)
+        v_1 = torch.clamp(v_1.clone(), 0, 1).detach()
+        v_1 = v_1.clone()*(1 - u_prime) + u_prime
+
+
+        v_0 = u / torch.clamp(u_prime, eps, 1)
+        v_0 = torch.clamp(v_0.clone(), 0, 1).detach()
+        v_0 = v_0.clone() * u_prime
+
+        v = u.clone()
+        v[(u > u_prime).detach()] = v_1[(u > u_prime).detach()]
+        v[(u <= u_prime).detach()] = v_0[(u <= u_prime).detach()]
+        # v = torch.where(u>u_prime, v_1, v_0)
+        # v[(u > u_prime).detach()] = v_1[(u > u_prime).detach()]
+        # v[(u <= u_prime).detach()] = v_0[(u <= u_prime).detach()]
+        # TODO: add pytorch check
+        #v = tf.check_numerics(v, 'v sampling is not numerically stable.')
+        v = v + (-v + u).detach()  # v and u are the same up to numerical errors
+    return v
 
 
 

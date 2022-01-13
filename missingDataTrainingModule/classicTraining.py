@@ -4,7 +4,7 @@ from numpy.testing._private.utils import requires_memory
 from psutil import test
 from torch import neg, neg_
 from torch._C import _show_config
-from torch.nn.functional import batch_norm, one_hot
+from torch.nn.functional import batch_norm, mse_loss, one_hot
 from .Selection import * 
 from .Classification import *
 from .Distribution import *
@@ -387,8 +387,8 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
     """ Abstract class to help the classification of the different module """
 
     def __init__(self, classification_module, selection_module, distribution_module, baseline = None,
-                reshape_mask_function = None, fix_classifier_parameters = False, post_hoc_guidance = None,
-                argmax_post_hoc = False, show_variance_gradient = False, ):
+                reshape_mask_function = None, fix_classifier_parameters = False, post_hoc = False,
+                post_hoc_guidance = None, argmax_post_hoc = False, show_variance_gradient = False, ):
 
         super().__init__(classification_module,)
         self.selection_module = selection_module
@@ -401,6 +401,7 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
               
         self.fix_classifier_parameters = fix_classifier_parameters
         self.post_hoc_guidance = post_hoc_guidance
+        self.post_hoc = post_hoc
         self.argmax_post_hoc = argmax_post_hoc
 
         if self.fix_classifier_parameters :
@@ -495,9 +496,33 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
         self.scheduler_step()    
         return total_dic
 
+    def _calculate_neg_likelihood(self, data, index, log_y_hat, target, one_hot_target):
+        # Loss for classification
+        if not self.post_hoc:
+            neg_likelihood = F.nll_loss(log_y_hat, target.flatten(), reduce = False)
+            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target.reshape(log_y_hat.shape))**2,1)) 
+        else :
+            if self.post_hoc_guidance is not None :
+                out_y, _ = self.post_hoc_guidance(data, index = index)
+            elif self.fix_classifier_parameters :
+                out_y, _ =self.classification_module(data, index=index)
+            else :
+                raise AttributeError("You can't have post-hoc without a post hoc guidance or fixing the classifier parameters")
+            out_y = out_y.detach()
+            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-torch.exp(out_y).float())**2,1)) 
+            if self.argmax_post_hoc :
+                out_y = torch.argmax(out_y, -1)
+                neg_likelihood = F.nll_loss(log_y_hat, out_y, reduce = False)
+            else :
+                neg_likelihood = - torch.sum(torch.exp(out_y) * log_y_hat, -1)
+
+        return neg_likelihood, mse_loss
+
+
+
+
     def _create_dic(self, loss_total, neg_likelihood, mse_loss, pi_list, loss_rec = None, loss_reg = None, loss_selection = None, variance_gradient = None):
         dic = super()._create_dic(loss_total, neg_likelihood, mse_loss)
-
         dic["mean_pi_list"] = torch.mean(torch.mean(pi_list.flatten(1),1)).item()
         quantiles = torch.tensor([0.25,0.5,0.75])
         if self.use_cuda: 
@@ -637,29 +662,29 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
 
 
 class REALX(SELECTION_BASED_CLASSIFICATION):
-    def __init__(self, classification_module, selection_module, distribution_module,
-                classification_distribution, baseline = None, reshape_mask_function = None, fix_classifier_parameters = False,
-                post_hoc_guidance = None, argmax_post_hoc = False, show_variance_gradient = False,):
+    def __init__(self, classification_module, selection_module, distribution_module, classification_distribution_module = FixedBernoulli(),
+                baseline = None, reshape_mask_function = None, fix_classifier_parameters = False,
+                post_hoc = False, post_hoc_guidance = None, argmax_post_hoc = False, show_variance_gradient = False,):
         super().__init__(classification_module, selection_module, distribution_module, baseline = baseline,
                         reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters,
-                        post_hoc_guidance = post_hoc_guidance, argmax_post_hoc = argmax_post_hoc,
+                        post_hoc = post_hoc, post_hoc_guidance = post_hoc_guidance, argmax_post_hoc = argmax_post_hoc,
                         show_variance_gradient = show_variance_gradient)
         if self.post_hoc_guidance is not None :
             raise NotImplementedError("REALX does not support post hoc guidance")
-        assert(distribution_module is REBAR_Distribution)
-        self.classification_distribution = classification_distribution
+        self.classification_distribution_module = classification_distribution_module
 
-    def _train_step(self, data, target, dataset, index = None, nb_sample_z = 10):
+        # if self.fix_classifier_parameters and self.post_hoc :
+            # raise NotImplementedError("REALX does not support fix classifier")
 
+    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1):
         self.zero_grad()
-        
         nb_imputation = self.classification_module.imputation.nb_imputation
         batch_size = data.shape[0]
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
         one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
-        data_expanded, target_expanded, index_expanded, one_hot_target_expanded = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z = nb_sample_z, nb_imputation = None)
-        data_expanded_multiple_imputation, target_expanded_multiple_imputation, index_expanded_multiple_imputation, one_hot_target_expanded_multiple_imputation = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z = nb_sample_z, nb_imputation = nb_imputation)
+        data_expanded, target_expanded, index_expanded, one_hot_target_expanded = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo= nb_sample_z_monte_carlo,  nb_sample_z_IWAE= nb_sample_z_IWAE, nb_imputation = None)
+        data_expanded_multiple_imputation, target_expanded_multiple_imputation, index_expanded_multiple_imputation, one_hot_target_expanded_multiple_imputation = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo= nb_sample_z_monte_carlo,  nb_sample_z_IWAE= nb_sample_z_IWAE, nb_imputation = nb_imputation)
         if index is not None :
             index_expanded_flatten = index_expanded.flatten(0,1)
             index_expanded_multiple_imputation_flatten = index_expanded_multiple_imputation.flatten(0,1)
@@ -671,73 +696,164 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
 
 
         # Train classification module :
-        self.classification_distribution(log_pi_list)
-        z = self.classification_distribution.sample((nb_sample_z,))
-        log_prob_pz = torch.sum(self.distribution_module.log_prob(z).flatten(2), axis = -1)
+        self.classification_distribution_module(log_pi_list)
+        z = self.classification_distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo,))
+        log_prob_pz = self.classification_distribution_module.log_prob(z)
+        log_prob_pz = log_prob_pz.reshape((nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1))
+        log_prob_pz = torch.sum(torch.sum(log_prob_pz, axis=-1),axis=0)
         z = self.reshape(z)
         
-        
-        
+        # Classification module :
+        log_y_hat, loss_reconstruction = self.classification_module(data_expanded.flatten(0,2), z, index_expanded_flatten)
 
-        log_y_hat, _ = self.classification_module(data_expanded.flatten(0,1), z, index_expanded_flatten)
-        log_y_hat = log_y_hat.reshape(nb_sample_z * batch_size, dataset.get_dim_output())
+        # Loss for classification:
+        data_expanded_multiple_imputation_flatten = data_expanded_multiple_imputation.flatten(0,3)
+        target_expanded_multiple_imputation_flatten = target_expanded_multiple_imputation.flatten(0,3)
+        one_hot_target_expanded_multiple_imputation_flatten = one_hot_target_expanded_multiple_imputation.flatten(0,3)
+        
+        neg_likelihood, mse_loss = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                                        index = index_expanded_multiple_imputation_flatten,
+                                                        log_y_hat=log_y_hat,
+                                                        target = target_expanded_multiple_imputation_flatten,
+                                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
 
-        neg_likelihood = F.nll_loss(log_y_hat, target_expanded_multiple_imputation.flatten(0,2), reduce = False).reshape(nb_imputation, nb_sample_z, batch_size)
-        mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target_expanded_multiple_imputation.flatten(0,2))**2,1)) 
+        neg_likelihood = neg_likelihood.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
         
         
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
-        neg_likelihood += torch.exp(log_prob_pz).detach() # This is + because this is the definition of the data
-        neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z).type(torch.float32))
+        neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32))
+        neg_likelihood *= torch.exp(log_prob_pz).detach() # This is + because this is the definition of the data
+        neg_likelihood = torch.sum(neg_likelihood, axis = 0)
         neg_likelihood = torch.sum(neg_likelihood)
         loss_classification_module = neg_likelihood
 
         loss_classification_module.backward()
         self.optim_classification.step()
+        self.zero_grad()
 
-        # Train selection module :
+
+
+        # Selection Module :
         log_pi_list, loss_reg = self.selection_module(data)
-        self.distribution_module(log_pi_list)
-        z, s, z_tilde = self.distribution_module.sample((nb_sample_z,))
-        z = self.reshape(z)
-        s = self.reshape(s)
-        z_tilde = self.reshape(z_tilde)
+        
 
-        # f_s
-        f_s, _ = self.classification_module(data_expanded.flatten(0,1), s)
+        # Distribution :
+        try :
+            self.distribution_module(log_pi_list)
+        except :
+            print(log_pi_list)
+        sig_z, z, sig_z_tilde = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo))
+        log_prob_pz = self.distribution_module.log_prob(z).reshape((nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1))
+        # log_pi_list.unsqueeze(0).unsqueeze(0).expand(nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, 2)
+        # log_prob_pz = torch.sum(z * log_pi_list + (1-z) * torch.log((1 - torch.exp(log_pi_list))+1e-5), axis=-1)
+        # log_prob_pz = torch.sum(log_prob_pz, axis= 0)
+        log_prob_pz = torch.sum(torch.sum(log_prob_pz, axis = -1), axis=0)
+        z = self.reshape(z)
+        sig_z = self.reshape(z)
+        sig_z_tilde = self.reshape(sig_z_tilde)
+       
+
+
+        # Calculate
+        # 1. f(s)
+        f_s, _ = self.classification_module(data_expanded.flatten(0,2), z, index=index_expanded_flatten)
         # 2. c(z)
-        c_z, _ = self.classification_module(data_expanded.flatten(0,1), z)
+        c_z, _ = self.classification_module(data_expanded.flatten(0,2), sig_z , index=index_expanded_flatten)
         # 3. c(z~)
-        c_z_tilde, _ = self.classification_module(data_expanded.flatten(0,1), z_tilde)
+        c_z_tilde, _ = self.classification_module(data_expanded.flatten(0,2), sig_z_tilde, index=index_expanded_flatten)
 
         # Compute the probabilities 
         # 1. f(s)
-        p_f_s = F.nll_loss(f_s, target_expanded_multiple_imputation.flatten(0,2), reduce = False).reshape(nb_imputation, nb_sample_z, batch_size)
-        # 2. c(z)
-        p_c_z = F.nll_loss(c_z, target_expanded_multiple_imputation.flatten(0,2), reduce = False).reshape(nb_imputation, nb_sample_z, batch_size)
-        # 3. c(z~)
-        p_c_z_tilde = F.nll_loss(c_z_tilde, target_expanded_multiple_imputation.flatten(0,2), reduce = False).reshape(nb_imputation, nb_sample_z, batch_size)
-        # 4. q(s)
-        log_prob_pz = torch.sum(self.distribution_module.log_prob(s).flatten(2), axis = -1)
+        p_f_s, _ = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                                index = index_expanded_multiple_imputation_flatten,
+                                                log_y_hat = f_s,
+                                                target = target_expanded_multiple_imputation_flatten,
+                                                one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
 
-        # Compute the loss
+        p_f_s = p_f_s.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, )
+        p_f_s = torch.logsumexp(p_f_s, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
+        p_f_s = torch.logsumexp(p_f_s, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
+
+                            
+        # 2. c(z)
+        p_c_z, _ = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                        index = index_expanded_multiple_imputation_flatten,
+                                        log_y_hat = c_z,
+                                        target = target_expanded_multiple_imputation_flatten,
+                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
+        p_c_z = p_c_z.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, )
+        p_c_z = torch.logsumexp(p_c_z, axis=0) - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
+        p_c_z = torch.logsumexp(p_c_z, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
+
+
+        # 3. c(z~)
+        p_c_z_tilde, _ = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                        index = index_expanded_multiple_imputation_flatten,
+                                        log_y_hat = c_z_tilde,
+                                        target = target_expanded_multiple_imputation_flatten,
+                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
+
+        
+        p_c_z_tilde = p_c_z_tilde.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, )
+        p_c_z_tilde = torch.logsumexp(p_c_z_tilde, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
+        p_c_z_tilde = torch.logsumexp(p_c_z_tilde, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
+
         # Reward
-        Reward = torch.sum(p_f_s - p_c_z_tilde, axis = -1)
-        Reward = Reward.detach()
+
+
+
+        neg_reward = p_f_s - p_c_z_tilde
+        neg_reward = neg_reward.detach()
+
+        assert neg_reward.shape == log_prob_pz.shape
+        neg_reward_prob = neg_reward * log_prob_pz
 
         # Terms to Make Expection Zero
-        E_0 = torch.sum(p_c_z,axis = -1) - torch.sum(p_c_z_tilde,axis = -1)
+        E_0 = p_c_z - p_c_z_tilde
 
         # Losses
-        selection_module_loss = Reward*  + E_0 + loss_reg
+        s_loss = neg_reward_prob + E_0
+        s_loss = torch.mean(s_loss, axis=0)
+        s_loss = torch.sum(s_loss)
+
+
+        # print(torch.mean(neg_reward))
+        # print(torch.mean(log_prob_pz))
+
+        # print("===================")
+        # Train
+        loss_selection = s_loss + loss_reg
+        loss_selection.backward()
+        # torch.clip_grad_value_(selection_module.parameters(), 1.0)
+        # torch.nn.utils.clip_grad_norm_(self.selection_module.parameters(), 1.0)
+
+        self.optim_selection.step()
+        self.optim_distribution_module.step()
+        
+        
+        dic = self._create_dic(loss_total = loss_selection+loss_classification_module+loss_reg,
+                            neg_likelihood= neg_likelihood,
+                            mse_loss= mse_loss,
+                            loss_rec = loss_classification_module,
+                            loss_reg = loss_reg,
+                            loss_selection = s_loss,
+                            pi_list = torch.exp(log_pi_list))
+
+
         return dic
 
 class ReparametrizedTraining(SELECTION_BASED_CLASSIFICATION):
-    def __init__(self, classification_module, selection_module, distribution_module, baseline = None, reshape_mask_function = None, fix_classifier_parameters = False, post_hoc_guidance = None, argmax_post_hoc = False, show_variance_gradient = False,):
-        super().__init__(classification_module, selection_module, distribution_module, baseline = baseline, reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters, post_hoc_guidance = post_hoc_guidance, argmax_post_hoc = argmax_post_hoc, show_variance_gradient = show_variance_gradient)
+    def __init__(self, classification_module, selection_module, distribution_module,
+                baseline = None, reshape_mask_function = None, fix_classifier_parameters = False, post_hoc = False,
+                post_hoc_guidance = None, argmax_post_hoc = False, show_variance_gradient = False,):
+
+        super().__init__(classification_module, selection_module, distribution_module, baseline = baseline,
+                        reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters,
+                        post_hoc = post_hoc, post_hoc_guidance = post_hoc_guidance, argmax_post_hoc = argmax_post_hoc,
+                        show_variance_gradient = show_variance_gradient)
 
 
-    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3):
+    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3):        
         self.zero_grad()
         
         nb_imputation = self.classification_module.imputation.nb_imputation
@@ -752,33 +868,32 @@ class ReparametrizedTraining(SELECTION_BASED_CLASSIFICATION):
             index_expanded_multiple_imputation_flatten = index_expanded_multiple_imputation.flatten(0,3)
         else :
             index_expanded_flatten = None
+            index_expanded_multiple_imputation_flatten = None
         
         # Destructive module :
         log_pi_list, loss_reg = self.selection_module(data)
 
+
         # Distribution :
         self.distribution_module(log_pi_list)
-        z = self.distribution_module.sample((nb_sample_z_monte_carlo, nb_sample_z_IWAE))
+        z = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo, ))
         z = self.reshape(z)
 
         # Classification module :
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded.flatten(0,2), z, index_expanded_flatten)
 
-
+        # Loss for classification:
+        data_expanded_multiple_imputation_flatten = data_expanded_multiple_imputation.flatten(0,3)
+        target_expanded_multiple_imputation_flatten = target_expanded_multiple_imputation.flatten(0,3)
+        one_hot_target_expanded_multiple_imputation_flatten = one_hot_target_expanded_multiple_imputation.flatten(0,3)
         
-        # Loss for classification
-        if self.post_hoc_guidance is None :
-            neg_likelihood = F.nll_loss(log_y_hat, target_expanded_multiple_imputation.flatten(), reduce = False).reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
-            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target_expanded_multiple_imputation.flatten(0,3))**2,1)) 
-        else :
-            out_y, _ = self.post_hoc_guidance(data_expanded_multiple_imputation.flatten(0,2), index = index_expanded_multiple_imputation_flatten)
-            out_y = out_y.detach().detach()
-            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-torch.exp(out_y).float())**2,1)) 
-            if self.argmax_post_hoc :
-                out_y = torch.argmax(out_y, -1)
-                neg_likelihood = F.nll_loss(log_y_hat, out_y, reduce = False)
-            else :
-                neg_likelihood = - torch.sum(torch.exp(out_y) * log_y_hat, -1).reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
+        neg_likelihood, mse_loss = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                                        index = index_expanded_multiple_imputation_flatten,
+                                                        log_y_hat=log_y_hat,
+                                                        target = target_expanded_multiple_imputation_flatten,
+                                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
+
+        neg_likelihood = neg_likelihood.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
 
 
         # Loss for selection
@@ -798,7 +913,8 @@ class ReparametrizedTraining(SELECTION_BASED_CLASSIFICATION):
         self.optim_step()
 
         # Measures :
-        dic = self._create_dic(loss_total, neg_likelihood, mse_loss,  loss_rec = loss_rec, loss_reg = loss_reg, pi_list = torch.exp(log_pi_list))
+        # _create_dic(self, loss_total, neg_likelihood, mse_loss, pi_list, loss_rec = None, loss_reg = None, loss_selection = None, variance_gradient = None):
+        dic = self._create_dic(loss_total = loss_total,neg_likelihood= neg_likelihood,mse_loss= mse_loss,  loss_rec = loss_rec, loss_reg = loss_reg, loss_selection = None, pi_list = torch.exp(log_pi_list))
 
         return dic
 
@@ -808,11 +924,11 @@ class ReparametrizedTraining(SELECTION_BASED_CLASSIFICATION):
 class AllZTraining(SELECTION_BASED_CLASSIFICATION):
     """ Difference betzeen the previous is the way we calculate the multiplication with the loss"""
     def __init__(self, classification_module, selection_module, distribution_module, baseline = None,
-                reshape_mask_function = None, fix_classifier_parameters = False,
+                reshape_mask_function = None, fix_classifier_parameters = False, post_hoc = False,
                 post_hoc_guidance = None, argmax_post_hoc = False, show_variance_gradient = False,):
         
         super().__init__(classification_module, selection_module, distribution_module, baseline = baseline,
-                        reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters,
+                        reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters, post_hoc = post_hoc,
                         post_hoc_guidance = post_hoc_guidance, argmax_post_hoc = argmax_post_hoc, show_variance_gradient = show_variance_gradient)
         self.z = None
         self.computed_combination = False
@@ -829,9 +945,7 @@ class AllZTraining(SELECTION_BASED_CLASSIFICATION):
         if not self.computed_combination :
             self.z = get_all_z(dim_total)
             self.computed_combination = True
-        # print(self.z.shape)
         z = self.z.unsqueeze(0).unsqueeze(-2)
-        # print(z.shape)
         z = z.expand(nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, dim_total).detach()
         if self.use_cuda:
             z = z.cuda()
@@ -851,9 +965,9 @@ class AllZTraining(SELECTION_BASED_CLASSIFICATION):
         log_pi_list, loss_reg = self.selection_module(data)
 
         # Distribution :
-        self.distribution_module(log_pi_list)        
-        log_prob_pz = torch.sum(torch.sum(self.distribution_module.log_prob(z.flatten(3)), axis = -1),axis=0) # Product of proba in dim and inside the IWAE
-        
+        self.distribution_module(log_pi_list)  
+        log_prob_pz = self.distribution_module.log_prob(z).reshape(nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1)
+        log_prob_pz = torch.sum(torch.sum(log_prob_pz, axis = -1),axis=0) # Product of proba in dim and inside the IWAE
         # TODO : torch.logsumexp ou torch.Sum ? It's supposed to be sum as we want the product of the bernoulli hence, the sum of the log bernoulli
         z = self.reshape(z)
         
@@ -861,22 +975,21 @@ class AllZTraining(SELECTION_BASED_CLASSIFICATION):
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded.flatten(0,2), z, index = index_expanded_flatten) # The expanding for multiple imputation is inside
     
         # Loss for classification:
-        if self.post_hoc_guidance is None :
-            neg_likelihood = F.nll_loss(log_y_hat, target_expanded_multiple_imputation.flatten(0,3), reduce=False).reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
-            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target_expanded_multiple_imputation.flatten(0,3))**2,1))
-        else :
-            out_y, _ = self.post_hoc_guidance(data_expanded_multiple_imputation.flatten(0,3), index = index_expanded_multiple_imputation_flatten)
-            out_y = out_y.detach()
-            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-torch.exp(out_y).float())**2,1)) 
-            if self.argmax_post_hoc :
-                out_y = torch.argmax(out_y, -1)
-                neg_likelihood = F.nll_loss(log_y_hat, out_y, reduce=False).reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
-            else :
-                neg_likelihood = -torch.sum(torch.exp(out_y) * log_y_hat, axis=-1).reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
+        data_expanded_multiple_imputation_flatten = data_expanded_multiple_imputation.flatten(0,3)
+        target_expanded_multiple_imputation_flatten = target_expanded_multiple_imputation.flatten(0,3)
+        one_hot_target_expanded_multiple_imputation_flatten = one_hot_target_expanded_multiple_imputation.flatten(0,3)
+        
+        neg_likelihood, mse_loss = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                                        index = index_expanded_multiple_imputation_flatten,
+                                                        log_y_hat=log_y_hat,
+                                                        target = target_expanded_multiple_imputation_flatten,
+                                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
 
+        neg_likelihood = neg_likelihood.reshape(nb_imputation, nb_sample_z_IWAE,nb_sample_z_monte_carlo, batch_size)
         # Loss for selection :
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb_imputation
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # IWAE
+        assert neg_likelihood.shape == log_prob_pz.shape
         neg_likelihood *= torch.exp(log_prob_pz) # MC sample z
         neg_likelihood = torch.sum(neg_likelihood, axis = 0) # Mc sample z
         neg_likelihood = torch.sum(neg_likelihood) # Batch size
@@ -897,11 +1010,11 @@ class AllZTraining(SELECTION_BASED_CLASSIFICATION):
 
 class REINFORCE(SELECTION_BASED_CLASSIFICATION):
     def __init__(self, classification_module, selection_module, distribution_module, baseline = None,
-                reshape_mask_function = None, fix_classifier_parameters = False,
+                reshape_mask_function = None, fix_classifier_parameters = False, post_hoc = False,
                 post_hoc_guidance = None, argmax_post_hoc = False, show_variance_gradient = False,  ):
         
         super().__init__(classification_module, selection_module, distribution_module, baseline = baseline,
-                        reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters,
+                        reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters, post_hoc = post_hoc,
                         post_hoc_guidance = post_hoc_guidance, argmax_post_hoc = argmax_post_hoc, show_variance_gradient=show_variance_gradient,)
 
 
@@ -939,8 +1052,10 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
         # Distribution :
         self.distribution_module(log_pi_list)
         z = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo))
-        log_prob_pz = torch.sum(torch.sum(self.distribution_module.log_prob(z).flatten(3), axis = -1), axis=0) # TODO : torch.logsumexp ou torch.Sum ? It's supposed to be sum as we want the product of the bernoulli hence, the sum of the log bernoulli
+        log_prob_pz = self.distribution_module.log_prob(z).reshape((nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1))
+        log_prob_pz = torch.sum(torch.sum(log_prob_pz, axis = -1), axis=0)
         z = self.reshape(z)
+        assert z.shape == data_expanded.flatten(0,2).shape
 
         # Classification module :
         log_y_hat, loss_reconstruction = self.classification_module(data_expanded.flatten(0,2), z.detach(), index = index_expanded_flatten)
@@ -948,19 +1063,17 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
 
 
         # Choice for target :
-        if self.post_hoc_guidance is None :
-            neg_likelihood = F.nll_loss(log_y_hat, target_expanded_multiple_imputation.flatten(), reduce=False).reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
-            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target_expanded_multiple_imputation.flatten(0,3))**2,1))
-        else :
-            out_y, _ = self.post_hoc_guidance(data_expanded_multiple_imputation.flatten(0,3), index = index_expanded_multiple_imputation_flatten)
-            out_y = out_y.detach().detach()
-            mse_loss = torch.mean(torch.sum((torch.exp(log_y_hat)-torch.exp(out_y).float())**2,1)) 
-            if self.argmax_post_hoc :
-                out_y = torch.argmax(out_y, -1)
-                neg_likelihood = F.nll_loss(log_y_hat, out_y, reduce=False).reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
-            else :
-                neg_likelihood = -torch.sum(torch.exp(out_y) * log_y_hat, axis=-1).reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
-        # neg_likelihood_original = neg_likelihood.clone().detach()
+        data_expanded_multiple_imputation_flatten = data_expanded_multiple_imputation.flatten(0,3)
+        target_expanded_multiple_imputation_flatten = target_expanded_multiple_imputation.flatten(0,3)
+        one_hot_target_expanded_multiple_imputation_flatten = one_hot_target_expanded_multiple_imputation.flatten(0,3)
+        
+        neg_likelihood, mse_loss = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                                        index = index_expanded_multiple_imputation_flatten,
+                                                        log_y_hat=log_y_hat,
+                                                        target = target_expanded_multiple_imputation_flatten,
+                                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
+
+        neg_likelihood = neg_likelihood.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
 
         # Loss for classification
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
@@ -973,8 +1086,9 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
         # Loss for selection :
         
         if self.baseline is not None :
-            neg_reward = neg_reward - loss_baseline.detach().reshape(1, batch_size,).expand(neg_reward.shape)
+            neg_reward = neg_reward - loss_baseline.detach().reshape(1, batch_size,).expand((nb_sample_z_monte_carlo, batch_size))
 
+        assert log_prob_pz.shape == neg_reward.shape
         loss_hard = log_prob_pz*neg_reward # Log multiplication for REINFORCE
         loss_selection = torch.mean(loss_hard, axis = 0) # MCMC Estimator
         loss_selection = torch.sum(loss_selection) # Batch_size
@@ -1001,30 +1115,13 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
 
 class REBAR(SELECTION_BASED_CLASSIFICATION):
     def __init__(self, classification_module, selection_module, distribution_module, baseline = None,
-                reshape_mask_function = None, fix_classifier_parameters = False,
+                reshape_mask_function = None, fix_classifier_parameters = False, post_hoc = False,
                 post_hoc_guidance = None, argmax_post_hoc = False, show_variance_gradient = False,  ):
         
         super().__init__(classification_module, selection_module, distribution_module, baseline = baseline,
-                        reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters,
+                        reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters, post_hoc=post_hoc,
                         post_hoc_guidance = post_hoc_guidance, argmax_post_hoc = argmax_post_hoc, show_variance_gradient=show_variance_gradient,)
 
-    def _create_dic(self, loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_selection = None, variance = None):
-        dic = super()._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec, loss_reg, pi_list, loss_selection)
-        if variance is not None :
-            dic["variance_grad"] = variance.detach().cpu().item()
-        else :
-            dic["variance_grad"] = variance
-        if self.update_temperature :
-            dic["temperature"] = torch.exp(self.temperature_lambda).detach().cpu().item()
-
-        eta_mean = 0
-        for k, key in enumerate(self.eta_selection.keys()):
-            if k == 0 :
-                eta_mean = self.eta_selection[key].cpu().detach().item()
-            eta_mean = (eta_mean * k + self.eta_selection[key].cpu().detach().item())/ (k+1)
-        dic["eta_mean"] = eta_mean
-
-        return dic
 
     def set_variance_grad(self, network):
         grad = torch.nn.utils.parameters_to_vector(-p.grad for p in network.parameters()).flatten()
@@ -1033,136 +1130,152 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
 
 
 
-    def _train_step(self, data, target, dataset,  optim_classifier, optim_selection, sampling_distribution, index = None, optim_baseline = None, optim_feature_extractor =None, lambda_reg = 0.0, nb_sample_z = 10, lambda_reconstruction = 0.0):
-        
+    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 10):
+        self.zero_grad()
         nb_imputation = self.classification_module.imputation.nb_imputation
         batch_size = data.shape[0]
-        data, target, one_hot_target, one_hot_target_expanded, data_expanded_flatten, wanted_shape_flatten, index_expanded = prepare_data_augmented(data, target, index = index, num_classes=dataset.get_dim_output(), nb_sample_z=nb_sample_z, use_cuda=self.use_cuda)
-
-        self.zero_grad()
-        # Selection module :
-        pi_list, loss_reg, z_real_sampled, p_z = self._destructive_train(data, sampling_distribution, nb_sample_z)
-        loss_reg = lambda_reg * loss_reg
-        
-        pi_list_extended = torch.cat([pi_list for k in range(nb_sample_z)], axis=0)
-        # u = torch.FloatTensor(1., batch_size * nb_imputation,  requires_grad=False).uniform_(0, 1) + 1e-9
+        # Get data :
         if self.use_cuda :
-            u = (torch.rand((z_real_sampled.shape), requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1).cuda() # TODO
-            v = (torch.rand((z_real_sampled.shape), requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1).cuda()
+            data, target, index = on_cuda(data, target = target, index = index,)
+
+        one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
+        data_expanded, target_expanded, index_expanded, one_hot_target_expanded = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE= nb_sample_z_IWAE, nb_imputation = None)
+        data_expanded_multiple_imputation, target_expanded_multiple_imputation, index_expanded_multiple_imputation, one_hot_target_expanded_multiple_imputation = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE= nb_sample_z_IWAE, nb_imputation = nb_imputation)
+        if index is not None :
+            index_expanded_flatten = index_expanded.flatten(0,2)
+            index_expanded_multiple_imputation_flatten = index_expanded_multiple_imputation.flatten(0,3)
         else :
-            u = (torch.rand((z_real_sampled.shape), requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1)
-            v = (torch.rand((z_real_sampled.shape), requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1)
+            index_expanded_flatten = None
+            index_expanded_multiple_imputation_flatten = None
+    
 
-
-
-        b = reparam_pz(u, pi_list_extended)
-        z = Heaviside(b)
-        tilde_b = reparam_pz_b(v, z, pi_list_extended)
-
-
-        soft_concrete_rebar_z = sigma_lambda(b, torch.exp(self.temperature_lambda))  
-        if not self.pytorch_relax :
-            soft_concrete_rebar_tilde_z = sigma_lambda(tilde_b, torch.exp(self.temperature_lambda))
-        else :
-            distrib = torch.distributions.relaxed_bernoulli.RelaxedBernoulli(torch.exp(self.temperature_lambda), probs = pi_list_extended)
-            soft_concrete_rebar_tilde_z = distrib.rsample()
-
-
-        # Classification module hard :
-        log_y_hat, _ = self.classification_module(data_expanded_flatten, z.detach(), index_expanded)
-        log_y_hat = log_y_hat.reshape(nb_sample_z, nb_imputation, batch_size, dataset.get_dim_output())
-        log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./nb_sample_z))
-        log_y_hat_iwae = torch.mean(log_y_hat_iwae,0)
-        # log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./nb_sample_z)) # Need verification of this with the masked version
-        log_y_hat_iwae_masked_hard_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
-
-        # Classification module relaxed:
-        log_y_hat, _ = self.classification_module(data_expanded_flatten,  soft_concrete_rebar_tilde_z, index_expanded)
-        log_y_hat = log_y_hat.reshape(nb_sample_z, nb_imputation, batch_size, dataset.get_dim_output())
-        log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./nb_sample_z))
-        log_y_hat_iwae = torch.mean(log_y_hat_iwae,0)
-        # log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./nb_sample_z)) # Need verification of this with the masked version
-        log_y_hat_iwae_masked_soft_tilde_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
-
-
-        # Classification module relaxed_2 :
-        log_y_hat, _ = self.classification_module(data_expanded_flatten, soft_concrete_rebar_z, index_expanded)
-        log_y_hat = log_y_hat.reshape(nb_sample_z, nb_imputation, batch_size, dataset.get_dim_output())
-        log_y_hat_iwae = torch.logsumexp(log_y_hat,0) + torch.log(torch.tensor(1./nb_sample_z))
-        log_y_hat_iwae = torch.mean(log_y_hat_iwae,0)
-        # log_y_hat_iwae = torch.logsumexp(torch.logsumexp(log_y_hat,1),0) + torch.log(torch.tensor(1./nb_imputation))+ torch.log(torch.tensor(1./nb_sample_z)) # Need verification of this with the masked version
-        log_y_hat_iwae_masked_soft_z = torch.masked_select(log_y_hat_iwae, one_hot_target>0.5)
-
-        # Loss calculation
-        z = z.reshape(z_real_sampled.shape)
-        log_prob_z_sampled = self.distribution_module.log_prob(z.detach()).reshape(nb_sample_z, batch_size, -1)
-        log_prob_z = torch.sum(torch.sum(log_prob_z_sampled,axis=0), axis=-1) 
-
-        likelihood_hard = log_y_hat_iwae_masked_hard_z.detach() * log_prob_z + log_y_hat_iwae_masked_hard_z
-        loss_hard = - likelihood_hard
-        likelihood_control_variate = - log_y_hat_iwae_masked_soft_tilde_z.detach() * log_prob_z + log_y_hat_iwae_masked_soft_z - log_y_hat_iwae_masked_soft_tilde_z
-        loss_control_variate = - likelihood_control_variate
-
-
-        g = []
-        for k in range(len(loss_hard)):
-            g1 = torch.autograd.grad(loss_control_variate[k], self.selection_module.selector.parameters(), retain_graph = True, create_graph = False)
-            g2 = vectorize_gradient(torch.autograd.grad(loss_hard[k], self.selection_module.selector.parameters(), retain_graph = True, create_graph = False), 
-                    self.selection_module.selector.named_parameters(), set_none_to_zero=True)
-            g1 = self._multiply_by_eta_per_layer_gradient(g1, self.eta_selection, self.selection_module.selector.named_parameters())
-            g1= vectorize_dic(g1, self.selection_module.selector.named_parameters(), set_none_to_zero=True)
-            g.append((g2+g1).unsqueeze(1))
-        g_mean = torch.mean(torch.cat(g, axis=1),axis=1)
-        g_square = torch.mean(torch.cat(g,axis=1)**2,axis=1)
-        variance = torch.mean(g_square - g_mean**2)
+        ### TRAINING CLASSIFICATION :
+        # Selection Module :
+        log_pi_list, _ = self.selection_module(data)
         
-        torch.autograd.backward(variance, inputs = [self.eta_selection[name] for name in self.eta_selection.keys()])
-        if self.update_temperature :
-            torch.autograd.backward(variance, inputs = [self.temperature_lambda], retain_graph = True)
 
+        # Distribution :
+        self.distribution_module(log_pi_list)
+        _, z, _ = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo, ))
+        z = self.reshape(z)
 
-        self.classification_module.classifier.zero_grad()
-        self.selection_module.selector.zero_grad()
-
-        torch.mean(loss_control_variate).backward(retain_graph = True, create_graph = False)
-        self._multiply_by_eta_per_layer(self.selection_module.selector.named_parameters(), self.eta_selection)
-        self.classification_module.classifier.zero_grad()
-        torch.mean(loss_hard).backward(retain_graph = True, create_graph = False)
-
-        optim_selection.step()
-        optim_classifier.step()
-        self.optimizer_eta.step()
 
         
-        # # Temperature T optimisation :
-        # gumbel_learning_signal = - log_y_hat_iwae_masked_soft_tilde_z
-        # df_dt = []
-        # for k in range(len(gumbel_learning_signal)):
-        #     df_dt.append(torch.nn.utils.parameters_to_vector(torch.autograd.grad(gumbel_learning_signal[k], self.temperature_lambda, retain_graph=True)))
-        # df_dt = torch.cat(df_dt)
-        # backward_aux = torch.autograd.grad(torch.mean(df_dt.detach() * log_prob_z),self.selection_module.selector.parameters(), retain_graph=True)
-        # reinf_g_t = self._multiply_by_eta_per_layer_gradient(
-        #     backward_aux,
-        #     self.eta_selection,
-        #     self.selection_module.selector.named_parameters() 
-        # )
-        # reinf_g_t = vectorize_dic(reinf_g_t, self.selection_module.selector.named_parameters(), set_none_to_zero=True)
 
-        # reparam = log_y_hat_iwae_masked_soft_z - log_y_hat_iwae_masked_soft_tilde_z
-        # reparam_g = torch.autograd.grad(torch.mean(reparam), self.selection_module.selector.parameters(), retain_graph = True, create_graph = True)
-        # reparam_g = self._multiply_by_eta_per_layer_gradient(reparam_g, self.eta_selection, self.selection_module.selector.named_parameters())
-        # reparam_g = vectorize_dic(reparam_g, self.selection_module.selector.named_parameters(), set_none_to_zero=True)
-        # g_aux = torch.nn.utils.parameters_to_vector(-p.grad for p in self.selection_module.selector.parameters())
-        # reparam_g_t = torch.autograd.grad(torch.mean(2*g_aux*reparam_g), self.temperature_lambda, retain_graph = True)[0]
+        # Classification module :
+        log_y_hat, loss_reconstruction = self.classification_module(data_expanded.flatten(0,2), z.detach(), index = index_expanded_flatten)
+    
+        # Choice for target :
 
-
-        # grad_t = torch.mean(2*g_aux*reinf_g_t) + reparam_g_t
-        # self.temperature_lambda = self.temperature_lambda - 1e-4 * grad_t 
-        # self.temperature_lambda.backward()
-        # self.temperature_lambda.grad.zero_()
+        data_expanded_multiple_imputation_flatten = data_expanded_multiple_imputation.flatten(0,3)
+        target_expanded_multiple_imputation_flatten = target_expanded_multiple_imputation.flatten(0,3)
+        one_hot_target_expanded_multiple_imputation_flatten = one_hot_target_expanded_multiple_imputation.flatten(0,3)
         
-        loss_total = torch.mean(loss_hard + loss_control_variate)
+        neg_likelihood, mse_loss = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                                        index = index_expanded_multiple_imputation_flatten,
+                                                        log_y_hat=log_y_hat,
+                                                        target = target_expanded_multiple_imputation_flatten,
+                                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
 
-        dic = self._create_dic(loss_total, -log_y_hat_iwae_masked_hard_z.mean(), torch.tensor(0.), torch.tensor(0.), loss_reg, pi_list, torch.mean(loss_hard), variance)
+        neg_likelihood = neg_likelihood.reshape(nb_imputation, nb_sample_z_IWAE,nb_sample_z_monte_carlo, batch_size)
+        neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
+        neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
+        neg_likelihood = torch.mean(neg_likelihood, axis=0) # MC estimator outside log
+        neg_likelihood = torch.mean(neg_likelihood) # batch size
+        loss_classification_module = neg_likelihood
+        loss_classification_module.backward()
+        self.optim_classification.step()
+        self.zero_grad()
+
+        ### TRAINING SELECTION :
+
+        # Selection Module :
+        log_pi_list, loss_reg = self.selection_module(data)
+        
+
+        # Distribution :
+        self.distribution_module(log_pi_list)
+        sig_z, z, sig_z_tilde = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo))
+        log_prob_pz = self.distribution_module.log_prob(z).reshape((nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1))
+        log_prob_pz = torch.sum(torch.sum(log_prob_pz, axis = -1), axis=0)
+        z = self.reshape(z)
+        sig_z = self.reshape(z)
+        sig_z_tilde = self.reshape(sig_z_tilde)
+       
+
+
+        # Calculate
+        # 1. f(s)
+        f_s, _ = self.classification_module(data_expanded.flatten(0,2), z, index=index_expanded_flatten)
+        # 2. c(z)
+        c_z, _ = self.classification_module(data_expanded.flatten(0,2), sig_z , index=index_expanded_flatten)
+        # 3. c(z~)
+        c_z_tilde, _ = self.classification_module(data_expanded.flatten(0,2), sig_z_tilde, index=index_expanded_flatten)
+
+        # Compute the probabilities 
+        # 1. f(s)
+        p_f_s, _ = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                                index = index_expanded_multiple_imputation_flatten,
+                                                log_y_hat = f_s,
+                                                target = target_expanded_multiple_imputation_flatten,
+                                                one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
+        p_f_s = p_f_s.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, )
+        p_f_s = torch.logsumexp(p_f_s, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
+        p_f_s = torch.logsumexp(p_f_s, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
+
+                            
+        # 2. c(z)
+        p_c_z, _ = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                        index = index_expanded_multiple_imputation_flatten,
+                                        log_y_hat = c_z,
+                                        target = target_expanded_multiple_imputation_flatten,
+                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
+        p_c_z = p_c_z.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, )
+        p_c_z = torch.logsumexp(p_c_z, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
+        p_c_z = torch.logsumexp(p_c_z, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
+
+
+        # 3. c(z~)
+        p_c_z_tilde, _ = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
+                                        index = index_expanded_multiple_imputation_flatten,
+                                        log_y_hat = c_z_tilde,
+                                        target = target_expanded_multiple_imputation_flatten,
+                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
+
+        
+        p_c_z_tilde = p_c_z_tilde.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, )
+        p_c_z_tilde = torch.logsumexp(p_c_z_tilde, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
+        p_c_z_tilde = torch.logsumexp(p_c_z_tilde, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
+
+        # Reward
+        neg_reward = p_f_s - p_c_z_tilde
+        neg_reward = neg_reward.detach()
+        assert neg_reward.shape == log_prob_pz.shape
+        neg_reward_prob = neg_reward * log_prob_pz
+        # print("neg_reward_prob", neg_reward_prob.mean(axis=0))
+        # Terms to Make Expection Zero
+        E_0 = p_c_z - p_c_z_tilde
+        # print("E_0", E_0.mean(axis=0))
+        # Losses
+        s_loss = neg_reward_prob + E_0
+
+        s_loss = torch.mean(s_loss, axis=0)
+        s_loss = torch.sum(s_loss)
+            
+        # Train
+        loss_selection = s_loss + loss_reg
+        loss_selection.backward()
+        self.optim_selection.step()
+        self.optim_distribution_module.step()
+
+        
+        dic = self._create_dic(loss_total = loss_selection+loss_classification_module+loss_reg,
+                            neg_likelihood= neg_likelihood,
+                            mse_loss= mse_loss,
+                            loss_rec = loss_classification_module,
+                            loss_reg = loss_reg,
+                            loss_selection = s_loss,
+                            pi_list = torch.exp(log_pi_list))
+
 
         return dic

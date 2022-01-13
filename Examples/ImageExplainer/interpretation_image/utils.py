@@ -55,7 +55,7 @@ def imputation_image(trainer, loader, final_path, nb_samples_image = 20):
     z = z.cpu().detach().numpy()
     target = target.cpu().detach().numpy()
 
-    folder_path = os.path.join(final_path, "imputation")
+    folder_path = os.path.join(final_path, "imputation_from_sample")
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
@@ -100,7 +100,7 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image = 20):
     target = target.cpu().detach().numpy()
     pred = torch.exp(pred).cpu().detach().numpy()
 
-    folder_path = os.path.join(final_path, "output_1sample")
+    folder_path = os.path.join(final_path, "output_sample")
     for k in range(len(data)):
         target_path = os.path.join(folder_path, f"target_{target[k]}")
         if not os.path.exists(target_path):
@@ -142,7 +142,7 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image = 20):
     data = data.cpu().detach().numpy()
     target = target.cpu().detach().numpy()
 
-    folder_path = os.path.join(final_path, "output_quadrant")
+    folder_path = os.path.join(final_path, "output_quadrant_from_pi_list")
     for k in range(len(data)):
         target_path = os.path.join(folder_path, f"target_{target[k]}")
         if not os.path.exists(target_path):
@@ -152,8 +152,8 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image = 20):
         current_pi_list = argmax_pi_list[k].reshape(wanted_shape) 
         fig, axs = plt.subplots(1,3, figsize=(15,5))
         axs[0].imshow(x_original, cmap='gray', interpolation='none',)
-        axs[1].imshow(current_pi_list, cmap='gray', interpolation='none',)
-        axs[2].imshow(current_quadrant, cmap='gray', interpolation='none',)
+        axs[1].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
+        axs[2].imshow(current_quadrant, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
         
         f1_score = metrics.f1_score(current_quadrant.flatten(), current_pi_list.flatten(),)
         plt.title(f"F1_score {f1_score:.5f}")

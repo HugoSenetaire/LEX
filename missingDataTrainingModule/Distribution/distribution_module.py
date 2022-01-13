@@ -20,10 +20,10 @@ def regular_scheduler(temperature, epoch, cste = 0.5):
 def get_distribution_module_from_args(args_distribution_module):
 
     assert(args_distribution_module["distribution"] is not None)
-    if args_distribution_module["distribution_module"] is REBAR_Distribution :
-        assert(args_distribution_module["distribution_relaxed"] is not None)
+    # if args_distribution_module["distribution_module"] is REBAR_Distribution :
+        # assert(args_distribution_module["distribution_relaxed"] is not None)
     # print( args_distribution_module["distribution_module"])
-
+    print(args_distribution_module)
     distribution_module = args_distribution_module["distribution_module"](**args_distribution_module)
     # distribution_module = args_distribution_module["distribution_module"](distribution = args_distribution_module["distribution"], distribution_relaxed = args_distribution_module["distribution_relaxed"],)
     # print("INSIDE")
@@ -40,13 +40,11 @@ class DistributionModule(nn.Module):
     def __init__(self, distribution, antitheis_sampling = False, **kwargs):
         super().__init__()
         self.antitheis_sampling = antitheis_sampling
-        print(antitheis_sampling)
         self.distribution = distribution
         self.current_distribution = distribution
 
     def forward(self, log_distribution_parameters,):
         self.current_distribution = self.distribution(torch.exp(log_distribution_parameters))
-        return self
 
     def log_prob(self, x):
         return self.current_distribution.log_prob(x)
@@ -90,6 +88,7 @@ class DistributionWithSchedulerParameter(DistributionModule):
 
     def forward(self, distribution_parameters):
         if self.training :
+            # print(torch.exp(distribution_parameters))
             self.current_distribution = self.distribution(probs = torch.exp(distribution_parameters), temperature = self.temperature)
         else :
             self.current_distribution = self.distribution(probs = torch.exp(distribution_parameters), temperature = torch.tensor(0., dtype=torch.float32))
@@ -116,66 +115,108 @@ class DistributionWithSchedulerParameter(DistributionModule):
             self.temperature_total = self.scheduler_parameter(self.temperature_total, epoch)
 
 
-class Bernoulli(DistributionModule):
+class FixedBernoulli(DistributionModule):
     def __init__(self, **kwargs):
-        super(Bernoulli, self).__init__(distribution = torch.distributions.Bernoulli)
+        super(FixedBernoulli, self).__init__(distribution = torch.distributions.Bernoulli)
     
     def forward(self, distribution_parameters, ):
-        self.current_distribution = self.distribution(torch.exp(distribution_parameters),)
+        self.current_distribution = self.distribution(probs = torch.ones_like(distribution_parameters, dtype = torch.float32)*torch.tensor(0.5))
+        return self.current_distribution
         
-    
     def sample_function(self, sample_shape):
         return self.current_distribution.sample(sample_shape)
 
 
 
-
 class REBAR_Distribution(DistributionModule):
-    def __init__(self, distribution, distribution_relaxed, temperature_init = 1.0, trainable = False, antitheis_sampling = False, **kwargs):
+    def __init__(self, distribution, distribution_relaxed, temperature_init = 1.0, trainable = False, antitheis_sampling = False, force_same = True, **kwargs):
         super(REBAR_Distribution, self).__init__(distribution, antitheis_sampling=antitheis_sampling)
         if self.antitheis_sampling :
             raise AttributeError("Antitheis sampling only works for regular distribution")
         self.distribution_relaxed = distribution_relaxed
+        self.force_same = force_same
         self.trainable = trainable
         self.temperature_total = torch.nn.Parameter(torch.tensor(temperature_init), requires_grad = trainable)
 
     def forward(self, distribution_parameters):
-        self.current_distribution = self.distribution(torch.exp(distribution_parameters),)
-        self.current_distribution_relaxed = self.distribution_relaxed(torch.exp(distribution_parameters), )
+        # print(torch.exp(distribution_parameters))
+        self.current_distribution = self.distribution(probs = torch.exp(distribution_parameters),)
+        self.current_distribution_relaxed = self.distribution_relaxed(probs = torch.exp(distribution_parameters), temperature = self.temperature_total )
         self.distribution_parameters = distribution_parameters
         return self.current_distribution, self.current_distribution_relaxed
 
     def sample(self, sample_shape= (1,)):
+        if self.training :
+            shape_distribution_parameters = self.distribution_parameters.shape
+            complete_size_reshape = torch.Size([1 for i in range(len(sample_shape))]) + shape_distribution_parameters
+            complete_size = torch.Size(sample_shape) + shape_distribution_parameters 
 
-        nb_sample = np.prod(sample_shape)
-        shape_distribution_parameters = self.distribution_parameters.shape()
 
-        pi_list_extended = torch.cat([self.distribution_relaxed for k in range(nb_sample)], axis=0).reshape(torch.Size(sample_shape,)+ torch.Size(shape_distribution_parameters))
-        # TODO
-        # Need to extend pi_list a proper way. How ? TO TEST
+            log_pi_list_extended = self.distribution_parameters.reshape(complete_size_reshape).expand(complete_size)
+
+            u = (torch.rand(complete_size, requires_grad = False) + 1e-9).clamp(1e-8,1)
+            v_p = (torch.rand(complete_size, requires_grad = False) + 1e-9).clamp(1e-8,1)
+            if log_pi_list_extended.is_cuda:
+                u = u.cuda()
+                v_p = v_p.cuda()
+
+
+            z = reparam_pz(u, torch.exp(log_pi_list_extended))
+            s = Heaviside(z)
+            v = u_to_v(u = u, pi_list = torch.exp(log_pi_list_extended), force_same = True, s = s, v_prime = v_p)
+
+            z_tilde = reparam_pz(v, torch.exp(log_pi_list_extended))
+            # z_tilde = reparam_pz_b(v, s, torch.exp(log_pi_list_extended))
+            sig_z = sigma_lambda(z, self.temperature_total)
+            sig_z_tilde = sigma_lambda(z_tilde, self.temperature_total)
+
+            return [sig_z, s, sig_z_tilde]
+        else :
+            return self.current_distribution.sample(sample_shape)
+
+
+
+class REBAR_Distribution_STE(DistributionModule):
+    def __init__(self, distribution, distribution_relaxed, temperature_init = 1.0, trainable = False, antitheis_sampling = False, force_same = True, **kwargs):
+        super(REBAR_Distribution_STE, self).__init__(distribution, antitheis_sampling=antitheis_sampling)
+        if self.antitheis_sampling :
+            raise AttributeError("Antitheis sampling only works for regular distribution")
+        self.distribution_relaxed = distribution_relaxed
+        self.force_same = force_same
+        self.trainable = trainable
+        self.temperature_total = torch.nn.Parameter(torch.tensor(temperature_init), requires_grad = trainable)
+
+    def forward(self, distribution_parameters):
+        self.current_distribution = self.distribution(probs = torch.exp(distribution_parameters),)
+        self.current_distribution_relaxed = self.distribution_relaxed(probs = torch.exp(distribution_parameters), temperature = self.temperature_total )
+        self.distribution_parameters = distribution_parameters
+        return self.current_distribution, self.current_distribution_relaxed
+
+    def sample(self, sample_shape= (1,)):
         
-        # u = torch.FloatTensor(1., batch_size * nb_imputation,  requires_grad=False).uniform_(0, 1) + 1e-9
-      
-
-        # USUALLY WE CAN GET V FROM U TO COUPLE BOTH OF THEM :
-        u = (torch.rand(sample_shape, requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1)
-        v = (torch.rand(sample_shape, requires_grad = False).flatten(0,1) + 1e-9).clamp(0,1)
-        if self.is_cuda:
-            u = u.cuda()
-            v = v.cuda()
+        if self.training :
+            shape_distribution_parameters = self.distribution_parameters.shape
+            complete_size_reshape = torch.Size([1 for i in range(len(sample_shape))]) + shape_distribution_parameters
+            complete_size = torch.Size(sample_shape) + shape_distribution_parameters 
 
 
-        b = reparam_pz(u, pi_list_extended)
-        z = Heaviside(b)
-        tilde_b = reparam_pz_b(v, z, pi_list_extended)
+            log_pi_list_extended = self.distribution_parameters.reshape(complete_size_reshape).expand(complete_size)
+
+            u = (torch.rand(complete_size, requires_grad = False) + 1e-9).clamp(1e-8,1)
+            v_p = (torch.rand(complete_size, requires_grad = False) + 1e-9).clamp(1e-8,1)
+            if log_pi_list_extended.is_cuda:
+                u = u.cuda()
+                v_p = v_p.cuda()
 
 
-        soft_concrete_rebar_z = sigma_lambda(b, torch.exp(self.temperature_total))  
-        soft_concrete_rebar_tilde_z = sigma_lambda(tilde_b, torch.exp(self.temperature_total))
+            z = reparam_pz(u, torch.exp(log_pi_list_extended))
+            s = Heaviside(z)
+            v = u_to_v(u = u, pi_list = torch.exp(log_pi_list_extended), force_same = True, s = s, v_prime = v_p)
 
-        # if not self.pytorch_relax :
-        # else :
-            # distrib = torch.distributions.relaxed_bernoulli.RelaxedBernoulli(torch.exp(self.temperature_total), probs = pi_list_extended)
-            # soft_concrete_rebar_tilde_z = distrib.rsample()
+            z_tilde = reparam_pz(v, torch.exp(log_pi_list_extended))
+            sig_z = threshold_STE.apply(sigma_lambda(z, self.temperature_total), 0.5)
+            sig_z_tilde = threshold_STE.apply(sigma_lambda(z_tilde, self.temperature_total), 0.5)
 
-        return tilde_b, soft_concrete_rebar_z, soft_concrete_rebar_tilde_z
+            return [sig_z, s, sig_z_tilde]
+        else :
+            return self.current_distribution.sample(sample_shape)
