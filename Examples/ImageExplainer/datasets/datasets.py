@@ -432,6 +432,11 @@ class MNISTImageBackground():
         with open(path_test, "rb") as f :
             self.data_test, self.target_test = pkl.load(f)
 
+        self.data_train = torch.tensor(self.data_train, dtype = torch.float32)
+        self.data_test = torch.tensor(self.data_test, dtype = torch.float32)
+        self.target_train = torch.tensor(self.target_train, dtype= torch.int64)
+        self.target_test = torch.tensor(self.target_test, dtype= torch.int64)
+
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
         self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
 
@@ -462,6 +467,11 @@ class MNISTNoiseBackground():
 
         with open(path_test, "rb") as f :
             self.data_test, self.target_test = pkl.load(f)
+
+        self.data_train = torch.tensor(self.data_train, dtype = torch.float32)
+        self.data_test = torch.tensor(self.data_test, dtype = torch.float32)
+        self.target_train = torch.tensor(self.target_train, dtype= torch.int64)
+        self.target_test = torch.tensor(self.target_test, dtype= torch.int64)
 
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
         self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
