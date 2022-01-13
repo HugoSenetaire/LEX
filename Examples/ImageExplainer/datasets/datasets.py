@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import pickle as pkl
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -236,25 +237,31 @@ class MNIST_and_FASHIONMNIST():
         self.data_train_mnist = torch.zeros((len(self.mnist_train), 28, 28))
         for k in range(len(self.data_train_mnist)):
           self.data_train_mnist[k],_ = self.mnist_train.__getitem__(k) 
+        # self.data_train_mnist = self.data_train_mnist/torch.tensor(255.)
 
         self.data_test_mnist = torch.zeros((len(self.mnist_test), 28, 28))
         for k in range(len(self.data_test_mnist)):
           self.data_test_mnist[k], _ = self.mnist_test.__getitem__(k)
+        # self.data_test_mnist = self.data_test_mnist/torch.tensor(255.)
 
   
         self.data_train_fashion = torch.zeros((len(self.fashion_mnist_train), 28, 28))
         for k in range(len(self.data_train_fashion)):
           self.data_train_fashion[k],_ = self.fashion_mnist_train.__getitem__(k) 
+        # self.data_train_fashion = self.data_train_fashion/torch.tensor(255.)
+
         self.data_test_fashion = torch.zeros((len(self.fashion_mnist_test), 28, 28))
         for k in range(len(self.data_test_fashion)):
           self.data_test_fashion[k], _ = self.fashion_mnist_test.__getitem__(k)
+        # self.data_test_fashion = self.data_test_fashion/torch.tensor(255.)
+
 
 
         self.target_train = self.mnist_train.targets
         self.target_test = self.mnist_test.targets
 
         self.quadrant_filling = torch.ones_like(self.data_train_mnist[0, :, :])
-        self.quadrant_filling = torch.where(torch.std(self.data_train_fashion, dim = 0) == 0, torch.zeros_like(self.quadrant_filling), self.quadrant_filling)
+        self.quadrant_filling = torch.where(torch.std(self.data_train_mnist, dim = 0) == 0, torch.zeros_like(self.quadrant_filling), self.quadrant_filling)
         # self.quadrant_filling[torch.where(torch.std(self.data_train_fashion, dim = 0) == 0)] = 
         
 
@@ -289,9 +296,15 @@ class MNIST_and_FASHIONMNIST():
             # print(self.data_test_fashion.shape)
             # print(self.data_test_mnist.shape)
             self.data_test[k, :, j*28:(j+1)*28] = self.data_test_fashion[k]
+
         
         # self.data_test.reshape((-1, 1, 28, 56))
+        # plt.imshow(self.data_train[0].reshape((28,56)), cmap = 'gray',)
+        # plt.show()
 
+        # TODO : DELETE THE ADDING OF NOISE
+        self.data_train += torch.normal(0, 0.2, size = self.data_train.shape)
+        self.data_test += torch.normal(0, 0.2, size = self.data_test.shape)
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
         self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
 
@@ -396,6 +409,72 @@ class FASHIONMNIST_and_MNIST():
 
     def __str__(self):
         return "FashionMNIST_and__Mnist"
+
+# MNIST BACKGROUND :
+import tqdm
+
+
+class MNISTImageBackground():
+    def __init__(self,
+            root_dir: str,
+            transforms_mnist = None,
+            target_transforms = None,
+            download: bool = False,
+            noise_function = None,
+            **kwargs,):
+
+        path_train = os.path.join(root_dir, "mnist_background_images_train.pkl")
+        path_test = os.path.join(root_dir, "mnist_background_images_test.pkl")
+
+        with open(path_train, "rb") as f :
+            self.data_train, self.target_train = pkl.load(f) 
+
+        with open(path_test, "rb") as f :
+            self.data_test, self.target_test = pkl.load(f)
+
+        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+
+    def get_dim_input(self,):
+        return (1,28,28)
+
+    def get_dim_output(self,):
+        return 10
+
+    def __str__(self):
+        return "MNISTImageBackground"
+
+
+class MNISTNoiseBackground():
+    def __init__(self,
+            root_dir: str,
+            transforms_mnist = None,
+            target_transforms = None,
+            download: bool = False,
+            noise_function = None,
+            **kwargs,):
+
+        path_train = os.path.join(root_dir, "mnist_background_random_train.pkl")
+        path_test = os.path.join(root_dir, "mnist_background_random_test.pkl")
+
+        with open(path_train, "rb") as f :
+            self.data_train, self.target_train = pkl.load(f) 
+
+        with open(path_test, "rb") as f :
+            self.data_test, self.target_test = pkl.load(f)
+
+        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+
+    def get_dim_input(self,):
+        return (1,28,28)
+
+    def get_dim_output(self,):
+        return 10
+
+    def __str__(self):
+        return "MNISTImageBackground"
+
 
 
 
