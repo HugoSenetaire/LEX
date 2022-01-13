@@ -427,10 +427,10 @@ class MNISTImageBackground():
         path_test = os.path.join(root_dir, "mnist_background_images_test.pkl")
 
         with open(path_train, "rb") as f :
-            self.data_train, self.target_train = pkl.load(f) 
+            self.data_test, self.target_test = pkl.load(f) 
 
         with open(path_test, "rb") as f :
-            self.data_test, self.target_test = pkl.load(f)
+            self.data_train, self.target_train = pkl.load(f)
 
         self.data_train = torch.tensor(self.data_train, dtype = torch.float32)
         self.data_test = torch.tensor(self.data_test, dtype = torch.float32)
@@ -463,10 +463,10 @@ class MNISTNoiseBackground():
         path_test = os.path.join(root_dir, "mnist_background_random_test.pkl")
 
         with open(path_train, "rb") as f :
-            self.data_train, self.target_train = pkl.load(f) 
+            self.data_test, self.target_test = pkl.load(f) 
 
         with open(path_test, "rb") as f :
-            self.data_test, self.target_test = pkl.load(f)
+            self.data_train, self.target_train = pkl.load(f)
 
         self.data_train = torch.tensor(self.data_train, dtype = torch.float32)
         self.data_test = torch.tensor(self.data_test, dtype = torch.float32)
