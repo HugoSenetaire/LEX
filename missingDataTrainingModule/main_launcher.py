@@ -269,6 +269,7 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
 
         vanilla_classification_module = ClassificationModule(classifier, imputation = imputation)
         if args_train["use_cuda"]:
+            print("Here use cuda")
             vanilla_classification_module.cuda()
         optim_classifier = args_compiler["optim_classification"](vanilla_classification_module.parameters())
 
