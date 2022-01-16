@@ -138,7 +138,7 @@ class MnistDataset():
             noise_function = None,
             **kwargs,):
 
-        self.ground_truth = True
+        self.ground_truth_selection = True
         self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, )
         self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, )
 
@@ -230,7 +230,7 @@ class MNIST_and_FASHIONMNIST():
             noise_function = None,
             **kwargs,):
 
-        self.ground_truth = True
+        self.ground_truth_selection = True
         self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, transform = transforms_mnist)
         self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, transform = transforms_mnist)
         self.fashion_mnist_train = torchvision.datasets.FashionMNIST(root_dir, train=True, download=download, transform = transforms_mnist)
@@ -333,7 +333,7 @@ class FASHIONMNIST_and_MNIST():
             noise_function = None,
             **kwargs,):
 
-        self.ground_truth = True
+        self.ground_truth_selection = True
         self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, transform = transforms_mnist)
         self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, transform = transforms_mnist)
         self.fashion_mnist_train = torchvision.datasets.FashionMNIST(root_dir, train=True, download=download, transform = transforms_mnist)
