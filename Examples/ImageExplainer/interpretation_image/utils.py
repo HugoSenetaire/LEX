@@ -179,6 +179,8 @@ def accuracy_output(trainer, loader, final_path, batch_size = 100):
     for aux in iter(loader.test_loader):
         data, target, index=aux
         wanted_shape = data[0].shape
+        if loader.dataset.ground_truth_selection : 
+            quadrant_test = loader.dataset.quadrant_test[index]
 
         if trainer.use_cuda:
             data, target, = data.cuda(), target.cuda()
