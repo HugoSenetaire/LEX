@@ -138,6 +138,7 @@ class MnistDataset():
             noise_function = None,
             **kwargs,):
 
+        self.ground_truth = True
         self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, )
         self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, )
 
@@ -228,6 +229,8 @@ class MNIST_and_FASHIONMNIST():
             download: bool = False,
             noise_function = None,
             **kwargs,):
+
+        self.ground_truth = True
         self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, transform = transforms_mnist)
         self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, transform = transforms_mnist)
         self.fashion_mnist_train = torchvision.datasets.FashionMNIST(root_dir, train=True, download=download, transform = transforms_mnist)
@@ -329,6 +332,8 @@ class FASHIONMNIST_and_MNIST():
             download: bool = False,
             noise_function = None,
             **kwargs,):
+
+        self.ground_truth = True
         self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, transform = transforms_mnist)
         self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, transform = transforms_mnist)
         self.fashion_mnist_train = torchvision.datasets.FashionMNIST(root_dir, train=True, download=download, transform = transforms_mnist)
@@ -422,6 +427,8 @@ class MNISTImageBackground():
             download: bool = False,
             noise_function = None,
             **kwargs,):
+        
+        self.ground_truth = False
 
         path_train = os.path.join(root_dir, "mnist_background_images_train.pkl")
         path_test = os.path.join(root_dir, "mnist_background_images_test.pkl")

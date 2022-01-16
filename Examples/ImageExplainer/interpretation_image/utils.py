@@ -120,7 +120,8 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image = 20):
     data, target, index= next(iter(loader.test_loader))
     data = data[:nb_samples_image]
     target = target[:nb_samples_image]
-    quadrant = loader.dataset.quadrant_test[index]
+    if loader.dataset.ground_truth_selection : 
+        quadrant = loader.dataset.quadrant_test[index]
     wanted_shape = data[0].shape
 
     
@@ -148,16 +149,19 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image = 20):
         if not os.path.exists(target_path):
             os.makedirs(target_path)
         x_original = data[k].reshape(wanted_shape)
-        # if 
-        current_quadrant = quadrant[k].reshape(wanted_shape)
+        if loader.dataset.ground_truth_selection : 
+            current_quadrant = quadrant[k].reshape(wanted_shape)
         current_pi_list = argmax_pi_list[k].reshape(wanted_shape) 
-        fig, axs = plt.subplots(1,3, figsize=(15,5))
+        if loader.dataset.ground_truth_selection :
+            fig, axs = plt.subplots(1,3, figsize=(15,5))
+        else :
+            fig, axs = plt.subplots(1, 2, figsize=(10,5))
         axs[0].imshow(x_original, cmap='gray', interpolation='none',)
         axs[1].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
-        axs[2].imshow(current_quadrant, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
-        
-        f1_score = metrics.f1_score(current_quadrant.flatten(), current_pi_list.flatten(),)
-        plt.title(f"F1_score {f1_score:.5f}")
+        if loader.dataset.ground_truth_selection :
+            axs[2].imshow(current_quadrant, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
+            f1_score = metrics.f1_score(current_quadrant.flatten(), current_pi_list.flatten(),)
+            plt.title(f"F1_score {f1_score:.5f}")
         plt.savefig(os.path.join(target_path, f"{k}.png"))
         plt.close(fig)
     
@@ -165,7 +169,8 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image = 20):
 
 def accuracy_output(trainer, loader, final_path, batch_size = 100):
     trainer.eval()
-
+    if not loader.dataset.ground_truth_selection :
+        return None
     selection_module = trainer.selection_module
     f1_score_avg = 0
     complete_size = 0
@@ -174,7 +179,7 @@ def accuracy_output(trainer, loader, final_path, batch_size = 100):
     for aux in iter(loader.test_loader):
         data, target, index=aux
         wanted_shape = data[0].shape
-        quadrant_test = loader.dataset.quadrant_test[index].detach().numpy()
+
         if trainer.use_cuda:
             data, target, = data.cuda(), target.cuda()
 

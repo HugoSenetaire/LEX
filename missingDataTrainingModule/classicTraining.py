@@ -487,7 +487,8 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
             dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE)
-            if batch_idx % 100 == 0 :
+            
+            if batch_idx % 10 == 0 :
                 if verbose :
                     print_dic(epoch, batch_idx, dic, loader)
                 if save_dic :
@@ -595,30 +596,9 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
                 log_y_hat_destructed = log_y_hat_destructed.reshape(nb_sample_z, batch_size, loader.dataset.get_dim_output())
                 log_y_hat_iwae = torch.logsumexp(log_y_hat_destructed,0) - torch.log(torch.tensor(nb_sample_z).type(torch.float32))
                 log_y_hat_mean = torch.mean(log_y_hat_destructed, axis=0)
-                # print("====================")
-                # print(z.shape)
-                # print(torch.where(torch.isnan(log_y_hat_destructed)))
-                # print(z[torch.where(torch.isnan(log_y_hat_destructed))])
-                # print("data expanded", data_expanded.shape)
-                # print("log y hat", log_y_hat_destructed.shape)
                 index = torch.where(torch.any(torch.isnan(log_y_hat_destructed), axis=-1))[1]
-                # print(torch.where(torch.any(torch.isnan(log_y_hat_destructed), axis=-1)))
-                # print(data_expanded.flatten(0,1)[index,])
 
                 test_loss_likelihood += F.nll_loss(log_y_hat_destructed.flatten(0,1),target_expanded.flatten(0,1))
-                # print(test_loss_likelihood)
-                # if torch.any(torch.isnan(test_loss_likelihood)):
-                    # to_show = data_expanded.flatten(0,1)[index,].reshape(-1, 28 ,56)
-                    # to_show_z = z.reshape(-1,28,56)[index,]
-                    # for img_index in range(len(to_show)) :
-                        # img = to_show[img_index]
-                        # current_z = to_show_z[img_index]
-                        # fig, axs = plt.subplots(1, 2, figsize = (10, 5))
-                        # axs[0].imshow(img.detach().cpu().numpy(), cmap = "gray")
-                        # axs[1].imshow(current_z.detach().cpu().numpy(), cmap = "gray")
-                        # plt.show()
-                    # assert 1 == 0
-
                 test_loss_mse += torch.mean(torch.sum((torch.exp(log_y_hat_mean)-one_hot_target)**2,1))
 
                 pred_destructed = torch.argmax(log_y_hat_mean, dim=1)
@@ -801,7 +781,9 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         # Reward
 
 
-
+        tau = torch.tensor(0.01, dtype= torch.float32)
+        # neg_reward = p_f_s - tau * p_c_z_tilde
+        # neg_reward = p_f_s
         neg_reward = p_f_s - p_c_z_tilde
         neg_reward = neg_reward.detach()
 
@@ -811,12 +793,26 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         # Terms to Make Expection Zero
         E_0 = p_c_z - p_c_z_tilde
 
+
+        # for name, param in self.selection_module.named_parameters():
+        #     # print(param.shape)
+            # print(name)
+            # grad_E0 = torch.autograd.grad(outputs=torch.mean(E_0), inputs=param, retain_graph=True)[0]
+            # grad_neg_reward = torch.autograd.grad(outputs=torch.mean(neg_reward_prob), inputs=param, retain_graph=True)[0]
+            # print("E0", torch.norm(grad_E0))
+            # print("neg_reward", torch.norm(grad_neg_reward))
+            # break
+
+
         # Losses
+        # s_loss = neg_reward_prob + tau * E_0
         s_loss = neg_reward_prob + E_0
+        # s_loss = neg_reward_prob
+        # s_loss = p_c_z_tilde
         s_loss = torch.mean(s_loss, axis=0)
         s_loss = torch.sum(s_loss)
 
-
+        
         # print(torch.mean(neg_reward))
         # print(torch.mean(log_prob_pz))
 
@@ -824,12 +820,10 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         # Train
         loss_selection = s_loss + loss_reg
         loss_selection.backward()
-        # torch.clip_grad_value_(selection_module.parameters(), 1.0)
-        # torch.nn.utils.clip_grad_norm_(self.selection_module.parameters(), 1.0)
 
         self.optim_selection.step()
         self.optim_distribution_module.step()
-        
+        # assert 1 == 0         
         
         dic = self._create_dic(loss_total = loss_selection+loss_classification_module+loss_reg,
                             neg_likelihood= neg_likelihood,

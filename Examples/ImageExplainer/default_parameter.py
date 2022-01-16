@@ -40,8 +40,8 @@ def get_default():
     # args_dataset["dataset"] = FASHIONMNIST_and_MNIST
     args_dataset["loader"] = LoaderEncapsulation
     args_dataset["root_dir"] = os.path.join(args_output["path"], "datasets")
-    args_dataset["batch_size_train"] = 128
-    args_dataset["batch_size_test"] = 128
+    args_dataset["batch_size_train"] = 1000
+    args_dataset["batch_size_test"] = 1000
     args_dataset["noise_function"] = None
     args_dataset["download"] = True
 
@@ -62,7 +62,7 @@ def get_default():
     args_classification["lambda_reconstruction"] = 0.01 # Parameter for controlling the reconstruction regularization
     args_classification["train_reconstruction_regularization"] = False # If true, free the parameters of autoencoder during the training (loss guided by a reconstruction loss)
     args_classification["noise_function"] = DropOutNoise(pi = 0.3) # Noise used to pretrain the autoencoder
-    args_classification["nb_imputation"] = 2
+    args_classification["nb_imputation"] = 1
 
     args_classification["post_process_regularization"] = GaussianMixtureImputation # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
     args_classification["imputation_network_weights_path"] = os.path.join(os.path.join(args_dataset["root_dir"], "imputation_weights"), "100_components.pkl") # Path to the weights of the network to use for post processing
@@ -112,8 +112,8 @@ def get_default():
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training auto encoder
     args_train["nb_epoch_pretrain_selector"] = 0 # Pretrain selector
     args_train["nb_epoch_pretrain"] = 2 # Training the complete model 
-    args_train["nb_sample_z_train_monte_carlo"] = 3 # Number K in the IWAE-similar loss 
-    args_train["nb_sample_z_train_IWAE"] = 3
+    args_train["nb_sample_z_train_monte_carlo"] = 1 # Number K in the IWAE-similar loss 
+    args_train["nb_sample_z_train_IWAE"] = 1
     args_train["print_every"] = 1
 
     args_train["sampling_subset_size"] = 2 # Sampling size for the subset 
