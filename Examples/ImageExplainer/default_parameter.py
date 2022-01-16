@@ -132,13 +132,13 @@ def get_default():
     args_compiler["optim_autoencoder"] = partial(Adam, lr=1e-4)
     args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-4)
 
-    args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=100, gamma = 0.6) #Learning rate for classification module
-    args_compiler["scheduler_selection"] = partial(torch.optim.lr_scheduler.StepLR, step_size=100, gamma = 0.6) # Learning rate for selection module
-    args_compiler["scheduler_selection_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=100, gamma = 0.6) # Learning rate for the variationnal selection module used in Variationnal Training
-    args_compiler["scheduler_distribution_module"] = partial(torch.optim.lr_scheduler.StepLR, step_size=100, gamma = 0.6) # Learning rate for the feature extractor if any
-    args_compiler["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=100, gamma = 0.6) # Learning rate for the baseline network
-    args_compiler["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=100, gamma = 0.6)
-    args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=100, gamma = 0.6)
+    args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) #Learning rate for classification module
+    args_compiler["scheduler_selection"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) # Learning rate for selection module
+    args_compiler["scheduler_selection_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) # Learning rate for the variationnal selection module used in Variationnal Training
+    args_compiler["scheduler_distribution_module"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) # Learning rate for the feature extractor if any
+    args_compiler["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) # Learning rate for the baseline network
+    args_compiler["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6)
+    args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6)
     
     args_test = {}
     args_test["temperature_test"] = 0.001
