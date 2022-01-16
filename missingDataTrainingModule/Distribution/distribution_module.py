@@ -13,7 +13,7 @@ from .subsetSampling import *
 
 
 
-def regular_scheduler(temperature, epoch, cste = 0.5):
+def regular_scheduler(temperature, epoch, cste = 0.999):
     return temperature * cste
 
 
