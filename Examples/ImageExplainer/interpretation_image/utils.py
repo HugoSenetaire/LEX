@@ -191,12 +191,12 @@ def accuracy_output(trainer, loader, final_path, batch_size = 100):
         pi_list = torch.exp(trainer.reshape(log_pi_list))
     
         data = data.cpu().detach().numpy()
-        pi_list = pi_list.cpu().detach().numpy()
-        accuracy = np.sum( np.abs(quadrant_test - pi_list))
-
+        pi_list = pi_list.cpu().detach().numpy().reshape(batch_size, -1)
+        quadrant_test = quadrant_test.cpu().detach().numpy().reshape(batch_size, -1)
         argmax_pi_list = np.round(pi_list).astype(int)
-        argmax_pi_list = argmax_pi_list.reshape(batch_size, -1)
-        quadrant_test = quadrant_test.reshape(batch_size, -1)
+
+
+        accuracy = np.sum(np.abs(quadrant_test - pi_list).reshape(-1))
         for pi,current_quadrant in zip(argmax_pi_list, quadrant_test):
             f1_score_avg += metrics.f1_score(current_quadrant, pi,)
         target = target.cpu().detach().numpy()
