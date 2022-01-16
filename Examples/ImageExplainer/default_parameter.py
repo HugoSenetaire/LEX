@@ -107,7 +107,7 @@ def get_default():
 
 
     args_train = {}
-    args_train["nb_epoch"] = 10 # Training the complete model
+    args_train["nb_epoch"] = 500 # Training the complete model
     args_train["nb_epoch_post_hoc"] = 0 # Training the complete model
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training auto encoder
     args_train["nb_epoch_pretrain_selector"] = 0 # Pretrain selector
