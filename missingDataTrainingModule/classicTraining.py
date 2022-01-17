@@ -821,7 +821,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             if need_dic :
                 dic = self._create_dic(loss_total = loss_selection+loss_reg,
                                     neg_likelihood= torch.tensor(0.0).type(torch.float32),
-                                    mse_loss= mse_loss,
+                                    mse_loss= torch.tensor(0.0).type(torch.float32),
                                     loss_rec = torch.tensor(0.0).type(torch.float32),
                                     loss_reg = loss_reg,
                                     loss_selection = s_loss,
