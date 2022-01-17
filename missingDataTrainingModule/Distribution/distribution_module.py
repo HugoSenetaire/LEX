@@ -151,22 +151,16 @@ class REBAR_Distribution(DistributionModule):
             complete_size_reshape = torch.Size([1 for i in range(len(sample_shape))]) + shape_distribution_parameters
             complete_size = torch.Size(sample_shape) + shape_distribution_parameters 
 
-
             log_pi_list_extended = self.distribution_parameters.reshape(complete_size_reshape).expand(complete_size)
 
-            u = (torch.rand(complete_size, requires_grad = False) + 1e-9).clamp(1e-8,1)
-            v_p = (torch.rand(complete_size, requires_grad = False) + 1e-9).clamp(1e-8,1)
-            if log_pi_list_extended.is_cuda:
-                u = u.cuda()
-                v_p = v_p.cuda()
-
+            wanted_device = self.distribution_parameters.device
+            u = (torch.rand(complete_size, requires_grad = False, device= wanted_device) + 1e-9).clamp(1e-8,1)
+            v_p = (torch.rand(complete_size, requires_grad = False, device= wanted_device) + 1e-9).clamp(1e-8,1)
 
             z = reparam_pz(u, torch.exp(log_pi_list_extended))
-            s = Heaviside(z)
-            v = u_to_v(u = u, pi_list = torch.exp(log_pi_list_extended), force_same = True, s = s, v_prime = v_p)
 
-            z_tilde = reparam_pz(v, torch.exp(log_pi_list_extended))
-            # z_tilde = reparam_pz_b(v, s, torch.exp(log_pi_list_extended))
+            s = Heaviside(z)
+            z_tilde = reparam_pz_b(v_p, s, torch.exp(log_pi_list_extended))
             sig_z = sigma_lambda(z, self.temperature_total)
             sig_z_tilde = sigma_lambda(z_tilde, self.temperature_total)
 
@@ -199,24 +193,22 @@ class REBAR_Distribution_STE(DistributionModule):
             complete_size_reshape = torch.Size([1 for i in range(len(sample_shape))]) + shape_distribution_parameters
             complete_size = torch.Size(sample_shape) + shape_distribution_parameters 
 
-
             log_pi_list_extended = self.distribution_parameters.reshape(complete_size_reshape).expand(complete_size)
 
-            u = (torch.rand(complete_size, requires_grad = False) + 1e-9).clamp(1e-8,1)
-            v_p = (torch.rand(complete_size, requires_grad = False) + 1e-9).clamp(1e-8,1)
-            if log_pi_list_extended.is_cuda:
-                u = u.cuda()
-                v_p = v_p.cuda()
-
+            wanted_device = self.distribution_parameters.device
+            u = (torch.rand(complete_size, requires_grad = False, device= wanted_device) + 1e-9).clamp(1e-8,1)
+            v_p = (torch.rand(complete_size, requires_grad = False, device= wanted_device) + 1e-9).clamp(1e-8,1)
 
             z = reparam_pz(u, torch.exp(log_pi_list_extended))
-            s = Heaviside(z)
-            v = u_to_v(u = u, pi_list = torch.exp(log_pi_list_extended), force_same = True, s = s, v_prime = v_p)
 
-            z_tilde = reparam_pz(v, torch.exp(log_pi_list_extended))
+            s = Heaviside(z)
+            z_tilde = reparam_pz_b(v_p, s, torch.exp(log_pi_list_extended))
+            sig_z = sigma_lambda(z, self.temperature_total)
+            sig_z_tilde = sigma_lambda(z_tilde, self.temperature_total)
             sig_z = threshold_STE.apply(sigma_lambda(z, self.temperature_total), 0.5)
             sig_z_tilde = threshold_STE.apply(sigma_lambda(z_tilde, self.temperature_total), 0.5)
 
             return [sig_z, s, sig_z_tilde]
         else :
             return self.current_distribution.sample(sample_shape)
+

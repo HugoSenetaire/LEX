@@ -54,8 +54,10 @@ def reparam_pz(u, pi_list):
 def reparam_pz_b(v, b, theta):
     # From Appendix C of the paper, this is the reparameterization of p(z|b) for the 
     # case where b ~ Bernoulli($\theta$). Returns z_squiggle, a Gumbel RV
-    return(b * F.softplus(safe_log_prob(v) - safe_log_prob((1 - v) * (1 - torch.exp(theta))))) \
-        + ((1 - b) * (-F.softplus(safe_log_prob(v) - safe_log_prob(v * (1 - torch.exp(theta))))))
+    return(b * F.softplus(safe_log_prob(v) - safe_log_prob((1 - v) * (1 - theta)))) \
+        + ((1 - b) * (-F.softplus(safe_log_prob(v) - safe_log_prob(v * (1 - theta)))))
+    # return(b * (safe_log_prob(v) - safe_log_prob((1 - v) * (1 - torch.exp(theta))))) \
+        # + ((1 - b) * (-safe_log_prob(v) + safe_log_prob(v * (1 - torch.exp(theta)))))
 
 
 

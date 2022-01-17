@@ -722,21 +722,19 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             self.distribution_module(log_pi_list)
         except :
             print(log_pi_list)
-        sig_z, z, sig_z_tilde = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo))
-        log_prob_pz = self.distribution_module.log_prob(z).reshape((nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1))
-        # log_pi_list.unsqueeze(0).unsqueeze(0).expand(nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, 2)
-        # log_prob_pz = torch.sum(z * log_pi_list + (1-z) * torch.log((1 - torch.exp(log_pi_list))+1e-5), axis=-1)
-        # log_prob_pz = torch.sum(log_prob_pz, axis= 0)
+
+        sig_z, s, sig_z_tilde = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo))
+        log_prob_pz = self.distribution_module.log_prob(s).reshape((nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1))
         log_prob_pz = torch.sum(torch.sum(log_prob_pz, axis = -1), axis=0)
-        z = self.reshape(z)
-        sig_z = self.reshape(z)
+        s = self.reshape(s)
+        sig_z = self.reshape(sig_z)
         sig_z_tilde = self.reshape(sig_z_tilde)
        
 
 
         # Calculate
         # 1. f(s)
-        f_s, _ = self.classification_module(data_expanded.flatten(0,2), z, index=index_expanded_flatten)
+        f_s, _ = self.classification_module(data_expanded.flatten(0,2), s, index=index_expanded_flatten)
         # 2. c(z)
         c_z, _ = self.classification_module(data_expanded.flatten(0,2), sig_z , index=index_expanded_flatten)
         # 3. c(z~)
