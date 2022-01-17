@@ -253,8 +253,31 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
 
 
     ##### ============ Modules initialisation for ordinary training ============:
+    if args_complete_trainer["complete_trainer"] is REALX and args_train["nb_epoch_pretrain"] > 0 :
+        imputation = imputationMethod(input_size= args_classification["input_size_classification_module"], post_process_regularization = post_proc_regul,
+                        reconstruction_reg= None, )
 
-    if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection  or args_complete_trainer["complete_trainer"] is trainingWithSelection or args_train["nb_epoch_pretrain"]>0 :
+        classification_module = ClassificationModule(classifier, imputation)
+        optim_classification = args_compiler["optim_classification"](classification_module.parameters())
+
+        if args_compiler["scheduler_classification"] is not None :
+            scheduler_classification = args_compiler["scheduler_classification"](optim_classification)
+        else :
+            scheduler_classification = None
+
+        trainer = EVAL_X(classification_module, fixed_distribution= FixedBernoulli(), reshape_mask_function = args_complete_trainer["reshape_mask_function"])
+        if args_train["use_cuda"]:
+            trainer.cuda()
+        trainer.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
+        
+        for epoch in range(args_train["nb_epoch_pretrain"]):
+            dic_train = trainer.train_epoch(epoch, loader, save_dic = True,)
+            if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
+                dic_test = trainer.test(loader) 
+                    
+
+
+    elif args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection  or args_complete_trainer["complete_trainer"] is trainingWithSelection or args_train["nb_epoch_pretrain"]>0 :
         
         if args_complete_trainer["complete_trainer"] is trainingWithSelection :
             imputation = imputationMethod(input_size= args_classification["input_size_classification_module"], post_process_regularization = post_proc_regul,
