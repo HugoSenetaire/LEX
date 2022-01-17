@@ -817,17 +817,28 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         # end_time_aux = time.time()
         # print("Time for one backward : ", end_time_aux - current_time)
 
-
-        if need_dic :
-            dic = self._create_dic(loss_total = loss_selection+loss_classification_module+loss_reg,
-                                neg_likelihood= neg_likelihood,
-                                mse_loss= mse_loss,
-                                loss_rec = loss_classification_module,
-                                loss_reg = loss_reg,
-                                loss_selection = s_loss,
-                                pi_list = torch.exp(log_pi_list))
+        if self.fix_classifier_parameters :
+            if need_dic :
+                dic = self._create_dic(loss_total = loss_selection+loss_reg,
+                                    neg_likelihood= neg_likelihood,
+                                    mse_loss= mse_loss,
+                                    loss_rec = torch.tensor(0.0).type(torch.float32),
+                                    loss_reg = loss_reg,
+                                    loss_selection = s_loss,
+                                    pi_list = torch.exp(log_pi_list))
+            else :
+                dic = {}
         else :
-            dic = {}
+            if need_dic :
+                dic = self._create_dic(loss_total = loss_selection+loss_classification_module+loss_reg,
+                                    neg_likelihood= neg_likelihood,
+                                    mse_loss= mse_loss,
+                                    loss_rec = loss_classification_module,
+                                    loss_reg = loss_reg,
+                                    loss_selection = s_loss,
+                                    pi_list = torch.exp(log_pi_list))
+            else :
+                dic = {}
 
         # end_time = time.time()
         # print("Time for one iteration : ", end_time - start_time)
