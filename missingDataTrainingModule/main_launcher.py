@@ -271,9 +271,9 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
         trainer.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
         
         for epoch in range(args_train["nb_epoch_pretrain"]):
-            dic_train = trainer.train_epoch(epoch, loader, save_dic = True,)
+            dic_train = trainer.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
-                dic_test = trainer.test(loader) 
+                dic_test = trainer.test(loader,)
                     
 
 

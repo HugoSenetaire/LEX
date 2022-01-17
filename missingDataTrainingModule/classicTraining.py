@@ -235,7 +235,7 @@ class EVAL_X(ordinaryTraining):
         if self.reshape_mask_function is not None :
             z = self.reshape_mask_function(z)
 
-        log_y_hat, _ = self.classification_module(data_expanded.flatten(0,1), z, index_expanded_flatten)
+        log_y_hat, _ = self.classification_module(data_expanded.flatten(0,1), z.detach(), index_expanded_flatten)
         log_y_hat = log_y_hat.reshape(nb_sample_z_monte_carlo * batch_size, dataset.get_dim_output())
 
         neg_likelihood = F.nll_loss(log_y_hat, target_expanded.flatten())
@@ -264,7 +264,6 @@ class EVAL_X(ordinaryTraining):
             z = self.reshape_mask_function(z)
         log_y_hat, _ = self.classification_module(data_expanded.flatten(0,1), z, index_expanded_flatten)
         log_y_hat = log_y_hat.reshape(nb_sample_z*batch_size, -1)
-        # log_y_hat_mean = torch.logsumexp(log_y_hat,0) - torch.log(torch.tensor(nb_sample_z))
 
         neg_likelihood = F.nll_loss(log_y_hat, target_expanded.flatten())
         mse_current = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target_expanded.flatten(0,1))**2,1))
