@@ -202,9 +202,9 @@ class GaussianMixtureImputation(MultipleImputation):
       raise ValueError("Weights path does not exist for the Gaussian Mixture at {}".format(imputation_network_weights_path))
     with open(imputation_network_weights_path, "rb") as f:
      weights, means, covariances = pkl.load(f)
-    self.weights = torch.tensor(weights, dtype=torch.float32)
-    self.means = torch.tensor(means, dtype = torch.float32)
-    self.covariances = torch.tensor(covariances, dtype = torch.float32)
+    self.weights = torch.tensor(weights, dtype=torch.float32, requires_grad=False)
+    self.means = torch.tensor(means, dtype = torch.float32, requires_grad=False)
+    self.covariances = torch.tensor(covariances, dtype = torch.float32, requires_grad=False)
     self.nb_centers = np.shape(means)[0]
 
   def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
@@ -243,11 +243,8 @@ class GaussianMixtureImputation(MultipleImputation):
     # print("=========================")
     dependency = -(data_imputed_flatten - centers)**2/2/variance - torch.log(variance)/2
 
-    # log_dependency_init = torch.clone(dependency)
-    # log_dependency_mask = torch.sum(dependency* sample_b_expanded_flatten,axis=-1).clone()
     dependency = torch.sum(dependency* sample_b_expanded_flatten,axis=-1) + torch.log(weights)
     dependency[torch.where(torch.isnan(dependency))] = torch.zeros_like(dependency[torch.where(torch.isnan(dependency))]) #TODO : AWFUL WAY OF CLEANING THE ERROR, to change
-    # dependency_log_weights = torch.clone(dependency)
     dependency_max, _ = torch.max(dependency, axis = -1, keepdim = True)
     dependency -= torch.log(torch.sum(torch.exp(dependency - dependency_max) + 1e-8, axis = -1, keepdim=True)) + dependency_max
 
@@ -258,10 +255,9 @@ class GaussianMixtureImputation(MultipleImputation):
     data_imputed, data_expanded, sample_b_expanded, index_expanded = expand_for_imputations(data_imputed, data_expanded, sample_b, imputation_number, index)
     wanted_shape = data_imputed.shape
 
-    dependency = torch.tensor(dependency)
+
     index_resampling = torch.distributions.Multinomial(probs = dependency).sample((imputation_number,)).type(torch.int64)
     index_resampling = torch.argmax(index_resampling,axis=-1)
-
 
     wanted_centroids = self.means[index_resampling]
     wanted_covariances = self.covariances[index_resampling]
@@ -269,8 +265,14 @@ class GaussianMixtureImputation(MultipleImputation):
       wanted_centroids = wanted_centroids.cuda()
       wanted_covariances = wanted_covariances.cuda()
     sampled = torch.normal(wanted_centroids, torch.sqrt(wanted_covariances)).type(torch.float32).reshape(wanted_shape)
-    # sampled = wanted_centroids.reshape(wanted_shape)
     data_imputed_gm = sample_b_expanded * data_imputed + (1-sample_b_expanded) * sampled
+    # fig, axs = plt.subplots(1,4, figsize = (20,5))
+    # axs[0].imshow(data_imputed[0].reshape((28,56)).cpu().detach().numpy(), cmap="gray",vmin = -0.1307, vmax = 1.0)
+    # axs[1].imshow(sample_b_expanded[0].reshape((28,56)).cpu().detach().numpy(), cmap="gray",vmin = 0.0, vmax = 1.0)
+    # axs[2].imshow(data_imputed_gm[0].reshape((28,56)).cpu().detach().numpy(), cmap="gray", vmin = -0.1307, vmax = 1.0)
+    # axs[3].imshow(sampled[0].reshape((28,56)).cpu().detach().numpy(), cmap="gray", vmin = -0.1307, vmax = 1.0)
+    # plt.show()
+
 
     return data_imputed_gm, data_expanded, sample_b_expanded
 

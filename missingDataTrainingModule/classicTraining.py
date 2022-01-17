@@ -9,6 +9,7 @@ from .Selection import *
 from .Classification import *
 from .Distribution import *
 from .utils_missing import *
+import time
 import tqdm
 
 # torch.autograd.set_detect_anomaly(True)
@@ -480,20 +481,19 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
             self.optim_distribution_module.step()
 
     
-    def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose=False):
+    def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose=True):
         assert(self.compiled)
         self.train()
         total_dic = {}
+        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
-            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE)
-            
-            if batch_idx % 10 == 0 :
+            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+            if batch_idx % print_batch_every == 0 :
                 if verbose :
                     print_dic(epoch, batch_idx, dic, loader)
                 if save_dic :
                     total_dic = save_dic_helper(total_dic, dic)
-        
         self.scheduler_step()    
         return total_dic
 
@@ -656,8 +656,10 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         # if self.fix_classifier_parameters and self.post_hoc :
             # raise NotImplementedError("REALX does not support fix classifier")
 
-    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1):
+    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1, need_dic = False):
+        # start_time = time.time()
         self.zero_grad()
+
         nb_imputation = self.classification_module.imputation.nb_imputation
         batch_size = data.shape[0]
         if self.use_cuda :
@@ -673,14 +675,11 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         
         # Destructive module :
         log_pi_list, loss_reg = self.selection_module(data)
-
+        log_pi_list.detach()
 
         # Train classification module :
         self.classification_distribution_module(log_pi_list)
         z = self.classification_distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo,))
-        log_prob_pz = self.classification_distribution_module.log_prob(z)
-        log_prob_pz = log_prob_pz.reshape((nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1))
-        log_prob_pz = torch.sum(torch.sum(log_prob_pz, axis=-1),axis=0)
         z = self.reshape(z)
         
         # Classification module :
@@ -698,20 +697,17 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
                                                         one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
 
         neg_likelihood = neg_likelihood.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
-        
-        
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32))
-        neg_likelihood *= torch.exp(log_prob_pz).detach() # This is + because this is the definition of the data
-        neg_likelihood = torch.sum(neg_likelihood, axis = 0)
+        neg_likelihood = torch.mean(neg_likelihood, axis=0)
         neg_likelihood = torch.sum(neg_likelihood)
         loss_classification_module = neg_likelihood
-
         loss_classification_module.backward()
         self.optim_classification.step()
         self.zero_grad()
 
 
+        ### Train selection module :
 
         # Selection Module :
         log_pi_list, loss_reg = self.selection_module(data)
@@ -751,7 +747,6 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         p_f_s = p_f_s.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, )
         p_f_s = torch.logsumexp(p_f_s, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
         p_f_s = torch.logsumexp(p_f_s, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
-
                             
         # 2. c(z)
         p_c_z, _ = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
@@ -777,60 +772,58 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         p_c_z_tilde = torch.logsumexp(p_c_z_tilde, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
 
         # Reward
-
-
-        tau = torch.tensor(0.01, dtype= torch.float32)
-        # neg_reward = p_f_s - tau * p_c_z_tilde
-        # neg_reward = p_f_s
         neg_reward = p_f_s - p_c_z_tilde
         neg_reward = neg_reward.detach()
-
         assert neg_reward.shape == log_prob_pz.shape
         neg_reward_prob = neg_reward * log_prob_pz
+
+
 
         # Terms to Make Expection Zero
         E_0 = p_c_z - p_c_z_tilde
 
-
-        # for name, param in self.selection_module.named_parameters():
-        #     # print(param.shape)
-            # print(name)
-            # grad_E0 = torch.autograd.grad(outputs=torch.mean(E_0), inputs=param, retain_graph=True)[0]
-            # grad_neg_reward = torch.autograd.grad(outputs=torch.mean(neg_reward_prob), inputs=param, retain_graph=True)[0]
-            # print("E0", torch.norm(grad_E0))
-            # print("neg_reward", torch.norm(grad_neg_reward))
-            # break
-
-
         # Losses
-        # s_loss = neg_reward_prob + tau * E_0
         s_loss = neg_reward_prob + E_0
-        # s_loss = neg_reward_prob
-        # s_loss = p_c_z_tilde
         s_loss = torch.mean(s_loss, axis=0)
         s_loss = torch.sum(s_loss)
 
         
-        # print(torch.mean(neg_reward))
-        # print(torch.mean(log_prob_pz))
-
-        # print("===================")
+        # for name, param in self.selection_module.named_parameters():
+        #     print(name)
+        #     grad_reinforce = torch.autograd.grad(neg_reinforce, param, retain_graph=True)[0]
+        #     grad_sloss = torch.autograd.grad(s_loss, param, retain_graph=True)[0]
+        #     print("REINFORCE", grad_reinforce[0])
+        #     print("sLoss", grad_sloss[0])
+        #     break
+        # assert 1 == 0
+        
         # Train
         loss_selection = s_loss + loss_reg
-        loss_selection.backward()
 
+
+
+        # current_time = time.time()
+        loss_selection.backward()
         self.optim_selection.step()
         self.optim_distribution_module.step()
-        # assert 1 == 0         
-        
-        dic = self._create_dic(loss_total = loss_selection+loss_classification_module+loss_reg,
-                            neg_likelihood= neg_likelihood,
-                            mse_loss= mse_loss,
-                            loss_rec = loss_classification_module,
-                            loss_reg = loss_reg,
-                            loss_selection = s_loss,
-                            pi_list = torch.exp(log_pi_list))
 
+        # end_time_aux = time.time()
+        # print("Time for one backward : ", end_time_aux - current_time)
+
+
+        if need_dic :
+            dic = self._create_dic(loss_total = loss_selection+loss_classification_module+loss_reg,
+                                neg_likelihood= neg_likelihood,
+                                mse_loss= mse_loss,
+                                loss_rec = loss_classification_module,
+                                loss_reg = loss_reg,
+                                loss_selection = s_loss,
+                                pi_list = torch.exp(log_pi_list))
+        else :
+            dic = {}
+
+        # end_time = time.time()
+        # print("Time for one iteration : ", end_time - start_time)
 
         return dic
 
@@ -845,7 +838,7 @@ class ReparametrizedTraining(SELECTION_BASED_CLASSIFICATION):
                         show_variance_gradient = show_variance_gradient)
 
 
-    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3):        
+    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, need_dic = False):        
         self.zero_grad()
         
         nb_imputation = self.classification_module.imputation.nb_imputation
@@ -893,20 +886,26 @@ class ReparametrizedTraining(SELECTION_BASED_CLASSIFICATION):
         neg_likelihood = torch.logsumexp(neg_likelihood,0) - torch.log(torch.tensor(nb_sample_z_IWAE, dtype=torch.float32)) # IWAE Loss for the selection
         neg_likelihood = torch.mean(neg_likelihood, 0) # Monte Carlo estimator for sampling z
         neg_likelihood = torch.sum(neg_likelihood) # Sum of the likelihood 
-        # neg_likelihood = torch.mean(neg_likelihood)
 
 
         # Updates 
         loss_rec = neg_likelihood
         loss_total = loss_rec + loss_reg + loss_reconstruction
-        # loss_total = loss_rec + loss_reconstruction # TODO : CHANGE THIS
 
         loss_total.backward()
         self.optim_step()
 
         # Measures :
-        # _create_dic(self, loss_total, neg_likelihood, mse_loss, pi_list, loss_rec = None, loss_reg = None, loss_selection = None, variance_gradient = None):
-        dic = self._create_dic(loss_total = loss_total,neg_likelihood= neg_likelihood,mse_loss= mse_loss,  loss_rec = loss_rec, loss_reg = loss_reg, loss_selection = None, pi_list = torch.exp(log_pi_list))
+        if need_dic :
+            dic = self._create_dic(loss_total = loss_total,
+                                neg_likelihood= neg_likelihood,
+                                mse_loss= mse_loss,
+                                loss_rec = loss_rec,
+                                loss_reg = loss_reg,
+                                loss_selection = None,
+                                pi_list = torch.exp(log_pi_list))
+        else :
+            dic = {}
 
         return dic
 
@@ -926,7 +925,7 @@ class AllZTraining(SELECTION_BASED_CLASSIFICATION):
         self.computed_combination = False
 
 
-    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1):
+    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1, need_dic = False):
         self.zero_grad()
         dim_total = np.prod(data.shape[1:])
         batch_size = data.shape[0]
@@ -960,7 +959,6 @@ class AllZTraining(SELECTION_BASED_CLASSIFICATION):
         self.distribution_module(log_pi_list)  
         log_prob_pz = self.distribution_module.log_prob(z).reshape(nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1)
         log_prob_pz = torch.sum(torch.sum(log_prob_pz, axis = -1),axis=0) # Product of proba in dim and inside the IWAE
-        # TODO : torch.logsumexp ou torch.Sum ? It's supposed to be sum as we want the product of the bernoulli hence, the sum of the log bernoulli
         z = self.reshape(z)
         
         # Classification module :
@@ -994,8 +992,15 @@ class AllZTraining(SELECTION_BASED_CLASSIFICATION):
         
 
         # Measures :
-        dic = self._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec = loss_reconstruction, loss_reg = loss_reg, pi_list = torch.exp(log_pi_list))
-
+        if need_dic :
+            dic = self._create_dic(loss_total,
+                        neg_likelihood,
+                        mse_loss,
+                        loss_rec = loss_reconstruction, 
+                        loss_reg = loss_reg, 
+                        pi_list = torch.exp(log_pi_list))
+        else :
+            dic = {}
         return dic
 
 
@@ -1011,7 +1016,7 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
 
 
 
-    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 10):
+    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 10, need_dic = False):
 
         self.zero_grad()
         nb_imputation = self.classification_module.imputation.nb_imputation
@@ -1092,13 +1097,20 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
         else :
             loss_total = loss_selection + loss_classification_module + loss_reg + loss_reconstruction
         
-        variance_gradient = self.calculate_variance(loss_hard,)
         loss_total.backward()
         self.optim_step()
 
-
-        dic = self._create_dic(loss_total, neg_likelihood, mse_loss, loss_rec = loss_reconstruction, loss_reg = loss_reg, pi_list = torch.exp(log_pi_list), loss_selection = loss_selection, variance_gradient = variance_gradient)
-
+        if need_dic :
+            dic = self._create_dic(loss_total,
+                    neg_likelihood,
+                    mse_loss,
+                    loss_rec = loss_reconstruction,
+                    loss_reg = loss_reg,
+                    pi_list = torch.exp(log_pi_list), 
+                    loss_selection = loss_selection, 
+                    variance_gradient = None)
+        else :
+            dic = {}
         return dic
 
 
@@ -1122,7 +1134,8 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
 
 
 
-    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 10):
+    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 10, need_dic = False):
+        # start_time = time.time()
         self.zero_grad()
         nb_imputation = self.classification_module.imputation.nb_imputation
         batch_size = data.shape[0]
@@ -1147,8 +1160,9 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
         
 
         # Distribution :
+        self.distribution_module.eval()
         self.distribution_module(log_pi_list)
-        _, z, _ = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo, ))
+        z = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo, ))
         z = self.reshape(z)
 
 
@@ -1173,7 +1187,7 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
         neg_likelihood = torch.mean(neg_likelihood, axis=0) # MC estimator outside log
-        neg_likelihood = torch.mean(neg_likelihood) # batch size
+        neg_likelihood = torch.sum(neg_likelihood) # batch size
         loss_classification_module = neg_likelihood
         loss_classification_module.backward()
         self.optim_classification.step()
@@ -1181,24 +1195,29 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
 
         ### TRAINING SELECTION :
 
-        # Selection Module :
+       # Selection Module :
         log_pi_list, loss_reg = self.selection_module(data)
         
 
         # Distribution :
-        self.distribution_module(log_pi_list)
-        sig_z, z, sig_z_tilde = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo))
-        log_prob_pz = self.distribution_module.log_prob(z).reshape((nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1))
+        self.distribution_module.train()
+        try :
+            self.distribution_module(log_pi_list)
+        except :
+            print(log_pi_list)
+
+        sig_z, s, sig_z_tilde = self.distribution_module.sample((nb_sample_z_IWAE, nb_sample_z_monte_carlo))
+        log_prob_pz = self.distribution_module.log_prob(s).reshape((nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, -1))
         log_prob_pz = torch.sum(torch.sum(log_prob_pz, axis = -1), axis=0)
-        z = self.reshape(z)
-        sig_z = self.reshape(z)
+        s = self.reshape(s)
+        sig_z = self.reshape(sig_z)
         sig_z_tilde = self.reshape(sig_z_tilde)
        
 
 
         # Calculate
         # 1. f(s)
-        f_s, _ = self.classification_module(data_expanded.flatten(0,2), z, index=index_expanded_flatten)
+        f_s, _ = self.classification_module(data_expanded.flatten(0,2), s, index=index_expanded_flatten)
         # 2. c(z)
         c_z, _ = self.classification_module(data_expanded.flatten(0,2), sig_z , index=index_expanded_flatten)
         # 3. c(z~)
@@ -1211,10 +1230,10 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
                                                 log_y_hat = f_s,
                                                 target = target_expanded_multiple_imputation_flatten,
                                                 one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
+
         p_f_s = p_f_s.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, )
         p_f_s = torch.logsumexp(p_f_s, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
         p_f_s = torch.logsumexp(p_f_s, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
-
                             
         # 2. c(z)
         p_c_z, _ = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
@@ -1223,7 +1242,7 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
                                         target = target_expanded_multiple_imputation_flatten,
                                         one_hot_target = one_hot_target_expanded_multiple_imputation_flatten)
         p_c_z = p_c_z.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size, )
-        p_c_z = torch.logsumexp(p_c_z, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
+        p_c_z = torch.logsumexp(p_c_z, axis=0) - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
         p_c_z = torch.logsumexp(p_c_z, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
 
 
@@ -1244,30 +1263,48 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
         neg_reward = neg_reward.detach()
         assert neg_reward.shape == log_prob_pz.shape
         neg_reward_prob = neg_reward * log_prob_pz
-        # print("neg_reward_prob", neg_reward_prob.mean(axis=0))
+
+        # neg_reinforce = torch.mean(p_f_s.detach() * log_prob_pz, axis=0)
+        # neg_reinforce = torch.sum(neg_reinforce)
+
         # Terms to Make Expection Zero
         E_0 = p_c_z - p_c_z_tilde
-        # print("E_0", E_0.mean(axis=0))
+
         # Losses
         s_loss = neg_reward_prob + E_0
-
         s_loss = torch.mean(s_loss, axis=0)
         s_loss = torch.sum(s_loss)
-            
+
+        
+        # for name, param in self.selection_module.named_parameters():
+        #     print(name)
+        #     grad_reinforce = torch.autograd.grad(neg_reinforce, param, retain_graph=True)[0]
+        #     grad_sloss = torch.autograd.grad(s_loss, param, retain_graph=True)[0]
+        #     print("REINFORCE", grad_reinforce[0])
+        #     print("sLoss", grad_sloss[0])
+        #     break
+
+        # assert 1==0
+
         # Train
         loss_selection = s_loss + loss_reg
         loss_selection.backward()
+
         self.optim_selection.step()
         self.optim_distribution_module.step()
 
-        
-        dic = self._create_dic(loss_total = loss_selection+loss_classification_module+loss_reg,
-                            neg_likelihood= neg_likelihood,
-                            mse_loss= mse_loss,
-                            loss_rec = loss_classification_module,
-                            loss_reg = loss_reg,
-                            loss_selection = s_loss,
-                            pi_list = torch.exp(log_pi_list))
+        if need_dic :
+            dic = self._create_dic(loss_total = loss_selection+loss_classification_module+loss_reg,
+                                neg_likelihood= neg_likelihood,
+                                mse_loss= mse_loss,
+                                loss_rec = loss_classification_module,
+                                loss_reg = loss_reg,
+                                loss_selection = s_loss,
+                                pi_list = torch.exp(log_pi_list))
+        else :
+            dic = {}
 
+        # end_time = time.time()
+        # print("Time per step : ", (end_time - start_time))
 
         return dic

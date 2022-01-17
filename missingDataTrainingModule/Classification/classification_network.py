@@ -87,7 +87,27 @@ class ClassifierLVL3(nn.Module):
         x = self.fc5(x)
         return self.logsoftmax(x)
 
+class RealXClassifier(nn.Module):
+    def __init__(self, input_size, output, middle_size=200):
+        super().__init__()
+        self.input_size = input_size
+        self.fc1 = nn.Linear(np.prod(input_size), middle_size)
+        self.bn1 = nn.BatchNorm1d(middle_size)
+        self.fc2 = nn.Linear(middle_size, middle_size)
+        self.bn2 = nn.BatchNorm1d(middle_size)
+        self.fc3 = nn.Linear(middle_size, output)
 
+        self.logsoftmax = nn.LogSoftmax(-1)
+
+    def __call__(self, x):
+        x = x.flatten(1)
+        x = F.relu(self.fc1(x))
+        x = self.bn1(x)
+        x = F.relu(self.fc2(x))
+        x = self.bn2(x)
+        x = self.fc3(x)
+
+        return self.logsoftmax(x)
 
 class StupidClassifier(nn.Module):
     def __init__(self, input_size = (1,28,28),output = 10, bias = True):

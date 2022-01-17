@@ -152,15 +152,13 @@ class REBAR_Distribution(DistributionModule):
             complete_size = torch.Size(sample_shape) + shape_distribution_parameters 
 
             log_pi_list_extended = self.distribution_parameters.reshape(complete_size_reshape).expand(complete_size)
-
+            pi_list = torch.exp(log_pi_list_extended)
             wanted_device = self.distribution_parameters.device
             u = (torch.rand(complete_size, requires_grad = False, device= wanted_device) + 1e-9).clamp(1e-8,1)
             v_p = (torch.rand(complete_size, requires_grad = False, device= wanted_device) + 1e-9).clamp(1e-8,1)
-
-            z = reparam_pz(u, torch.exp(log_pi_list_extended))
-
+            z = reparam_pz(u, pi_list)
             s = Heaviside(z)
-            z_tilde = reparam_pz_b(v_p, s, torch.exp(log_pi_list_extended))
+            z_tilde = reparam_pz_b(v_p, s, pi_list)
             sig_z = sigma_lambda(z, self.temperature_total)
             sig_z_tilde = sigma_lambda(z_tilde, self.temperature_total)
 

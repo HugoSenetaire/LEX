@@ -36,16 +36,14 @@ def binary_log_likelihood(y, log_y_hat):
     return (y * -F.softplus(-log_y_hat)) + (1 - y) * (-log_y_hat - F.softplus(-log_y_hat))
 
 def Heaviside(x):
+    return torch.heaviside(x.detach(), torch.tensor(0., device = x.device))
     # Heaviside function, 0 if x < 0 else 1
-    if x.is_cuda :
-      output = torch.where(x<0,torch.zeros(x.shape).cuda(), torch.ones(x.shape).cuda())
-    else :
-      output = torch.where(x<0,torch.zeros(x.shape), torch.ones(x.shape))
-    return output
-
-# def Heaviside(x):
-#   return torch.div(F.threshold(x, 0, 0), x) => This is very stupid
-
+    # if x.is_cuda :
+    #   output = torch.where(x<0,torch.zeros(x.shape).cuda(), torch.ones(x.shape).cuda())
+    # else :
+    #   output = torch.where(x<0,torch.zeros(x.shape), torch.ones(x.shape))
+    # return output
+    # return torch.div(F.threshold(x, 0, 0), x) # This does not work and deliver an error
 
 def reparam_pz(u, pi_list):
     return (safe_log_prob(pi_list) - safe_log_prob(1 - pi_list)) + (safe_log_prob(u) - safe_log_prob(1 - u))
@@ -56,37 +54,41 @@ def reparam_pz_b(v, b, theta):
     # case where b ~ Bernoulli($\theta$). Returns z_squiggle, a Gumbel RV
     return(b * F.softplus(safe_log_prob(v) - safe_log_prob((1 - v) * (1 - theta)))) \
         + ((1 - b) * (-F.softplus(safe_log_prob(v) - safe_log_prob(v * (1 - theta)))))
-    # return(b * (safe_log_prob(v) - safe_log_prob((1 - v) * (1 - torch.exp(theta))))) \
-        # + ((1 - b) * (-safe_log_prob(v) + safe_log_prob(v * (1 - torch.exp(theta)))))
 
 
 
 
-def u_to_v(pi_list, u, eps = 1e-8, force_same = True, s = None, v_prime = None):
-    """Convert u to tied randomness in v."""
-    u_prime = F.sigmoid(-safe_log_prob(pi_list/(1-pi_list)))  # g(u') = 0
-    
-    if not force_same:
-        v = s*(u_prime+v_prime*(1-u_prime)) + (1-s)*v_prime*u_prime
-    else :
-        v_1 = (u - u_prime) / torch.clamp(1 - u_prime, eps, 1)
-        v_1 = torch.clamp(v_1.clone(), 0, 1).detach()
-        v_1 = v_1.clone()*(1 - u_prime) + u_prime
+
+# def u_to_v(pi_list, u, eps = 1e-8, force_same = False, s = None, v_prime = None):
+    # """Convert u to tied randomness in v."""
 
 
-        v_0 = u / torch.clamp(u_prime, eps, 1)
-        v_0 = torch.clamp(v_0.clone(), 0, 1).detach()
-        v_0 = v_0.clone() * u_prime
 
-        v = u.clone()
-        v[(u > u_prime).detach()] = v_1[(u > u_prime).detach()]
-        v[(u <= u_prime).detach()] = v_0[(u <= u_prime).detach()]
+    # u_prime = F.sigmoid(-safe_log_prob(pi_list/(1-pi_list)))  # g(u') = 0
+    # if not force_same:
+        # v = s*(u_prime+v_prime*(1-u_prime)) + (1-s)*v_prime*u_prime
+        # print("HERE")
+        # v = s * (safe_log_prob(v_prime/(1-v_prime)/(1-pi_list) +1)) + (1-s) * -(safe_log_prob(v_prime/(1-v_prime)/pi_list +1))
+    # else :
+
+        # v_1 = (u - u_prime) / torch.clamp(1 - u_prime, eps, 1)
+        # v_1 = torch.clamp(v_1.clone(), 0, 1).detach()
+        # v_1 = v_1.clone()*(1 - u_prime) + u_prime
+
+
+        # v_0 = u / torch.clamp(u_prime, eps, 1)
+        # v_0 = torch.clamp(v_0.clone(), 0, 1).detach()
+        # v_0 = v_0.clone() * u_prime
+
+        # v = u.clone()
+        # v[(u > u_prime).detach()] = v_1[(u > u_prime).detach()]
+        # v[(u <= u_prime).detach()] = v_0[(u <= u_prime).detach()]
         # v = torch.where(u>u_prime, v_1, v_0)
         # v[(u > u_prime).detach()] = v_1[(u > u_prime).detach()]
         # v[(u <= u_prime).detach()] = v_0[(u <= u_prime).detach()]
         # TODO: add pytorch check
         #v = tf.check_numerics(v, 'v sampling is not numerically stable.')
-        v = v + (-v + u).detach()  # v and u are the same up to numerical errors
+        # v = v + (-v + u).detach()  # v and u are the same up to numerical errors
     return v
 
 

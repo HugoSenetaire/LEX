@@ -556,8 +556,8 @@ class LoaderEncapsulation():
         self.batch_size_test = batch_size_test
         self.batch_size_train = batch_size_train
      
-        self.train_loader = torch.utils.data.DataLoader(self.dataset_train, batch_size=batch_size_train, shuffle=True)
-        self.test_loader = torch.utils.data.DataLoader(self.dataset_test, batch_size=batch_size_test, shuffle=False)
+        self.train_loader = torch.utils.data.DataLoader(self.dataset_train, batch_size=batch_size_train, shuffle=True, num_workers = 4)
+        self.test_loader = torch.utils.data.DataLoader(self.dataset_test, batch_size=batch_size_test, shuffle=False, num_workers = 4)
 
 
 

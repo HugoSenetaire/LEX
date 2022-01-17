@@ -88,6 +88,20 @@ class SelectorLVL3(AbstractSelector):
         x = F.elu(self.fc4(x))
         return self.pi(x)
   
+class RealXSelector(AbstractSelector):
+  def __init__(self, input_size, output_size, middle_size = 100):
+    super().__init__(input_size = input_size, output_size = output_size)
+    
+
+    self.fc1 = nn.Linear(np.prod(self.input_size),middle_size)
+    self.fc2 = nn.Linear(middle_size,middle_size)
+    self.pi = nn.Linear(middle_size, np.prod(self.output_size))
+
+  def __call__(self, x):
+    x = x.flatten(1)
+    x = F.relu(self.fc1(x))
+    x = F.relu(self.fc2(x))
+    return self.pi(x)
 
 class Selector(AbstractSelector):
     def __init__(self,input_size = (1,28,28), output_size = (1,28,28)):
