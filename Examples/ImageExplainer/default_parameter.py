@@ -124,13 +124,13 @@ def get_default():
     args_train["post_hoc_guidance"] = None
 
     args_compiler = {}
-    args_compiler["optim_classification"] = partial(Adam, lr=1e-4) #Learning rate for classification module
-    args_compiler["optim_selection"] = partial(Adam, lr=1e-4) # Learning rate for selection module
-    args_compiler["optim_selection_var"] = partial(Adam, lr=1e-4) # Learning rate for the variationnal selection module used in Variationnal Training
-    args_compiler["optim_distribution_module"] = partial(Adam, lr=1e-4) # Learning rate for the feature extractor if any
-    args_compiler["optim_baseline"] = partial(Adam, lr=1e-4) # Learning rate for the baseline network
-    args_compiler["optim_autoencoder"] = partial(Adam, lr=1e-4)
-    args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-4)
+    args_compiler["optim_classification"] = partial(Adam, lr=1e-4, weight_decay=1e-3) #Learning rate for classification module
+    args_compiler["optim_selection"] = partial(Adam, lr=1e-4, weight_decay=1e-3) # Learning rate for selection module
+    args_compiler["optim_selection_var"] = partial(Adam, lr=1e-4, weight_decay=1e-3) # Learning rate for the variationnal selection module used in Variationnal Training
+    args_compiler["optim_distribution_module"] = partial(Adam, lr=1e-4, weight_decay=1e-3) # Learning rate for the feature extractor if any
+    args_compiler["optim_baseline"] = partial(Adam, lr=1e-4, weight_decay=1e-3) # Learning rate for the baseline network
+    args_compiler["optim_autoencoder"] = partial(Adam, lr=1e-4, weight_decay=1e-3)
+    args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-4, weight_decay=1e-3)
 
     args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) #Learning rate for classification module
     args_compiler["scheduler_selection"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) # Learning rate for selection module
