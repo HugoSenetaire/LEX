@@ -676,7 +676,10 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             index_expanded_multiple_imputation_flatten = index_expanded_multiple_imputation.flatten(0,1)
         else :
             index_expanded_flatten = None
-        
+        data_expanded_multiple_imputation_flatten = data_expanded_multiple_imputation.flatten(0,3)
+        target_expanded_multiple_imputation_flatten = target_expanded_multiple_imputation.flatten(0,3)
+        one_hot_target_expanded_multiple_imputation_flatten = one_hot_target_expanded_multiple_imputation.flatten(0,3)
+            
 
         #### TRAINING CLASSIFICATION :
         if not self.fix_classifier_parameters :
@@ -693,10 +696,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             log_y_hat, loss_reconstruction = self.classification_module(data_expanded.flatten(0,2), z, index_expanded_flatten)
 
             # Loss for classification:
-            data_expanded_multiple_imputation_flatten = data_expanded_multiple_imputation.flatten(0,3)
-            target_expanded_multiple_imputation_flatten = target_expanded_multiple_imputation.flatten(0,3)
-            one_hot_target_expanded_multiple_imputation_flatten = one_hot_target_expanded_multiple_imputation.flatten(0,3)
-            
+
             neg_likelihood, mse_loss = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
                                                             index = index_expanded_multiple_imputation_flatten,
                                                             log_y_hat=log_y_hat,
