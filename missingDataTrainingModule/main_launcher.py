@@ -73,7 +73,7 @@ def get_multiple_imputation(args_classification, args_train, loader):
     if post_process_regularization is VAEAC_Imputation_DetachVersion :
         model, sampler = load_VAEAC(args_classification["VAEAC_dir"])
         post_proc_regul = post_process_regularization(model, sampler, args_classification["nb_imputation"])
-    elif post_process_regularization is GaussianMixtureImputation :
+    elif post_process_regularization is GaussianMixtureImputation or post_process_regularization is GaussianMixtureMeanImputation :
         post_proc_regul = post_process_regularization(**args_classification)
     elif post_process_regularization is DatasetBasedImputation :
         post_proc_regul = post_process_regularization(loader.dataset, args_classification["nb_imputation"])
