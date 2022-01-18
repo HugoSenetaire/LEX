@@ -572,7 +572,7 @@ class HypercubeDataset(ArtificialDataset):
 
 
 class LinearDataset(ArtificialDataset):
-    def __init__(self, nb_sample_train = 10000, nb_sample_test = 1000, give_index = False, noise_function = None, **kwargs):
+    def __init__(self, nb_sample_train = 60000, nb_sample_test = 10000, give_index = False, noise_function = None, **kwargs):
         super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
         np.random.seed(0)
         self.nb_sample_train = nb_sample_train
@@ -582,9 +582,12 @@ class LinearDataset(ArtificialDataset):
         self.nb_classes = 2
 
         nb_sample = nb_sample_test + nb_sample_train
-        X = scipy.stats.uniform([-2.0,-2.0], [4,4]).rvs((nb_sample,2))
-        Y = np.where(X[:,0]<-X[:,1], np.ones((nb_sample)), np.zeros((nb_sample))).astype(np.int64)
-
+        min_x = np.full((self.nb_dim,), -2.0)
+        max_x = np.full((self.nb_dim,), 4.0)
+        X = scipy.stats.uniform(min_x, max_x).rvs((nb_sample, self.nb_dim))
+        
+        # Y = np.where(np.sum(X[:,:self.nb_dim//2], axis = 1)<np.sum(-X[:,:self.nb_dim//2], axis=1), np.ones((nb_sample)), np.zeros((nb_sample))).astype(np.int64)
+        Y = np.where(X[:,0]<0, np.ones((nb_sample)), np.zeros((nb_sample))).astype(np.int64)
         self.X_train = torch.tensor(X[:nb_sample_train], dtype= torch.float32)
         self.Y_train = torch.tensor(Y[:nb_sample_train], dtype = torch.int64)
         
@@ -596,9 +599,9 @@ class LinearDataset(ArtificialDataset):
         self.S_train_exactdef = torch.ones_like(self.X_train)
         self.S_test_exactdef = torch.ones_like(self.X_test)
 
-
-        self.S_train_dataset_based_unnormalized = self.calculate_true_selection_variation(self.X_train,)
-        self.S_test_dataset_based_unnormalized = self.calculate_true_selection_variation(self.X_test,)
+        if self.nb_dim == 2 :
+            self.S_train_dataset_based_unnormalized = self.calculate_true_selection_variation(self.X_train,)
+            self.S_test_dataset_based_unnormalized = self.calculate_true_selection_variation(self.X_test,)
         
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
@@ -648,7 +651,7 @@ class LinearDataset(ArtificialDataset):
 class StandardGaussianDataset(ArtificialDataset):
     def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
         super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function=noise_function, **kwargs)
-        self.sigma = sigma  
+        self.sigma = torch.tensor(sigma, dtype= torch.float32) 
         self.nb_sample_train = nb_sample_train
         self.nb_sample_test = nb_sample_test
         self.give_index = give_index
@@ -669,10 +672,87 @@ class StandardGaussianDataset(ArtificialDataset):
         return true_S_value
 
     def impute_result(self, mask, value, index = None, dataset_type=None): 
-        normal_distrib = torch.distributions.normal.Normal(0,sigma)
+        normal_distrib = torch.distributions.normal.Normal(torch.zeros_like(value),torch.full_like(input =value, fill_value = self.sigma))
         sampled = normal_distrib.sample()
         return sampled
 
+### REAL X Dataset :
+
+def getProbA(X):
+    fa = np.exp(X[:,0]*X[:,1])
+    b_fa = 1/(1+fa)
+    sel = np.zeros_like(X)
+    sel[:,:2] = 1
+    return fa, b_fa, sel
+
+def getProbB(X):
+    fb = np.exp(X[:,2:6].sum(axis = 1))
+    b_fb = 1/(1+fb)
+    sel = np.zeros_like(X)
+    sel[:,2:6] = 1
+    return fb, b_fb, sel 
+
+def getProbC(X):
+    fc = np.exp(-10*np.sin(0.2*X[:,6]) + np.abs(X[:,7]) + X[:,8] + np.exp(-X[:,9])-2.4)
+    b_fc = 1/(1+fc)
+    sel = np.zeros_like(X)
+    sel[:,6:10] = 1
+    return fc, b_fc, sel
+
+def generate(sigma = 1.0, nb_sample_train = 10000, nb_sample_test = 10000, getProb1 = getProbA, getProb2 = getProbB):
+    X = np.random.normal(0, sigma, (nb_sample_train + nb_sample_test, 11))
+    _, prob1, sel1 = getProb1(X)
+    _, prob2, sel2 = getProb2(X)
+    aux = X[:,10]<0
+    prob_total = np.where(aux, prob1, prob2)
+    aux = np.reshape(aux, (aux.shape[0],1)).repeat(repeats = X.shape[1], axis = 1)
+    selection = np.where(aux, sel1, sel2)
+    selection[:,10] = 1
+    Y = np.random.uniform(size = prob_total.shape)
+    Y = np.where(Y<prob_total, np.ones_like(prob_total, dtype = np.int64), np.zeros_like(prob_total, dtype = np.int64))
+
+    X_train = torch.tensor(X[:nb_sample_train,:])
+    X_test = torch.tensor(X[nb_sample_train:,:])
+
+    Y_train = torch.tensor(Y[:nb_sample_train,])
+    Y_test = torch.tensor(Y[nb_sample_train:,])
+
+
+    sel_train = torch.tensor(selection[:nb_sample_train,:])
+    sel_test = torch.tensor(selection[nb_sample_train:,:])
+    
+    return X_train, Y_train, sel_train, X_test, Y_test, sel_test
+
+class S_1(StandardGaussianDataset):
+    def __init__(self, sigma=1.0, nb_sample_train = 10000, nb_sample_test = 10000, give_index = False, noise_function = None, **kwargs):
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
+        print(f"Given sigma is {self.sigma}")
+        self.nb_dim = 11
+        self.nb_classes = 2
+        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbA, getProb2=getProbB)
+        self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
+
+
+class S_2(StandardGaussianDataset):
+    def __init__(self, sigma=1.0, nb_sample_train = 10000, nb_sample_test = 10000, give_index = False, noise_function = None, **kwargs):
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
+        print(f"Given sigma is {self.sigma}")
+        self.nb_dim = 11
+        self.nb_classes = 2
+        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbA, getProb2=getProbC)
+        self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
+
+class S_3(StandardGaussianDataset):
+    def __init__(self, sigma=1.0, nb_sample_train = 10000, nb_sample_test = 10000, give_index = False, noise_function = None, **kwargs):
+        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
+        self.nb_dim = 11
+        self.nb_classes = 2
+        print(f"Given sigma is {self.sigma}")
+        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbB, getProb2=getProbC)
+        self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
 
 ##=========================== XOR DATASET ========================================
 

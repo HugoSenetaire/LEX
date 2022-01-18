@@ -40,8 +40,8 @@ def get_default():
     # args_dataset["dataset"] = FASHIONMNIST_and_MNIST
     args_dataset["loader"] = LoaderArtificial
     args_dataset["root_dir"] = os.path.join(args_output["path"], "datasets")
-    args_dataset["batch_size_train"] = 256
-    args_dataset["batch_size_test"] = 256
+    args_dataset["batch_size_train"] = 1000
+    args_dataset["batch_size_test"] = 1000
     args_dataset["noise_function"] = None
     args_dataset["download"] = True
 
@@ -128,24 +128,24 @@ def get_default():
     args_train["post_hoc_guidance"] = None
 
     args_compiler = {}
-    args_compiler["optim_classification"] = partial(Adam, lr=1e-3) #Learning rate for classification module
-    args_compiler["optim_selection"] = partial(Adam, lr=1e-3) # Learning rate for selection module
-    args_compiler["optim_selection_var"] = partial(Adam, lr=1e-3) # Learning rate for the variationnal selection module used in Variationnal Training
-    args_compiler["optim_distribution_module"] = partial(Adam, lr=1e-3) # Learning rate for the feature extractor if any
-    args_compiler["optim_baseline"] = partial(Adam, lr=1e-3) # Learning rate for the baseline network
-    args_compiler["optim_autoencoder"] = partial(Adam, lr=1e-3)
-    args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-3)
+    args_compiler["optim_classification"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) #Learning rate for classification module
+    args_compiler["optim_selection"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for selection module
+    args_compiler["optim_selection_var"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the variationnal selection module used in Variationnal Training
+    args_compiler["optim_distribution_module"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the feature extractor if any
+    args_compiler["optim_baseline"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the baseline network
+    args_compiler["optim_autoencoder"] = partial(Adam, lr=1e-4, weight_decay = 1e-3)
+    args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-4, weight_decay = 1e-3)
 
-    args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=10, gamma = 0.9) #Learning rate for classification module
-    args_compiler["scheduler_selection"] = partial(torch.optim.lr_scheduler.StepLR, step_size=10, gamma = 0.9) # Learning rate for selection module
-    args_compiler["scheduler_selection_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=10, gamma = 0.9) # Learning rate for the variationnal selection module used in Variationnal Training
-    args_compiler["scheduler_distribution_module"] = partial(torch.optim.lr_scheduler.StepLR, step_size=10, gamma = 0.9) # Learning rate for the feature extractor if any
-    args_compiler["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=10, gamma = 0.9) # Learning rate for the baseline network
-    args_compiler["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=10, gamma = 0.9)
-    args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=10, gamma = 0.9)
+    args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) #Learning rate for classification module
+    args_compiler["scheduler_selection"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) # Learning rate for selection module
+    args_compiler["scheduler_selection_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) # Learning rate for the variationnal selection module used in Variationnal Training
+    args_compiler["scheduler_distribution_module"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) # Learning rate for the feature extractor if any
+    args_compiler["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) # Learning rate for the baseline network
+    args_compiler["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9)
+    args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9)
     
     args_test = {}
     args_test["temperature_test"] = 0.001
-    args_test["nb_sample_z_test"] = 10
+    args_test["nb_sample_z_test"] = 1
 
     return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler

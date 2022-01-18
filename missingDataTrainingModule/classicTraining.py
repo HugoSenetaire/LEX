@@ -230,8 +230,8 @@ class EVAL_X(ordinaryTraining):
         else :
             index_expanded_flatten = None
 
-        p_z = self.fixed_distribution(data,)
-        z = p_z.sample((nb_sample_z_monte_carlo, ))
+        self.fixed_distribution(data,)
+        z = self.fixed_distribution.sample((nb_sample_z_monte_carlo, ))
         if self.reshape_mask_function is not None :
             z = self.reshape_mask_function(z)
 

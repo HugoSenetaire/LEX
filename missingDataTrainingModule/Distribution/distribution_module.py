@@ -77,7 +77,7 @@ class DistributionModule(nn.Module):
 
 
 class DistributionWithSchedulerParameter(DistributionModule):
-    def __init__(self, distribution, temperature_init = 1.0, scheduler_parameter = regular_scheduler, test_temperature = 0.0, antitheis_sampling=False,  **kwargs):
+    def __init__(self, distribution, temperature_init = 0.5, scheduler_parameter = regular_scheduler, test_temperature = 0.0, antitheis_sampling=False,  **kwargs):
         super(DistributionWithSchedulerParameter, self).__init__(distribution, antitheis_sampling= antitheis_sampling)
         self.current_distribution = None
         self.temperature_total = torch.tensor(temperature_init, dtype=torch.float32)

@@ -301,10 +301,10 @@ def plot_true_continuousshape(dataset, path, train_data = False, nb_train_data =
   plt.close(fig)
 
 
-
-
-
 def plot_true_interpretation_v3(dataset, path, train_data = False, nb_train_data = 1000, grid_sample = 100, nb_imputation = 1000,  figsize=(15,5), interpretation = False):
+  if dataset.nb_dim > 2 :
+    return None
+  
   try :
     centroids = dataset.centroids
   except AttributeError:
@@ -461,9 +461,7 @@ def plot_selector_output(selector, dataset, path, train_data = False, nb_train_d
   plt.close(fig)
 
 
-
-
-def plot_complete_model_output(trainer_var, dataset, sampling_distribution, path, imputed_centroids = False, nb_train_data = 1000, train_data = False):
+def plot_complete_model_output(trainer, dataset, sampling_distribution, path, imputed_centroids = False, nb_train_data = 1000, train_data = False):
   try :
     centroids = dataset.centroids
   except :
@@ -480,7 +478,7 @@ def plot_complete_model_output(trainer_var, dataset, sampling_distribution, path
   if centroids is not None :
     if imputed_centroids :
       centroids_masks = dataset.new_S
-      imputation = trainer_var.classification_module.imputation
+      imputation = trainer.classification_module.imputation
       centroids, _ = imputation.impute(centroids, centroids_masks)    
 
   min_x = torch.min(dataset.X_train[:,0])
@@ -496,18 +494,18 @@ def plot_complete_model_output(trainer_var, dataset, sampling_distribution, path
   complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
 
   
-  if next(trainer_var.classification_module.classifier.parameters()).is_cuda:
+  if next(trainer.classification_module.classifier.parameters()).is_cuda:
     complete_X = complete_X.cuda()
 
-  if hasattr(trainer_var, "selection_module"):
-    trainer_var.eval()
-    log_pi_list, _ = trainer_var.selection_module(complete_X)
-    trainer_var.distribution_module(log_pi_list)
-    z = trainer_var.distribution_module.sample((1,))
-    z = trainer_var.reshape(z)
+  if hasattr(trainer, "selection_module"):
+    trainer.eval()
+    log_pi_list, _ = trainer.selection_module(complete_X)
+    trainer.distribution_module(log_pi_list)
+    z = trainer.distribution_module.sample((1,))
+    z = trainer.reshape(z)
 
-    log_y_hat_destructed, _ = trainer_var.classification_module(complete_X, z)
-    # log_y_hat_destructed = trainer_var._predict(complete_X, sampling_distribution, nb_classes, Nexpectation = 20, index = None)  
+    log_y_hat_destructed, _ = trainer.classification_module(complete_X, z)
+    # log_y_hat_destructed = trainer._predict(complete_X, sampling_distribution, nb_classes, Nexpectation = 20, index = None)  
     pred_selection = torch.exp(log_y_hat_destructed).detach().cpu()
     destructive= True
   else :
@@ -515,7 +513,7 @@ def plot_complete_model_output(trainer_var, dataset, sampling_distribution, path
   
 
 
-  log_y_hat, _ = trainer_var.classification_module(complete_X, index = None)
+  log_y_hat, _ = trainer.classification_module(complete_X, index = None)
   pred_classic = torch.exp(log_y_hat).detach().cpu()
   
 
@@ -565,174 +563,50 @@ def plot_complete_model_output(trainer_var, dataset, sampling_distribution, path
 
 ##  Accuracy of the experiments :
 
+def calculate_score(trainer, loader,):
+  X_test = loader.dataset.X_test.type(torch.float32)
+  Y_test = loader.dataset.Y_test.type(torch.float32)
+  new_S_test = loader.dataset.new_S_test.type(torch.float32)
 
 
+  selection_module = trainer.selection_module
+  distribution_module = trainer.distribution_module
+  classification_module = trainer.classification_module
 
-   
-def compare_selection_single(dic, mask, true_masks, normalized_output = True, threshold_selector = 0.5, suffix = "pi", true_masks_int = False):
-    batch_size = len(mask)
-    nb_dim = mask.shape[1]
-
-    for dim in range(nb_dim):
-      
-      current_mask = mask.detach().cpu()[:, dim]
-      true_current_masks = true_masks.detach().cpu()[:, dim]
-      current_mask_thresholded = torch.where(current_mask > threshold_selector, torch.ones_like(current_mask), torch.zeros_like(current_mask))
-      accuracy = torch.sum(1-torch.abs(true_current_masks - current_mask))
-      accuracy_thresholded = torch.sum(1-torch.abs(true_current_masks - current_mask_thresholded))
+  selection_module.eval()
+  distribution_module.eval()
+  classification_module.eval()
 
 
-      if true_masks_int :
-        try :
-            auc_score = sklearn.metrics.roc_auc_score(true_current_masks.flatten().detach().cpu().numpy(), current_mask.flatten().detach().cpu().numpy())
-            auc_score = torch.tensor(auc_score).type(torch.float32)
-        except :
-            auc_score = torch.abs(true_current_masks - current_mask).mean()
+  with torch.no_grad():
+    log_pi_list, _ = selection_module(X_test)
+    distribution_module(log_pi_list)
+    z = distribution_module.sample((1,))
+    z = trainer.reshape(z)
 
-        confusion_matrix = sklearn.metrics.confusion_matrix(true_current_masks.flatten().detach().cpu().numpy(), current_mask_thresholded.flatten().detach().cpu().numpy())
-        if normalized_output : 
-          dic[f"dim_{dim}_auc_score_"+suffix] = auc_score.item()
-          dic[f"dim_{dim}_confusion_matrix_"+suffix] = confusion_matrix / batch_size
-        else :
-          dic[f"dim_{dim}_auc_score_"+suffix] = auc_score.item() * batch_size
-          dic[f"dim_{dim}_confusion_matrix_"+suffix] = confusion_matrix 
+    log_y_hat, _ = classification_module(X_test, z, index=None)
+    pred_classic = torch.exp(log_y_hat).detach().cpu().numpy()
 
-      if normalized_output : 
-          accuracy = accuracy/batch_size
-          accuracy_thresholded = accuracy_thresholded/batch_size
+    log_y_hat_no_selection, _ = classification_module(X_test, index = None)
+    pred_no_selection = torch.exp(log_y_hat_no_selection).detach().numpy()
 
-      dic[f"dim_{dim}_accuracy_"+suffix] = accuracy.item()
-      dic[f"dim_{dim}_accuracythresholded_"+suffix] = accuracy_thresholded.item()
-
-    return dic
-
-def compare_selection(mask, true_masks, normalized_output = False, train_dataset = False, sampling_distribution = None, threshold_selector = 0.5, nb_sample_z = 100, true_masks_int = False): 
-    dic = {}
-    dic = compare_selection_single(dic, mask, true_masks, normalized_output = normalized_output, threshold_selector = threshold_selector, suffix = "pi")
-
-    # if sampling_distribution is not None :
-    #     mask_z = sampling_distribution(probs=mask).sample((nb_sample_z,)).flatten(0,1)
-    #     true_masks_z = true_masks.unsqueeze(0).expand(torch.Size((nb_sample_z,)) + true_masks.shape).flatten(0,1)
-    #     dic = compare_selection_single(dic, mask_z, true_masks_z, normalized_output = normalized_output, threshold_selector = threshold_selector, suffix = "z", true_masks_int = true_masks_int)
-    
-    return dic
+    log_pi_list = log_pi_list.detach().cpu().numpy()
 
 
-def get_evaluation_adhoc(trainer_var, loader, dic, current_sampling_test, args_train, train = False, nb_sample_z = 100,):
-  if train:
-      suffix_train = "_train_adhoc"
-      wanted_loader = loader.train_loader
-      dataset = loader.dataset
-      true_masks_nopostprocess = dataset.S_train_dataset_based_unnormalized
-  else :
-      suffix_train = "_test_adhoc"
-      wanted_loader = loader.test_loader
-      dataset = loader.dataset
-      true_masks_nopostprocess = dataset.S_test_dataset_based_unnormalized
+  Y_test = Y_test.detach().cpu().numpy()
+  new_S_test = new_S_test.detach().cpu().numpy()
 
-  for aux_method in ["max_normalized", "true_thresholded_05" ]:
-    if aux_method == "max_normalized" :
-      true_masks = true_masks_nopostprocess/torch.max(true_masks_nopostprocess)
-      suffix = suffix_train + "_max_normalized"
-      true_masks_int = False
-    elif aux_method == "true_thresholded_05" :
-      true_masks = torch.where(true_masks_nopostprocess > 0.5, torch.ones_like(true_masks_nopostprocess), torch.zeros_like(true_masks_nopostprocess))
-      suffix = suffix_train + "_true_thresholded_05"
-      true_masks_int = True
-    else :
-      raise ValueError("Unknown aux_method")
+  dic = {}
+  dic["accuracy_classic"] = 1 - np.mean(np.abs(np.argmax(pred_classic, axis=1) - Y_test))
+  dic["accuracy_classic_no_selection"] = 1 - np.mean(np.abs(np.argmax(pred_no_selection, axis=1) - Y_test))
 
-    complete_batch_size = 0
-    for (data, target, index) in iter(wanted_loader):
-        if args_train["use_cuda"] :
-          data = data.cuda()
-          index = index.cuda()
-        pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
+  dic["auroc"] = sklearn.metrics.roc_auc_score(Y_test, pred_classic[:,1])
+  dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(Y_test, pred_no_selection[:,1])
 
-        batch_size, dim = data.shape
-        current_true_masks = true_masks[index]
-        if args_train["use_cuda"]:
-            data = data.cuda()
+  dic["CPFR"] = np.sum(np.exp(log_pi_list[:,10]) > 0.5)/len(log_pi_list)
 
-        comparing_dic = compare_selection(mask = pi_list, true_masks = current_true_masks, normalized_output=False, train_dataset = train, sampling_distribution = current_sampling_test, nb_sample_z=nb_sample_z, true_masks_int=true_masks_int)
-
-        for key in comparing_dic.keys():
-            if key+suffix in dic.keys():
-                dic[key+suffix] += comparing_dic[key]
-            else :
-                dic[key+suffix] = comparing_dic[key]
-        complete_batch_size += batch_size
-
-  for key in dic.keys():
-    dic[key] = dic[key]/complete_batch_size
-    print(key, dic[key])
-
-  print("========================================================")
-  return dic
-
-def get_evaluation_posthoc(trainer_var, loader, dic, current_sampling_test, args_train, train = False, nb_sample_z = 100,):
-  if train:
-      suffix_train = "_train_posthoc"
-      wanted_loader = loader.train_loader
-      dataset = loader.dataset
-  else :
-      suffix_train = "_test_posthoc"
-      wanted_loader = loader.test_loader
-      dataset = loader.dataset
-
-  for aux_method in ["max_normalized", "true_thresholded_05" ]:
-    if aux_method == "max_normalized" :
-      suffix = suffix_train + "_max_normalized"
-      true_masks_int = False
-    elif aux_method == "true_thresholded_05" :
-      suffix = suffix_train + "_true_thresholded_05"
-      true_masks_int = True
-    else :
-      raise ValueError("Unknown aux_method")
-    
-
-    complete_batch_size = 0
-    for (data, target, index) in iter(wanted_loader):
-        if args_train["use_cuda"] :
-          data = data.cuda()
-          index = index.cuda()
-
-        
-        pi_list, log_pi_list,  _, z_s, _ = trainer_var._destructive_test(data, current_sampling_test, 1)
-        batch_size, dim = data.shape
-
-        true_masks_nopostprocess = dataset.calculate_true_selection_variation(data, classifier = trainer_var.classification_module.classifier)
-
-        if aux_method == "max_normalized" :
-          true_masks = true_masks_nopostprocess/torch.max(true_masks_nopostprocess)
-        elif aux_method == "true_thresholded_05" :
-          true_masks = torch.where(true_masks_nopostprocess > 0.5, torch.ones_like(true_masks_nopostprocess), torch.zeros_like(true_masks_nopostprocess))
-
-              
-        if args_train["use_cuda"]:
-            data = data.cuda()
-
-        comparing_dic = compare_selection(mask = pi_list, true_masks = true_masks, normalized_output=False, train_dataset = train, sampling_distribution = current_sampling_test, nb_sample_z=nb_sample_z, true_masks_int=true_masks_int)
-        
-        for key in comparing_dic.keys():
-            if key+suffix in dic.keys():
-                dic[key+suffix] += comparing_dic[key]
-            else :
-                dic[key+suffix] = comparing_dic[key]
-        complete_batch_size += batch_size
-  for key in dic.keys():
-    dic[key] = dic[key]/complete_batch_size
+  dic["selection_auroc"] = sklearn.metrics.roc_auc_score(new_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
+  dic["selection_accuracy"] = 1 - np.mean(np.abs(new_S_test.reshape(-1) - np.round(np.exp(log_pi_list.reshape(-1)))))
 
 
-  return dic
-
-
-def normalize_dic(dic, dic_count_batch_size, dic_count_dim_batch_size,):
-  for key in dic_count_dim_batch_size.keys() :
-      for k in range(len(dic[key])):
-          dic[key][k] /= dic_count_dim_batch_size[key][k]
-  for key in dic_count_batch_size.keys() :
-      for k in range(len(dic[key])):
-          dic[key][k] /= dic_count_batch_size[key][k]
-  
   return dic
