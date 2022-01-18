@@ -569,9 +569,9 @@ def calculate_score(trainer, loader,):
   new_S_test = loader.dataset.new_S_test.type(torch.float32)
 
 
-  selection_module = trainer.selection_module
-  distribution_module = trainer.distribution_module
-  classification_module = trainer.classification_module
+  selection_module = trainer.selection_module.cpu()
+  distribution_module = trainer.distribution_module.cpu()
+  classification_module = trainer.classification_module.cpu()
 
   selection_module.eval()
   distribution_module.eval()
