@@ -603,7 +603,14 @@ def calculate_score(trainer, loader,):
   dic["auroc"] = sklearn.metrics.roc_auc_score(Y_test, pred_classic[:,1])
   dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(Y_test, pred_no_selection[:,1])
 
-  dic["CPFR"] = np.sum(np.exp(log_pi_list[:,10]) > 0.5)/len(log_pi_list)
+  dic["CPFSelection"] = np.sum(np.exp(log_pi_list[:,10]) > 0.5)/len(log_pi_list)
+  dic["CPFR_rate"] = np.mean(np.exp(log_pi_list[:,10]))
+
+  fpr, tpr, thresholds = sklearn.metrics.roc_curve(new_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1),)
+  
+  dic["fpr"] = fpr
+  dic["tpr"] = tpr
+  dic["thresholds"] = thresholds
 
   dic["selection_auroc"] = sklearn.metrics.roc_auc_score(new_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
   dic["selection_accuracy"] = 1 - np.mean(np.abs(new_S_test.reshape(-1) - np.round(np.exp(log_pi_list.reshape(-1)))))
