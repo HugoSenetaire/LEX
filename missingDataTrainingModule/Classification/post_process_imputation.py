@@ -332,7 +332,7 @@ class GaussianMixtureMeanImputation(MultipleImputation):
     wanted_centroids = self.means[index_resampling]
     if data_expanded.device.type == "cuda":
       wanted_centroids = wanted_centroids.cuda()
-    sampled = wanted_centroids.reshape(sample_b_expanded)
+    sampled = wanted_centroids.reshape(sample_b_expanded.shape)
     data_imputed_gm = sample_b_expanded * data_imputed + (1-sample_b_expanded) * sampled
     # print("TEST HERE", torch.autograd.grad(data_imputed_gm.mean(), sample_b_expanded.flatten()[0]))
 
