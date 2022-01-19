@@ -608,5 +608,7 @@ def calculate_score(trainer, loader,):
   dic["selection_auroc"] = sklearn.metrics.roc_auc_score(new_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
   dic["selection_accuracy"] = 1 - np.mean(np.abs(new_S_test.reshape(-1) - np.round(np.exp(log_pi_list.reshape(-1)))))
 
+  dic["mean_selection"] = np.mean(np.exp(log_pi_list), axis=0)
+
 
   return dic
