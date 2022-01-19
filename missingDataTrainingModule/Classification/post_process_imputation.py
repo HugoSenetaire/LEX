@@ -314,24 +314,11 @@ class GaussianMixtureMeanImputation(MultipleImputation):
       weights = weights.cuda()
 
 
-    # data_masked = ma.masked_array(data_imputed_flatten.detach().cpu().numpy(), mask = 1-sample_b_expanded_flatten)
-    # centers_masked = ma.masked_array(centers.detach().cpu().numpy(), mask =1-sample_b_expanded_flatten)
-    # variance_masked = ma.masked_array(variance.detach().cpu().numpy(), mask =1-sample_b_expanded_flatten)
-
-    # dependency = -(data_masked - centers_masked)**2/2/variance_masked - ma.log(variance)/2
-    # dependency_average = ma.expand_dims(ma.average(dependency, axis = -1),axis=-1)
-    # dependency_sum = ma.exp(ma.sum(dependency - dependency_average, axis = -1) + dependency_average.squeeze())
-    # dependency_sum /= ma.sum(dependency_sum, axis = -1, keepdims = True)
-    # dependency = dependency_sum
-    # print("=========================")
     dependency = -(data_imputed_flatten - centers)**2/2/variance - torch.log(variance)/2
-
     dependency = torch.sum(dependency* sample_b_expanded_flatten,axis=-1) + torch.log(weights)
     dependency[torch.where(torch.isnan(dependency))] = torch.zeros_like(dependency[torch.where(torch.isnan(dependency))]) #TODO : AWFUL WAY OF CLEANING THE ERROR, to change
     dependency_max, _ = torch.max(dependency, axis = -1, keepdim = True)
     dependency -= torch.log(torch.sum(torch.exp(dependency - dependency_max) + 1e-8, axis = -1, keepdim=True)) + dependency_max
-
-
     dependency = torch.exp(dependency)
 
 
@@ -343,19 +330,11 @@ class GaussianMixtureMeanImputation(MultipleImputation):
     index_resampling = torch.argmax(index_resampling,axis=-1)
 
     wanted_centroids = self.means[index_resampling]
-    # wanted_covariances = self.covariances[index_resampling]
     if data_expanded.device.type == "cuda":
       wanted_centroids = wanted_centroids.cuda()
-      # wanted_covariances = wanted_covariances.cuda()
-    sampled = wanted_centroids
+    sampled = wanted_centroids.reshape(sample_b_expanded)
     data_imputed_gm = sample_b_expanded * data_imputed + (1-sample_b_expanded) * sampled
-    # fig, axs = plt.subplots(1,4, figsize = (20,5))
-    # axs[0].imshow(data_imputed[0].reshape((28,56)).cpu().detach().numpy(), cmap="gray",vmin = -0.1307, vmax = 1.0)
-    # axs[1].imshow(sample_b_expanded[0].reshape((28,56)).cpu().detach().numpy(), cmap="gray",vmin = 0.0, vmax = 1.0)
-    # axs[2].imshow(data_imputed_gm[0].reshape((28,56)).cpu().detach().numpy(), cmap="gray", vmin = -0.1307, vmax = 1.0)
-    # axs[3].imshow(sampled[0].reshape((28,56)).cpu().detach().numpy(), cmap="gray", vmin = -0.1307, vmax = 1.0)
-    # plt.show()
-
+    # print("TEST HERE", torch.autograd.grad(data_imputed_gm.mean(), sample_b_expanded.flatten()[0]))
 
     return data_imputed_gm, data_expanded, sample_b_expanded
 
