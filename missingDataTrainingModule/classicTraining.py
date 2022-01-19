@@ -657,11 +657,8 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             raise NotImplementedError("REALX does not support post hoc guidance")
         self.classification_distribution_module = classification_distribution_module
 
-        # if self.fix_classifier_parameters and self.post_hoc :
-            # raise NotImplementedError("REALX does not support fix classifier")
 
     def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1, need_dic = False):
-        # start_time = time.time()
         self.zero_grad()
 
         nb_imputation = self.classification_module.imputation.nb_imputation
@@ -707,7 +704,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
             neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32))
             neg_likelihood = torch.mean(neg_likelihood, axis=0)
-            neg_likelihood = torch.sum(neg_likelihood)
+            neg_likelihood = torch.mean(neg_likelihood)
             loss_classification_module = neg_likelihood
             loss_classification_module.backward()
             self.optim_classification.step()
@@ -792,7 +789,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         # Losses
         s_loss = neg_reward_prob + E_0
         s_loss = torch.mean(s_loss, axis=0)
-        s_loss = torch.sum(s_loss)
+        s_loss = torch.mean(s_loss)
 
         
         # for name, param in self.selection_module.named_parameters():
@@ -814,8 +811,6 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         self.optim_selection.step()
         self.optim_distribution_module.step()
 
-        # end_time_aux = time.time()
-        # print("Time for one backward : ", end_time_aux - current_time)
 
         if self.fix_classifier_parameters :
             if need_dic :
@@ -840,8 +835,6 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             else :
                 dic = {}
 
-        # end_time = time.time()
-        # print("Time for one iteration : ", end_time - start_time)
 
         return dic
 
@@ -898,12 +891,11 @@ class ReparametrizedTraining(SELECTION_BASED_CLASSIFICATION):
 
         neg_likelihood = neg_likelihood.reshape(nb_imputation, nb_sample_z_IWAE, nb_sample_z_monte_carlo, batch_size)
 
-
         # Loss for selection
         neg_likelihood = torch.logsumexp(neg_likelihood,0) - torch.log(torch.tensor(nb_imputation, dtype=torch.float32)) # Monte Carlo Estimator for the imputation
         neg_likelihood = torch.logsumexp(neg_likelihood,0) - torch.log(torch.tensor(nb_sample_z_IWAE, dtype=torch.float32)) # IWAE Loss for the selection
         neg_likelihood = torch.mean(neg_likelihood, 0) # Monte Carlo estimator for sampling z
-        neg_likelihood = torch.sum(neg_likelihood) # Sum of the likelihood 
+        neg_likelihood = torch.mean(neg_likelihood) # Sum of the likelihood 
 
 
         # Updates 
@@ -1000,7 +992,7 @@ class AllZTraining(SELECTION_BASED_CLASSIFICATION):
         assert neg_likelihood.shape == log_prob_pz.shape
         neg_likelihood *= torch.exp(log_prob_pz) # MC sample z
         neg_likelihood = torch.sum(neg_likelihood, axis = 0) # Mc sample z
-        neg_likelihood = torch.sum(neg_likelihood) # Batch size
+        neg_likelihood = torch.mean(neg_likelihood) # Batch size
         # neg_likelihood = torch.mean(neg_likelihood)
 
         # Update :
@@ -1106,7 +1098,7 @@ class REINFORCE(SELECTION_BASED_CLASSIFICATION):
         assert log_prob_pz.shape == neg_reward.shape
         loss_hard = log_prob_pz*neg_reward # Log multiplication for REINFORCE
         loss_selection = torch.mean(loss_hard, axis = 0) # MCMC Estimator
-        loss_selection = torch.sum(loss_selection) # Batch_size
+        loss_selection = torch.mean(loss_selection) # Batch_size
 
 
         # Update :
@@ -1205,7 +1197,7 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32)) # Nb imputation inside log
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32)) # Iwae loss inside log
         neg_likelihood = torch.mean(neg_likelihood, axis=0) # MC estimator outside log
-        neg_likelihood = torch.sum(neg_likelihood) # batch size
+        neg_likelihood = torch.mean(neg_likelihood) # batch size
         loss_classification_module = neg_likelihood
         loss_classification_module.backward()
         self.optim_classification.step()
@@ -1291,7 +1283,7 @@ class REBAR(SELECTION_BASED_CLASSIFICATION):
         # Losses
         s_loss = neg_reward_prob + E_0
         s_loss = torch.mean(s_loss, axis=0)
-        s_loss = torch.sum(s_loss)
+        s_loss = torch.mean(s_loss)
 
         
         # for name, param in self.selection_module.named_parameters():
