@@ -612,9 +612,23 @@ def calculate_score(trainer, loader,):
   dic["tpr"] = tpr
   dic["thresholds"] = thresholds
 
+  sel_pred = (np.exp(log_pi_list) >0.5).astype(int).reshape(-1)
+  sel_true = new_S_test.reshape(-1)
+  fp = np.sum((sel_pred == 1) & (sel_true == 0))
+  tp = np.sum((sel_pred == 1) & (sel_true == 1))
+
+  fn = np.sum((sel_pred == 0) & (sel_true == 1))
+  tn = np.sum((sel_pred == 0) & (sel_true == 0))
+
+  fpr = fp / (fp + tn)
+  tpr = tp / (tp + fn)
+
+
+  dic["fpr2"] = fpr
+  dic["tpr2"] = tpr
+
   dic["selection_auroc"] = sklearn.metrics.roc_auc_score(new_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
   dic["selection_accuracy"] = 1 - np.mean(np.abs(new_S_test.reshape(-1) - np.round(np.exp(log_pi_list.reshape(-1)))))
-
   dic["mean_selection"] = np.mean(np.exp(log_pi_list), axis=0)
 
 
