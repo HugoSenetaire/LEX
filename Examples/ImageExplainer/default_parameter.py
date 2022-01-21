@@ -3,6 +3,7 @@ import sys
 
 sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
 sys.path.append("/home/hhjs/MissingDataTraining")
+from GaussianMixtureImputation import *
 from missingDataTrainingModule import *
 from datasets import *
 
@@ -11,6 +12,12 @@ from torch.distributions import *
 from torch.optim import *
 import torch
 from functools import partial
+
+def get_dataset(args_dataset):
+    dataset = args_dataset["dataset"](**args_dataset)
+    loader = args_dataset["loader"](dataset, batch_size_train=args_dataset["batch_size_train"], batch_size_test=args_dataset["batch_size_test"],)
+    return dataset, loader
+
 
 
 
@@ -25,7 +32,6 @@ def get_default():
 
 
 
-
     args_complete_trainer = {}
     args_complete_trainer["complete_trainer"] = ReparametrizedTraining # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args_complete_trainer["save_every_epoch"] = 1
@@ -35,9 +41,7 @@ def get_default():
 
 
     args_dataset = {}
-    # args_dataset["dataset"] = LinearSeparableDataset
     args_dataset["dataset"] = MNIST_and_FASHIONMNIST
-    # args_dataset["dataset"] = FASHIONMNIST_and_MNIST
     args_dataset["loader"] = LoaderEncapsulation
     args_dataset["root_dir"] = os.path.join(args_output["path"], "datasets")
     args_dataset["batch_size_train"] = 1000
@@ -51,21 +55,25 @@ def get_default():
     args_classification["input_size_classification_module"] = (1,28,56) # Size before imputation
     args_classification["classifier"] = ClassifierLVL3
 
-    args_classification["imputation"] = NoDestructionImputation
+    args_classification["imputation"] = ModuleImputation
     args_classification["cste_imputation"] = 0
+    args_classification["sigma_noise_imputation"] = 1.0
     args_classification["add_mask"] = False
+    args_classification["module_imputation"] = GaussianMixtureImputation(os.path.join(os.path.join(args_dataset["root_dir"], "imputation_weights"), "2_components.pkl")) # Path to the weights of the network to use for post processing)
+    args_classification["nb_imputation"] = 2
 
-    args_classification["post_process_network"] = None # Autoencoder Network to use
-    args_classification["trainable_post_process"] = False # If true, free the parameters of network during the training (loss guided by classification)
-    args_classification["pretrain_post_process"] = False # If true, pretrain the autoencoder with the training data
+
     args_classification["reconstruction_regularization"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
+    args_classification["network_reconstruction"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
     args_classification["lambda_reconstruction"] = 0.01 # Parameter for controlling the reconstruction regularization
-    args_classification["train_reconstruction_regularization"] = False # If true, free the parameters of autoencoder during the training (loss guided by a reconstruction loss)
-    args_classification["noise_function"] = DropOutNoise(pi = 0.3) # Noise used to pretrain the autoencoder
-    args_classification["nb_imputation"] = 1
+    
+    args_classification["post_process_regularization"] = None # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
+    args_classification["network_post_process"] = None # Autoencoder Network to use
+    args_classification["post_process_trainable"] = False # If true, pretrain the autoencoder with the training data
+    
+    args_classification["mask_reg"] = None
+    args_classification["mask_reg_rate"] = 0.5
 
-    args_classification["post_process_regularization"] = GaussianMixtureImputation # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
-    args_classification["imputation_network_weights_path"] = os.path.join(os.path.join(args_dataset["root_dir"], "imputation_weights"), "100_components.pkl") # Path to the weights of the network to use for post processing
 
     args_selection = {}
 

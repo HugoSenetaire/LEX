@@ -12,6 +12,12 @@ from torch.optim import *
 import torch
 from functools import partial
 
+def get_dataset(args_dataset):
+    dataset = args_dataset["dataset"](**args_dataset)
+
+    loader = args_dataset["loader"](dataset, batch_size_train=args_dataset["batch_size_train"], batch_size_test=args_dataset["batch_size_test"],)
+    return dataset, loader
+
 
 
 def get_default():
@@ -37,7 +43,6 @@ def get_default():
     args_dataset = {}
     # args_dataset["dataset"] = LinearSeparableDataset
     args_dataset["dataset"] = LinearDataset
-    # args_dataset["dataset"] = FASHIONMNIST_and_MNIST
     args_dataset["loader"] = LoaderArtificial
     args_dataset["root_dir"] = os.path.join(args_output["path"], "datasets")
     args_dataset["batch_size_train"] = 1000
@@ -53,33 +58,36 @@ def get_default():
 
     args_classification["imputation"] = NoDestructionImputation
     args_classification["cste_imputation"] = 0
+    args_classification["sigma_noise_imputation"] = 1.0
     args_classification["add_mask"] = False
-
-    args_classification["post_process_network"] = None # Autoencoder Network to use
-    args_classification["trainable_post_process"] = False # If true, free the parameters of network during the training (loss guided by classification)
-    args_classification["pretrain_post_process"] = False # If true, pretrain the autoencoder with the training data
-    args_classification["reconstruction_regularization"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
-    args_classification["lambda_reconstruction"] = 0.01 # Parameter for controlling the reconstruction regularization
-    args_classification["train_reconstruction_regularization"] = False # If true, free the parameters of autoencoder during the training (loss guided by a reconstruction loss)
-    args_classification["noise_function"] = DropOutNoise(pi = 0.3) # Noise used to pretrain the autoencoder
+    args_classification["module_imputation"] = None
     args_classification["nb_imputation"] = 2
 
-    args_classification["post_process_regularization"] = DatasetBasedImputation # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
-    args_classification["imputation_network_weights_path"] = os.path.join(os.path.join(args_dataset["root_dir"], "imputation_weights"), "100_components.pkl") # Path to the weights of the network to use for post processing
+
+    args_classification["reconstruction_regularization"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
+    args_classification["network_reconstruction"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
+    args_classification["lambda_reconstruction"] = 0.01 # Parameter for controlling the reconstruction regularization
+    
+    args_classification["post_process_regularization"] = None # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
+    args_classification["network_post_process"] = None # Autoencoder Network to use
+    args_classification["post_process_trainable"] = False # If true, pretrain the autoencoder with the training data
+    
+    args_classification["mask_reg"] = None
+    args_classification["mask_reg_rate"] = 0.5
 
     args_selection = {}
 
     args_selection["input_size_selector"] = (1,2)
     args_selection["output_size_selector"] = (1,2)
     args_selection["selector"] = SelectorLVL3
-    args_selection["selector_var"] = None #selectorSimilarVar
+    args_selection["selector_var"] = None 
     args_selection["activation"] = torch.nn.LogSigmoid()
     # args_selection["activation"] = torch.nn.LogSoftmax(dim=-1)
 
     # For regularization :
     args_selection["trainable_regularisation"] = False
     args_selection["regularization"] = LossRegularization
-    args_selection["lambda_reg"] = 0.0 # Entre 1 et 10 maintenant
+    args_selection["lambda_reg"] = 0.0 
     args_selection["rate"] = 0.0
     args_selection["loss_regularization"] = "L1" # L1, L2 
     args_selection["batched"] = False
