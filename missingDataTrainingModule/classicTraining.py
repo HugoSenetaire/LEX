@@ -1,10 +1,3 @@
-from numpy.core.fromnumeric import reshape, var
-from numpy.lib.npyio import _savez_compressed_dispatcher
-from numpy.testing._private.utils import requires_memory
-from psutil import test
-from torch import neg, neg_
-from torch._C import _show_config
-from torch.nn.functional import batch_norm, mse_loss, one_hot
 from .Selection import * 
 from .Classification import *
 from .Distribution import *
@@ -153,7 +146,6 @@ class ordinaryTraining():
         return total_dic
 
 
-
 class trainingWithSelection(ordinaryTraining):
     def __init__(self, classification_module,):
         super().__init__(classification_module, )
@@ -182,7 +174,6 @@ class trainingWithSelection(ordinaryTraining):
         neg_likelihood = F.nll_loss(log_y_hat, target)
         mse_current = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1))
         return log_y_hat, neg_likelihood, mse_current
-
 
 
 class EVAL_X(ordinaryTraining):
@@ -385,7 +376,6 @@ class GroundTruthSelectionTraining():
         total_dic["correct_post_hoc"] = correct_post_hoc
 
         return total_dic
-
 
 
 class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
@@ -639,10 +629,6 @@ class SELECTION_BASED_CLASSIFICATION(ordinaryTraining):
         total_dic["correct_post_hoc"] = correct_post_hoc
 
         return total_dic
-
-
-
-
 
 
 class REALX(SELECTION_BASED_CLASSIFICATION):

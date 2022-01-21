@@ -13,13 +13,10 @@ from functools import partial
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-def save_parameters(path, args_dataset, args_classification, args_selection, args_complete_trainer, args_train, args_test, args_output):
+def save_parameters(path, args_classification, args_selection, args_complete_trainer, args_train, args_test, args_output, args_compiler):
     complete_path = os.path.join(path, "parameters")
     if not os.path.exists(complete_path):
         os.makedirs(complete_path)
-
-    with open(os.path.join(complete_path,"dataset.txt"), "w") as f:
-        f.write(str(args_dataset))
 
     with open(os.path.join(complete_path,"classification.txt"), "w") as f:
         f.write(str(args_classification))
@@ -39,11 +36,8 @@ def save_parameters(path, args_dataset, args_classification, args_selection, arg
     with open(os.path.join(complete_path,"output.txt"), "w") as f:
         f.write(str(args_output))
 
-def get_dataset(args_dataset,):
-    dataset = args_dataset["dataset"](**args_dataset)
-    loader = args_dataset["loader"](dataset, batch_size_test=args_dataset["batch_size_test"], batch_size_train=args_dataset["batch_size_train"],)
-    return dataset, loader
-
+    with open(os.path.join(complete_path,"compiler.txt"), "w") as f:
+        f.write(str(args_compiler))
 
 def comply_size(dataset, args_classification, args_selection, args_complete_trainer):
     dim_shape = dataset.get_dim_input()
@@ -56,66 +50,45 @@ def comply_size(dataset, args_classification, args_selection, args_complete_trai
     args_complete_trainer["input_size_baseline"] = dim_shape
     args_complete_trainer["reshape_mask_function"] = partial(args_complete_trainer["reshape_mask_function"], size = dim_shape)
 
-def get_imputation_method(args_class):
+def get_imputation_method(args_classification, dataset):
+    if args_classification["mask_reg"] is not None :
+        mask_reg = args_classification["mask_reg"](rate = args_classification["mask_reg_rate"])
+    else :
+        mask_reg = None
     
-    if args_class["imputation"] is ConstantImputation :
-        return partial(args_class["imputation"], cste = args_class["cste_imputation"], add_mask = args_class["add_mask"])
-    elif args_class["imputation"] is LearnConstantImputation:
-        return partial(args_class["imputation"], add_mask = args_class["add_mask"])
-    elif args_class["imputation"] is NoiseImputation :
-        return partial(args_class["imputation"], add_mask = args_class["add_mask"])
+    if args_classification["post_process_regularization"] is not None :
+        post_process_regularization = args_classification["post_process_regularization"](
+                                        network_post_process = args_classification["network_post_process"],
+                                        trainable = args_classification["post_process_trainable"],
+                                        )       
     else :
-        return partial(args_class["imputation"], add_mask = args_class["add_mask"])
-
-
-def get_multiple_imputation(args_classification, args_train, loader):
-    post_process_regularization = args_classification["post_process_regularization"]
-    if post_process_regularization is VAEAC_Imputation_DetachVersion :
-        model, sampler = load_VAEAC(args_classification["VAEAC_dir"])
-        post_proc_regul = post_process_regularization(model, sampler, args_classification["nb_imputation"])
-    elif post_process_regularization is GaussianMixtureImputation or post_process_regularization is GaussianMixtureMeanImputation :
-        post_proc_regul = post_process_regularization(**args_classification)
-    elif post_process_regularization is DatasetBasedImputation :
-        post_proc_regul = post_process_regularization(loader.dataset, args_classification["nb_imputation"])
-    elif post_process_regularization is MICE_imputation :
-        post_proc_regul = post_process_regularization(args_classification["nb_imputation"])
-    elif post_process_regularization is MarkovChainImputation :
-        print("Training Markov Chain")
-        markov_chain = MarkovChain(loader.train_loader, use_cuda=args_train["use_cuda"])
-        post_proc_regul = post_process_regularization(markov_chain, args_classification["nb_imputation"], use_cuda=args_train["use_cuda"])
-    elif post_process_regularization is HMMimputation:
-        print("Train HMM")
-        if args_classification["log_hmm"] :
-            hmm = HMMLog(loader.train_loader, hidden_dim = args_classification["hidden_state_hmm"],
-                    nb_iter = args_classification["nb_iter_hmm"], nb_start = args_classification["nb_start_hmm"], use_cuda=args_train["use_cuda"],
-                    train_hmm= args_classification["train_hmm"], save_weights=args_classification["save_hmm"], path_weights=args_classification["path_hmm"],
-                    )
-        else :
-            hmm = HMM(loader.train_loader, hidden_dim = args_classification["hidden_state_hmm"],
-                    nb_iter = args_classification["nb_iter_hmm"], nb_start = args_classification["nb_start_hmm"], use_cuda=args_train["use_cuda"],
-                    train_hmm= args_classification["train_hmm"], save_weights=args_classification["save_hmm"], path_weights=args_classification["path_hmm"],
-                    )
-                    
-        post_proc_regul = post_process_regularization(hmm, args_classification["nb_imputation"], use_cuda = args_train["use_cuda"])
-        print("End Training HMM")
-    elif args_classification["post_process_regularization"] is MICE_imputation_pretrained:
-        import miceforest as mf
-        import pandas as pd
-        import numpy as np
-        from sklearn.experimental import enable_iterative_imputer
-        from sklearn.impute import IterativeImputer
-        Xtest, Ytest = next(iter(loader.test_loader))
-        Xtest = Xtest.detach().numpy()
-        df = pd.DataFrame(Xtest)
-        df_amp = mf.ampute_data(df,perc=0.5,random_state=1991)
-        imp = IterativeImputer(max_iter=10, random_state=0)
-        X_test = df_amp.to_numpy()
-        imp.fit(Xtest)
-        post_proc_regul = post_process_regularization(network = imp, nb_imputation= args_classification["nb_imputation"])
+        post_process_regularization = None
+    
+    if args_classification["reconstruction_regularization"] is not None :
+        reconstruction_regularization = args_classification["reconstruction_regularization"](
+                                        network_reconstruction = args_classification["network_reconstruction"],
+                                        lambda_reconstruction = args_classification["lambda_reconstruction"],
+                                        )
     else :
-        post_proc_regul = None
+        reconstruction_regularization = None
+    
+    
+    imputation = args_classification["imputation"](
+                                        nb_imputation = args_classification["nb_imputation"],
+                                        reconstruction_reg = reconstruction_regularization,
+                                        mask_reg = mask_reg,
+                                        post_process_regularization = post_process_regularization,
+                                        add_mask = args_classification["add_mask"],
+                                        dataset = dataset,
+                                        module = args_classification["module_imputation"],
+                                        cste =  args_classification["cste_imputation"],
+                                        sigma = args_classification["sigma_noise_imputation"],
+                                        )
+    #TODO : That's a very poor way to handle multiple possible arguments, can lead to a lot of bugs, check that.
 
-    return post_proc_regul
+    return imputation
+
+
 
 
 def get_networks(args_classification, args_selection, args_complete_trainer, output_category):
@@ -159,9 +132,8 @@ def check_parameters_compatibility(args_classification, args_selection, args_dis
         # raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
 
 
-def experiment(args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = False):
+def experiment(dataset, loader, args_output, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = False):
     torch.random.manual_seed(0)
-    dataset = args_dataset["dataset"]
     dic_list = {}
 
     ### Prepare output path :
@@ -171,7 +143,7 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
 
     if name_modification :
         print("Modification of the name")
-        folder = os.path.join(origin_path,dataset.__name__)
+        folder = os.path.join(origin_path,str(dataset))
         if not os.path.exists(folder):
             os.makedirs(folder)
 
@@ -186,13 +158,17 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
 
     
     print(f"Save at {final_path}")
-    save_parameters(final_path, args_dataset, args_classification,
-                     args_selection, args_complete_trainer,
-                      args_train, args_test, args_output)
+    save_parameters(final_path, args_classification = args_classification,
+                    args_selection = args_selection,
+                    args_complete_trainer= args_complete_trainer,
+                    args_train = args_train,
+                    args_test = args_test,
+                    args_output=args_output,
+                    args_compiler=args_compiler)
     check_parameters_compatibility(args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_output)
 
     ### Datasets :
-    dataset, loader = get_dataset(args_dataset,)
+
     if args_complete_trainer["comply_with_dataset"] :
         comply_size(dataset, args_classification, args_selection, args_complete_trainer)
 
@@ -200,10 +176,7 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
     distribution_module = get_distribution_module_from_args(args_distribution_module)
 
     ### Imputation :
-    imputationMethod = get_imputation_method(args_classification)  
-
-    ### Multiple imputation :
-    post_proc_regul = get_multiple_imputation(args_classification, args_train, loader)
+    imputation = get_imputation_method(args_classification, dataset)
 
     ### Regularization method :
     regularization = get_regularization_method(args_selection)
@@ -214,14 +187,12 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
     post_hoc_guidance = None
 
 
-
-
     ##### ============ Training POST-HOC ============= ####
 
     if args_train["post_hoc"] and args_train["post_hoc_guidance"] is not None :
         print("Training post-hoc guidance")
         post_hoc_classifier =  args_train["post_hoc_guidance"](args_selection["input_size_selector"], dataset.get_dim_output())
-        post_hoc_guidance = ClassificationModule(post_hoc_classifier, imputation = None)
+        post_hoc_guidance = ClassificationModule(post_hoc_classifier, imputation = imputation)
         optim_post_hoc = args_train["optim_post_hoc"](post_hoc_guidance.parameters())
 
         if args_train["scheduler_post_hoc"] is not None :
@@ -253,37 +224,45 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
 
 
     ##### ============ Modules initialisation for ordinary training ============:
-    if args_complete_trainer["complete_trainer"] is REALX and args_train["nb_epoch_pretrain"] > 0 :
-        imputation = imputationMethod(input_size= args_classification["input_size_classification_module"], post_process_regularization = post_proc_regul,
-                        reconstruction_reg= None, )
-
-        classification_module = ClassificationModule(classifier, imputation)
-        optim_classification = args_compiler["optim_classification"](classification_module.parameters())
-
-        if args_compiler["scheduler_classification"] is not None :
-            scheduler_classification = args_compiler["scheduler_classification"](optim_classification)
-        else :
-            scheduler_classification = None
-
-        trainer = EVAL_X(classification_module, fixed_distribution= FixedBernoulli(), reshape_mask_function = args_complete_trainer["reshape_mask_function"])
-        if args_train["use_cuda"]:
-            trainer.cuda()
-        trainer.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
+    # if args_complete_trainer["complete_trainer"] is REALX and args_train["nb_epoch_pretrain"] > 0 :
         
-        for epoch in range(args_train["nb_epoch_pretrain"]):
-            dic_train = trainer.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],)
-            if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
-                dic_test = trainer.test(loader,)
+    #     # if os.path.exists(os.path.join(args_output["path"], "weightsClassifier.pt")):
+    #     #     print(classifier)
+
+    #     #     classifier.load_state_dict(torch.load(os.path.join(args_output["path"], "weightsClassifier.pt")))
+    #     #     print("LOADED")
+    #     # else :
+    #         imputation = imputation(input_size= args_classification["input_size_classification_module"], post_process_regularization = post_proc_regul,
+    #                         reconstruction_reg= None, )
+
+
+    #         classification_module = ClassificationModule(classifier, imputation)
+    #         optim_classification = args_compiler["optim_classification"](classification_module.parameters())
+
+    #         if args_compiler["scheduler_classification"] is not None :
+    #             scheduler_classification = args_compiler["scheduler_classification"](optim_classification)
+    #         else :
+    #             scheduler_classification = None
+
+    #         trainer = EVAL_X(classification_module, fixed_distribution= FixedBernoulli(), reshape_mask_function = args_complete_trainer["reshape_mask_function"])
+    #         if args_train["use_cuda"]:
+    #             trainer.cuda()
+    #         trainer.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
+            
+    #         for epoch in range(args_train["nb_epoch_pretrain"]):
+    #             dic_train = trainer.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],)
+    #             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
+    #                 dic_test = trainer.test(loader,)
+
+    #         with open( os.path.join(args_output["path"], "weightsClassifier.pt"), 'wb') as f:
+    #             torch.save(classifier.state_dict(), f)
                     
 
 
     elif args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection  or args_complete_trainer["complete_trainer"] is trainingWithSelection or args_train["nb_epoch_pretrain"]>0 :
         
         if args_complete_trainer["complete_trainer"] is trainingWithSelection :
-            imputation = imputationMethod(input_size= args_classification["input_size_classification_module"], post_process_regularization = post_proc_regul,
-                        reconstruction_reg= None, )
-        else :
-            imputation = None
+            assert Imputation is SelectionAsInput
             
         if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection :
             nb_epoch = int(args_train["nb_epoch"])
@@ -294,7 +273,6 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
         if args_train["use_cuda"]:
             vanilla_classification_module.cuda()
         optim_classifier = args_compiler["optim_classification"](vanilla_classification_module.parameters())
-
 
         if args_compiler["scheduler_classification"] is not None :
             scheduler_classification = args_compiler["scheduler_classification"](optim_classifier)
@@ -361,11 +339,6 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
                             activation=args_selection["activation"],
                             regularization=regularization,
                             )
-
-        imputation = imputationMethod(input_size= args_classification["input_size_classification_module"],
-                                    post_process_regularization = post_proc_regul,
-                                    reconstruction_reg= recons_regul,
-                                    )
 
         classification_module = ClassificationModule(classifier, imputation=imputation)
         
@@ -450,9 +423,6 @@ def experiment(args_output, args_dataset, args_classification, args_selection, a
            
         save_dic(os.path.join(final_path,"train"), total_dic_train)
         save_dic(os.path.join(final_path,"test"), total_dic_test)
-        # if args_complete_trainer["complete_trainer"] is variationalTraining :
-        #     save_dic(os.path.join(final_path, "test_var"), total_dic_test_var)
-        #     dic_list["test_var"] = total_dic_test_var
 
         dic_list["train"] = total_dic_train
         dic_list["test"]  = total_dic_test

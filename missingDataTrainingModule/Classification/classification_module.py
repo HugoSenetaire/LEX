@@ -24,12 +24,6 @@ class ClassificationModule(nn.Module):
             self.need_imputation = True
 
 
-        if imputation is not None :
-            self.input_size = self.imputation.input_size
-        else :
-            self.input_size = self.classifier.input_size
-        self.kernel_updated = False
-
     def get_imputation(self, data, mask, index = None):
         data = data.reshape(mask.shape) # Quick fix when the reshape function do not match the shape of the data (change the dataset might be better), TODO
         x_imputed, _ = self.imputation(data, mask, index)
@@ -42,9 +36,9 @@ class ClassificationModule(nn.Module):
         -----------
         data : torch.Tensor of shape (Nexpectation*batch_size, channels, size_lists...)
             The data to be classified
-        mask : torch.Tensor of shape (Nexpectation*batch_size, size_lists...)
+        mask : torch.Tensor of shape (Nexpectation*batch_size, channels, size_lists...)
             The mask to be used for the classification, shoudl be in the same shape as the data
-        index : torch.Tensor of shape (Nexpectation*batch_size, size_lists...)
+        index : torch.Tensor of shape (Nexpectation*batch_size, )
             The index to be used for imputation
 
         Returns:
@@ -60,16 +54,10 @@ class ClassificationModule(nn.Module):
             data = data.reshape(mask.shape) # Quick fix when the reshape function do not match the shape of the data (change the dataset might be better), TODO
         if self.imputation is not None and mask is not None :
             x_imputed, loss_reconstruction = self.imputation(data, mask, index)
-
-            
-            if x_imputed.device.type == 'cuda':
-                loss_reconstruction = loss_reconstruction.cuda() # TODO : PUT IT ELSEWHERE
             y_hat = self.classifier(x_imputed)
         else :
             y_hat = self.classifier(data)
-            loss_reconstruction = torch.zeros((1))
-            if y_hat.device.type == 'cuda': 
-                loss_reconstruction = loss_reconstruction.cuda()
+            loss_reconstruction = torch.zeros((1), device = data.device)
 
         return y_hat, loss_reconstruction
 

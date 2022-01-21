@@ -222,7 +222,7 @@ class CircleDataset():
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noise_function= noise_function)
 
 
-    def impute_result(self, mask, value, index = None , dataset_type= None):
+    def impute(self, value,  mask, index = None , dataset_type= None):
         mask_aux = mask.detach()
         value_aux = value.detach()
         ratio = torch.tensor(self.factor)
@@ -307,7 +307,7 @@ class ArtificialDataset():
     def get_dim_output(self):
         return self.nb_classes
 
-    def impute(self, value, mask=None, index=None, dataset_type = None):
+    def impute(self, value, mask, index=None, dataset_type = None):
         raise NotImplementedError("Using abstract class ArtificialDataset")
 
     def calculate_true_selection_variation(self, X, normalize = False, classifier = None, nb_imputation = 100,):
@@ -342,13 +342,13 @@ class ArtificialDataset():
                 mask_firstdim[:,0] = torch.zeros(X_batch.shape[0], dtype=torch.float32)
                 
 
-                X_batch_first_dim = self.impute_result(mask_firstdim, X_batch)
+                X_batch_first_dim = self.impute(value = X_batch, mask = mask_firstdim, index = None, dataset_type = None)
                 Y_first_dim = classifier(X_batch_first_dim).reshape(nb_imputation, batch_size, self.nb_classes)
 
 
                 mask_seconddim = mask.clone()
                 mask_seconddim[:,1] = torch.zeros(X_batch.shape[0], dtype=torch.float32)
-                X_batch_second_dim = self.impute_result(mask_seconddim, X_batch)
+                X_batch_second_dim = self.impute(value = X_batch, mask= mask_seconddim, index = None, dataset_type = None)
                 Y_second_dim = classifier(X_batch_second_dim).reshape(nb_imputation, batch_size, self.nb_classes)
 
                                 
@@ -541,7 +541,7 @@ class HypercubeDataset(ArtificialDataset):
 
         return out_y
 
-    def impute_result(self, mask, value, index = None, dataset_type=None): 
+    def impute(self, value,  mask, index = None, dataset_type=None): 
         """ On part du principe que la value est complète mais c'est pas le cas encore, à gérer, sinon il faut transmettre l'index"""
         batch_size, _ = value.shape
         nb_centroids, dim = self.centroids.shape
@@ -587,7 +587,8 @@ class LinearDataset(ArtificialDataset):
         X = scipy.stats.uniform(min_x, max_x).rvs((nb_sample, self.nb_dim))
         
         # Y = np.where(np.sum(X[:,:self.nb_dim//2], axis = 1)<np.sum(-X[:,:self.nb_dim//2], axis=1), np.ones((nb_sample)), np.zeros((nb_sample))).astype(np.int64)
-        Y = np.where(X[:,0]<0, np.ones((nb_sample)), np.zeros((nb_sample))).astype(np.int64)
+        Y = np.where(X[:,0]<X[:,1], np.ones((nb_sample)), np.zeros((nb_sample))).astype(np.int64)
+        # Y = np.where(X[:,0]<0, np.ones((nb_sample)), np.zeros((nb_sample))).astype(np.int64)
         self.X_train = torch.tensor(X[:nb_sample_train], dtype= torch.float32)
         self.Y_train = torch.tensor(Y[:nb_sample_train], dtype = torch.int64)
         
@@ -639,7 +640,7 @@ class LinearDataset(ArtificialDataset):
 
         return output            
 
-    def impute_result(self, mask, value, index = None, dataset_type=None): 
+    def impute(self, value,  mask, index = None, dataset_type=None): 
         uniform = torch.distributions.uniform.Uniform(-2.0,2.0)
         sampled = uniform.sample(value.shape).type(torch.float32)
         return sampled
@@ -671,7 +672,7 @@ class StandardGaussianDataset(ArtificialDataset):
         true_S_value = true_S[index]
         return true_S_value
 
-    def impute_result(self, mask, value, index = None, dataset_type=None): 
+    def impute(self, value,  mask, index = None, dataset_type=None): 
         normal_distrib = torch.distributions.normal.Normal(torch.zeros_like(value),torch.full_like(input =value, fill_value = self.sigma))
         sampled = normal_distrib.sample()
         return sampled
@@ -902,7 +903,7 @@ class SwitchFeature(StandardGaussianDataset):
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
     
-    def impute_result(self, mask, value, index = None, dataset_type=None):
+    def impute(self, value,  mask, index = None, dataset_type=None):
         bern = torch.bernoulli(torch.full(mask.shape, fill_value=torch.tensor(0.5)))
         mean = bern * 3 + (1 - bern) * -3
         
@@ -922,11 +923,13 @@ class LoaderArtificial():
         self.batch_size_train = batch_size_train
 
         self.train_loader = torch.utils.data.DataLoader(self.dataset_train,
-                            batch_size=batch_size_train, shuffle=True
+                            batch_size=batch_size_train,
+                            shuffle=True
                             )
 
         self.test_loader = torch.utils.data.DataLoader(
-                                self.dataset_test,
-                            batch_size=batch_size_test, shuffle=False
+                            self.dataset_test,
+                            batch_size=batch_size_test,
+                            shuffle=False
                             )
 

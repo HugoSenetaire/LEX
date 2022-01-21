@@ -16,7 +16,8 @@ from functools import partial
 if __name__ == '__main__' :
 
     args_output, args_dataset, args_classification, args_destruction, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler = get_default()
-    final_path, trainer, loader, dic_list = experiment(args_output, args_dataset, args_classification, args_destruction, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = True)
+    dataset, loader = get_dataset(args_dataset)
+    final_path, trainer, loader, dic_list = experiment(dataset, loader, args_output, args_classification, args_destruction, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = True)
 
 
     # Interpretation:
