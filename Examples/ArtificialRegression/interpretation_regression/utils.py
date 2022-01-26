@@ -500,7 +500,7 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
   if hasattr(trainer, "selection_module"):
     trainer.eval()
     log_pi_list, _ = trainer.selection_module(complete_X)
-    trainer.distribution_module(log_pi_list)
+    trainer.distribution_module(torch.exp(log_pi_list))
     z = trainer.distribution_module.sample((1,))
     z = trainer.reshape(z)
 
@@ -580,7 +580,7 @@ def calculate_score(trainer, loader,):
 
   with torch.no_grad():
     log_pi_list, _ = selection_module(X_test)
-    distribution_module(log_pi_list)
+    distribution_module(torch.exp(log_pi_list))
     z = distribution_module.sample((1,))
     z = trainer.reshape(z)
 

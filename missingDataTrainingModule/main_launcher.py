@@ -1,9 +1,13 @@
-import numpy as np
-from psutil import net_connections
+from sched import scheduler
+import torch
 
-
-from .classicTraining import *
+from .classification_training import ordinaryTraining, EVAL_X
+from .interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
+from .selection_training import selectionTraining
 from .utils import *
+from .PytorchDistributionUtils.distribution import RelaxedSubsetSampling, RelaxedBernoulli_thresholded_STE, RelaxedSubsetSampling_STE, L2X_Distribution_STE, L2X_Distribution
+from .Selection.selection_module import SelectionModule
+from .Classification.classification_module import ClassificationModule
 
 
 from torch.distributions import *
@@ -88,8 +92,21 @@ def get_imputation_method(args_classification, dataset):
 
     return imputation
 
+def get_distribution_module_from_args(args_distribution_module):
+    assert(args_distribution_module["distribution"] is not None)
+    distribution_module = args_distribution_module["distribution_module"](**args_distribution_module)
+    return distribution_module
 
+def get_optim(module, args_optimizer, args_scheduler):
+    optimizer = None
+    scheduler = None
 
+    if args_optimizer is not None and module is not None and len(list(module.parameters())) > 0 :
+        optimizer = args_optimizer(module.parameters(),)
+        if args_scheduler is not None :
+            scheduler = args_scheduler(optimizer,)
+
+    return optimizer, scheduler
 
 def get_networks(args_classification, args_selection, args_complete_trainer, output_category):
     input_size_selector = args_selection["input_size_selector"]
@@ -118,8 +135,6 @@ def get_regularization_method(args_selection):
     regularization = args_selection["regularization"](**args_selection)
     return regularization
 
-
-
 def check_parameters_compatibility(args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_output):
     sampling_distrib = args_distribution_module["distribution"]
     activation = args_selection["activation"]
@@ -127,9 +142,6 @@ def check_parameters_compatibility(args_classification, args_selection, args_dis
         and args_selection["activation"] != torch.nn.LogSoftmax() :
         raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
     
-    # if args_distribution_module["distribution"] in [RelaxedBernoulli_thresholded_STE, RelaxedBernoulli] \
-        # and args_selection["activation"] != torch.nn.LogSigmoid() :
-        # raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
 
 
 def experiment(dataset, loader, args_output, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = False):
@@ -142,7 +154,6 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         os.makedirs(origin_path)
 
     if name_modification :
-        print("Modification of the name")
         folder = os.path.join(origin_path,str(dataset))
         if not os.path.exists(folder):
             os.makedirs(folder)
@@ -152,12 +163,15 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     else :
         final_path = origin_path
 
+    check_parameters_compatibility(args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_output)
 
     if not os.path.exists(final_path):
         os.makedirs(final_path)
 
-    
+    print("====================================================================================================================================================")
     print(f"Save at {final_path}")
+    print("====================================================================================================================================================")
+
     save_parameters(final_path, args_classification = args_classification,
                     args_selection = args_selection,
                     args_complete_trainer= args_complete_trainer,
@@ -165,7 +179,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
                     args_test = args_test,
                     args_output=args_output,
                     args_compiler=args_compiler)
-    check_parameters_compatibility(args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_output)
+    
 
     ### Datasets :
 
@@ -184,7 +198,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     ### Networks :
     classifier, selector, baseline, selector_var = get_networks(args_classification, args_selection, args_complete_trainer, dataset.get_dim_output())
 
-    post_hoc_guidance = None
+
 
 
     ##### ============ Training POST-HOC ============= ####
@@ -193,23 +207,22 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         print("Training post-hoc guidance")
         post_hoc_classifier =  args_train["post_hoc_guidance"](args_selection["input_size_selector"], dataset.get_dim_output())
         post_hoc_guidance = ClassificationModule(post_hoc_classifier, imputation = imputation)
-        optim_post_hoc = args_train["optim_post_hoc"](post_hoc_guidance.parameters())
 
-        if args_train["scheduler_post_hoc"] is not None :
-            scheduler_post_hoc = args_train["scheduler_post_hoc"](optim_post_hoc)
-        else :
-            scheduler_post_hoc = None
+
+
         trainer = ordinaryTraining(classification_module = post_hoc_guidance,)
         if args_train["use_cuda"]:
             trainer.cuda()
+
+        optim_post_hoc, scheduler_post_hoc = get_optim(post_hoc_guidance, args_compiler["optim_post_hoc"], args_compiler["scheduler_post_hoc"])
+        optim_post_hoc = args_compiler["optim_post_hoc"](post_hoc_guidance.parameters())
         trainer.compile(optim_classification=optim_post_hoc, scheduler_classification = scheduler_post_hoc)
 
-        nb_epoch = args_train["nb_epoch_post_hoc"]
         total_dic_train = {}
         total_dic_test = {}
-        for epoch in range(nb_epoch):
+        for epoch in range(args_train["nb_epoch_post_hoc"]):
             dic_train = trainer.train_epoch(epoch, loader, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),)
-            if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
+            if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == args_train["nb_epoch_post_hoc"] - 1:
                 dic_test = trainer.test(loader)
 
             
@@ -221,68 +234,73 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
         dic_list["train_post_hoc"] = total_dic_train
         dic_list["test_post_hoc"]  = total_dic_test
-
+        post_hoc_guidance.eval()
+    else :
+        post_hoc_guidance = None
 
     ##### ============ Modules initialisation for ordinary training ============:
-    # if args_complete_trainer["complete_trainer"] is REALX and args_train["nb_epoch_pretrain"] > 0 :
+    if (args_complete_trainer["complete_trainer"] is EVAL_X) or (args_complete_trainer["complete_trainer"] is REALX and args_train["nb_epoch_pretrain"] > 0) :
         
-    #     # if os.path.exists(os.path.join(args_output["path"], "weightsClassifier.pt")):
-    #     #     print(classifier)
+        # if os.path.exists(os.path.join(args_output["path"], "weightsClassifier.pt")):
+        #     print(classifier)
 
-    #     #     classifier.load_state_dict(torch.load(os.path.join(args_output["path"], "weightsClassifier.pt")))
-    #     #     print("LOADED")
-    #     # else :
-    #         imputation = imputation(input_size= args_classification["input_size_classification_module"], post_process_regularization = post_proc_regul,
-    #                         reconstruction_reg= None, )
+        #     classifier.load_state_dict(torch.load(os.path.join(args_output["path"], "weightsClassifier.pt")))
+        #     print("LOADED")
+        # else :
+
+            classification_module = ClassificationModule(classifier, imputation)
 
 
-    #         classification_module = ClassificationModule(classifier, imputation)
-    #         optim_classification = args_compiler["optim_classification"](classification_module.parameters())
+            trainer = EVAL_X(classification_module, 
+                            reshape_mask_function = args_complete_trainer["reshape_mask_function"],
+                            post_hoc_guidance = post_hoc_guidance,
+                            post_hoc = args_train["post_hoc"],
+                            argmax_post_hoc = args_train["argmax_post_hoc"],
+                            )
+            if args_train["use_cuda"]:
+                trainer.cuda()
 
-    #         if args_compiler["scheduler_classification"] is not None :
-    #             scheduler_classification = args_compiler["scheduler_classification"](optim_classification)
-    #         else :
-    #             scheduler_classification = None
-
-    #         trainer = EVAL_X(classification_module, fixed_distribution= FixedBernoulli(), reshape_mask_function = args_complete_trainer["reshape_mask_function"])
-    #         if args_train["use_cuda"]:
-    #             trainer.cuda()
-    #         trainer.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
+            optim_classification, scheduler_classification = get_optim(classification_module, args_compiler["optim_classification"], args_compiler["scheduler_classification"])
+            trainer.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
             
-    #         for epoch in range(args_train["nb_epoch_pretrain"]):
-    #             dic_train = trainer.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],)
-    #             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
-    #                 dic_test = trainer.test(loader,)
 
-    #         with open( os.path.join(args_output["path"], "weightsClassifier.pt"), 'wb') as f:
-    #             torch.save(classifier.state_dict(), f)
-                    
+            total_dic_train = {}
+            total_dic_test = {}
+            for epoch in range(args_train["nb_epoch_pretrain"]):
+                dic_train = trainer.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],)
+                if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == args_train["nb_epoch_pretrain"]-1:
+                    dic_test = trainer.test(loader,)
 
+                total_dic_train = fill_dic(total_dic_train, dic_train)
+                total_dic_test = fill_dic(total_dic_test, dic_test)
 
-    elif args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection  or args_complete_trainer["complete_trainer"] is trainingWithSelection or args_train["nb_epoch_pretrain"]>0 :
-        
-        if args_complete_trainer["complete_trainer"] is trainingWithSelection :
-            assert Imputation is SelectionAsInput
-            
-        if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection :
+            dic_list["train_pretraining_eval_x"] = total_dic_train
+            dic_list["test_pretraining_eval_x"]  = total_dic_test
+
+            if args_complete_trainer["complete_trainer"] is EVAL_X:
+                return final_path, trainer, loader, dic_list
+            # with open( os.path.join(args_output["path"], "weightsClassifier.pt"), 'wb') as f:
+                # torch.save(classifier.state_dict(), f)
+
+    elif args_complete_trainer["complete_trainer"] is ordinaryTraining or args_train["nb_epoch_pretrain"]>0 : 
+        if args_complete_trainer["complete_trainer"] is ordinaryTraining :
             nb_epoch = int(args_train["nb_epoch"])
         else :
             nb_epoch = args_train["nb_epoch_pretrain"]
 
-        vanilla_classification_module = ClassificationModule(classifier, imputation = imputation)
-        if args_train["use_cuda"]:
-            vanilla_classification_module.cuda()
-        optim_classifier = args_compiler["optim_classification"](vanilla_classification_module.parameters())
+        vanilla_classification_module = ClassificationModule(classifier,  imputation = imputation)
 
-        if args_compiler["scheduler_classification"] is not None :
-            scheduler_classification = args_compiler["scheduler_classification"](optim_classifier)
-        else :
-            scheduler_classification = None
-
-        trainer = ordinaryTraining(vanilla_classification_module, )
+        
+        trainer = ordinaryTraining(vanilla_classification_module, 
+                                post_hoc_guidance = post_hoc_guidance,
+                                post_hoc = args_train["post_hoc"],
+                                argmax_post_hoc = args_train["argmax_post_hoc"],
+                                )
         if args_train["use_cuda"]:
             trainer.cuda()
-        trainer.compile(optim_classification=optim_classifier, scheduler_classification = scheduler_classification,)
+
+        optim_classification, scheduler_classification = get_optim(vanilla_classification_module, args_compiler["optim_classification"], args_compiler["scheduler_classification"])
+        trainer.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
 
 
         total_dic_train = {}
@@ -294,138 +312,87 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test = fill_dic(total_dic_test, dic_test)
             
-        save_dic(os.path.join(final_path,"train"), total_dic_train)
-        save_dic(os.path.join(final_path,"test"), total_dic_test)
+        dic_list["train_pretraining"] = total_dic_train
+        dic_list["test_pretaining"]  = total_dic_test
 
-        dic_list["train"] = total_dic_train
-        dic_list["test"]  = total_dic_test
-
-        if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trainingWithSelection:
+        if args_complete_trainer["complete_trainer"] is ordinaryTraining :
             return final_path, trainer, loader, dic_list
             
-    
-    #### Pretraining selector :
-    if args_train["nb_epoch_pretrain_selector"] >0:
-        print("Pretraining selector")
-        selection_module = SelectionModule(selector,
-                            activation=args_selection["activation"],
-                            regularization=regularization,
-                            )
 
-        optim_selection = args_compiler["optim_selection"](selection_module.parameters())
-        if args_compiler["scheduler_selection"] is not None :
-            scheduler_selection = args_compiler["scheduler_selection"](optim_selection)
-        else :
-            scheduler_selection = None
-        trainer_selector = GroundTruthSelectionTraining(selection_module, reshape_mask_function=args_complete_trainer["reshape_mask_function"])
-        if args_train["use_cuda"]:
-            trainer_selector.cuda()
-        trainer_selector.compile(optim_selection=optim_selection, scheduler_selection = scheduler_selection)
-        for epoch in range(args_train["nb_epoch_pretrain_selector"]):
-            trainer_selector.train_epoch(epoch, loader, verbose=True)
-            trainer_selector.test(epoch, loader)
                 
 
 
     ##### ============  Modules initialisation for complete training ===========:
-    if args_complete_trainer["complete_trainer"] is not ordinaryTraining and args_complete_trainer["complete_trainer"] is not trainingWithSelection :
-
-        if args_classification["reconstruction_regularization"] is not None :
-            recons_regul = args_classification["reconstruction_regularization"](args_classification["autoencoder"], to_train = args_classification["train_reconstruction_regularization"])
-        else : 
-            recons_regul = None
-
-        selection_module = SelectionModule(selector,
-                            activation=args_selection["activation"],
-                            regularization=regularization,
-                            )
-
-        classification_module = ClassificationModule(classifier, imputation=imputation)
-        
+   
 
 
+    selection_module = SelectionModule(selector,
+                        activation=args_selection["activation"],
+                        regularization=regularization,
+                        )
+
+    classification_module = ClassificationModule(classifier, imputation=imputation)
+    
 
 
-        trainer = args_complete_trainer["complete_trainer"](
-            classification_module,
-            selection_module,
-            distribution_module = distribution_module,
-            baseline = baseline,
-            reshape_mask_function = args_complete_trainer["reshape_mask_function"],
-            fix_classifier_parameters = args_train["fix_classifier_parameters"],
-            post_hoc_guidance = post_hoc_guidance,
-            post_hoc = args_train["post_hoc"],
-            argmax_post_hoc = args_train["argmax_post_hoc"],
+    trainer = args_complete_trainer["complete_trainer"](
+        classification_module,
+        selection_module,
+        monte_carlo_gradient_estimator = args_complete_trainer["monte_carlo_gradient_estimator"],
+        baseline = baseline,
+        distribution_module = distribution_module,
+        reshape_mask_function = args_complete_trainer["reshape_mask_function"],
+        fix_classifier_parameters = args_train["fix_classifier_parameters"],
+        post_hoc_guidance = post_hoc_guidance,
+        post_hoc = args_train["post_hoc"],
+        argmax_post_hoc = args_train["argmax_post_hoc"],
+    )
+
+    if args_train["use_cuda"]:
+        trainer.cuda()
+
+    ####Optim_optim_classification :
+
+    optim_classification, scheduler_classification = get_optim(classification_module, args_compiler["optim_classification"], args_compiler["scheduler_classification"]) 
+    optim_selection, scheduler_selection = get_optim(selection_module, args_compiler["optim_selection"], args_compiler["scheduler_selection"])
+    optim_baseline, scheduler_baseline = get_optim(baseline, args_compiler["optim_baseline"], args_compiler["scheduler_baseline"])
+    optim_distribution_module, scheduler_distribution_module = get_optim(distribution_module, args_compiler["optim_distribution_module"], args_compiler["scheduler_distribution_module"])
+
+    trainer.compile(optim_classification = optim_classification,
+        optim_selection = optim_selection,
+        scheduler_classification = scheduler_classification,
+        scheduler_selection = scheduler_selection,
+        optim_baseline = optim_baseline,
+        scheduler_baseline = scheduler_baseline,
+        optim_distribution_module = optim_distribution_module,
+        scheduler_distribution_module = scheduler_distribution_module,)
+
+
+
+###### Main module training :
+
+
+    total_dic_train = {}
+    total_dic_test = {}
+    for epoch in range(args_train["nb_epoch"]):
+        dic_train = trainer.train_epoch(
+            epoch, loader,
+            save_dic = True,
+            nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],
+            nb_sample_z_IWAE = args_train["nb_sample_z_train_IWAE"],
+            verbose = ((epoch+1) % args_train["print_every"] == 0),
         )
 
-        if args_train["use_cuda"]:
-            trainer.cuda()
-
-        ####Optim_optim_classification :
-        optim_classification = args_compiler["optim_classification"](classification_module.parameters(), weight_decay = 1e-5)
-        if args_compiler["scheduler_classification"] is not None :
-            scheduler_classification = args_compiler["scheduler_classification"](optim_classification)
-        else :
-            scheduler_classification = None
-
-
-        optim_selection = args_compiler["optim_selection"](selection_module.parameters(), weight_decay = 1e-5)
-        if args_compiler["scheduler_selection"] is not None :
-            scheduler_selection = args_compiler["scheduler_selection"](optim_selection)
-        else :
-            scheduler_selection = None
+        if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == args_train["nb_epoch"]-1:
+            dic_test = trainer.test(loader, nb_sample_z=args_test["nb_sample_z_test"])
+            total_dic_train = fill_dic(total_dic_train, dic_train)
+            total_dic_test = fill_dic(total_dic_test, dic_test)
         
-        if args_complete_trainer["baseline"] is not None :
-            optim_baseline = args_compiler["optim_baseline"](baseline.parameters(), weight_decay = 1e-5)
-            scheduler_baseline = args_compiler["scheduler_baseline"](optim_baseline)
-        else :
-            optim_baseline = None
-            scheduler_baseline = None
+    save_dic(os.path.join(final_path,"train"), total_dic_train)
+    save_dic(os.path.join(final_path,"test"), total_dic_test)
 
-        if args_compiler["optim_distribution_module"] is not None and len(list(distribution_module.parameters())) > 0 :
-                optim_distribution_module = args_compiler["optim_distribution_module"](distribution_module.parameters(), weight_decay = 1e-5)
-                scheduler_distribution_module = args_compiler["scheduler_distribution_module"](optim_distribution_module)
-        else :
-            optim_distribution_module = None
-            scheduler_distribution_module = None
-
-        trainer.compile(optim_classification = optim_classification,
-            optim_selection = optim_selection,
-            scheduler_classification = scheduler_classification,
-            scheduler_selection = scheduler_selection,
-            optim_baseline = optim_baseline,
-            scheduler_baseline = scheduler_baseline,
-            optim_distribution_module = optim_distribution_module,
-            scheduler_distribution_module = scheduler_distribution_module,)
-
-
-
-######============== Complete module training================:
-
-
-        total_dic_train = {}
-        total_dic_test = {}
-        total_dic_test_no_var_2 = {}
-        total_dic_test_var = {}
-        for epoch in range(args_train["nb_epoch"]):
-            dic_train = trainer.train_epoch(
-                epoch, loader,
-                save_dic = True,
-                nb_sample_z_monte_carlo =args_train["nb_sample_z_train_monte_carlo"],
-                nb_sample_z_IWAE = args_train["nb_sample_z_train_IWAE"],
-                verbose = ((epoch+1) % args_train["print_every"] == 0),
-            )
-
-            if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch ==args_train["nb_epoch"]-1:
-                dic_test = trainer.test(loader, nb_sample_z=args_test["nb_sample_z_test"])
-                total_dic_train = fill_dic(total_dic_train, dic_train)
-                total_dic_test = fill_dic(total_dic_test, dic_test)
-           
-        save_dic(os.path.join(final_path,"train"), total_dic_train)
-        save_dic(os.path.join(final_path,"test"), total_dic_test)
-
-        dic_list["train"] = total_dic_train
-        dic_list["test"]  = total_dic_test
-        
+    dic_list["train"] = total_dic_train
+    dic_list["test"]  = total_dic_test
+    
 
     return final_path, trainer, loader, dic_list 

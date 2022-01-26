@@ -1,10 +1,13 @@
 import sys
+sys.path.append("C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\MissingDataTraining\\")
+sys.path.append("/home/hhjs/MissingDataTraining/")
 
-
-sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
-sys.path.append("/home/hhjs/MissingDataTraining")
-from missingDataTrainingModule import *
+from missingDataTrainingModule.classification_training import ordinaryTraining, EVAL_X
+from missingDataTrainingModule.selection_training import selectionTraining
+from missingDataTrainingModule.interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
+from missingDataTrainingModule import PytorchDistributionUtils, utils_reshape, Classification, Selection
 from datasets import *
+
 
 
 from torch.distributions import *
@@ -33,10 +36,11 @@ def get_default():
 
 
     args_complete_trainer = {}
-    args_complete_trainer["complete_trainer"] = ReparametrizedTraining # Ordinary training, Variational Traininig, No Variational Training, post hoc...
+    args_complete_trainer["complete_trainer"] = SELECTION_BASED_CLASSIFICATION
+    args_complete_trainer["monte_carlo_gradient_estimator"] = PytorchDistributionUtils.gradientestimator.REINFORCE # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args_complete_trainer["save_every_epoch"] = 1
     args_complete_trainer["baseline"] = None
-    args_complete_trainer["reshape_mask_function"] = simple_reshape
+    args_complete_trainer["reshape_mask_function"] = utils_reshape.collapse_in_batch
     args_complete_trainer["comply_with_dataset"] = True
 
 
@@ -54,9 +58,9 @@ def get_default():
 
     args_classification = {}
     args_classification["input_size_classification_module"] = (1,2) # Size before imputation
-    args_classification["classifier"] = ClassifierLVL3
+    args_classification["classifier"] = Classification.classification_network.RealXClassifier
 
-    args_classification["imputation"] = NoDestructionImputation
+    args_classification["imputation"] = Classification.imputation.ConstantImputation
     args_classification["cste_imputation"] = 0
     args_classification["sigma_noise_imputation"] = 1.0
     args_classification["add_mask"] = False
@@ -79,21 +83,21 @@ def get_default():
 
     args_selection["input_size_selector"] = (1,2)
     args_selection["output_size_selector"] = (1,2)
-    args_selection["selector"] = SelectorLVL3
+    args_selection["selector"] = Selection.selective_network.RealXSelector
     args_selection["selector_var"] = None 
     args_selection["activation"] = torch.nn.LogSigmoid()
     # args_selection["activation"] = torch.nn.LogSoftmax(dim=-1)
 
     # For regularization :
     args_selection["trainable_regularisation"] = False
-    args_selection["regularization"] = LossRegularization
+    args_selection["regularization"] = Selection.regularization_module.LossRegularization
     args_selection["lambda_reg"] = 0.0 
     args_selection["rate"] = 0.0
     args_selection["loss_regularization"] = "L1" # L1, L2 
     args_selection["batched"] = False
 
 
-    args_selection["regularization_var"] = LossRegularization
+    args_selection["regularization_var"] =  Selection.regularization_module.LossRegularization
     args_selection["lambda_regularization_var"] = 0.0
     args_selection["rate_var"] = 0.1
     args_selection["loss_regularization_var"] = "L1"
@@ -102,12 +106,12 @@ def get_default():
 
 
     args_distribution_module = {}
-    args_distribution_module["distribution_module"] = DistributionModule
+    args_distribution_module["distribution_module"] = PytorchDistributionUtils.wrappers.DistributionModule
     args_distribution_module["distribution"] = Bernoulli
     args_distribution_module["distribution_relaxed"] = RelaxedBernoulli
-    args_distribution_module["temperature_init"] = 0.01
+    args_distribution_module["temperature_init"] = 0.1
     args_distribution_module["test_temperature"] = 0.0
-    args_distribution_module["scheduler_parameter"] = regular_scheduler
+    args_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler
     args_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
     args_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
     args_distribution_module["antitheis_sampling"] = False 
@@ -120,8 +124,7 @@ def get_default():
     args_train = {}
     # args_train["nb_epoch"] = 500 # Training the complete model
     args_train["nb_epoch"] = 10 # Training the complete model
-    args_train["nb_epoch_post_hoc"] = 0 # Training the complete model
-    args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training auto encoder
+    args_train["nb_epoch_post_hoc"] = 0 # Training post_hoc
     args_train["nb_epoch_pretrain_selector"] = 0 # Pretrain selector
     args_train["nb_epoch_pretrain"] = 2 # Training the complete model 
     args_train["nb_sample_z_train_monte_carlo"] = 1
@@ -153,7 +156,6 @@ def get_default():
     args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9)
     
     args_test = {}
-    args_test["temperature_test"] = 0.001
     args_test["nb_sample_z_test"] = 1
 
     return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler

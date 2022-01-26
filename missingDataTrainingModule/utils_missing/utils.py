@@ -11,12 +11,12 @@ def calculate_pi_dimension(input_size, stride):
 
 def parse_batch(data):
     if len(data)==3 :
-        data, target, index = data
+        input, target, index = data
     else :
-        data, target = data
+        input, target = data
         index = None
 
-    return data, target, index
+    return input, target, index
     
 def get_item(tensor):
     if tensor is not None :
@@ -31,6 +31,8 @@ def prepare_data(data, target, num_classes=10, use_cuda = False):
     one_hot_target = torch.nn.functional.one_hot(target, num_classes = num_classes)
 
     return data, target, one_hot_target
+
+
 
 def get_extended_data(data, nb_sample_z):
     shape = data.shape
@@ -61,20 +63,21 @@ def get_one_hot(target, num_classes = 10):
 
 def extend_input(input, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = None, nb_imputation = None):
     shape = input.shape
-
+    
     wanted_shape = torch.Size((nb_sample_z_monte_carlo,)) + shape
     input_expanded = input.unsqueeze(0)
 
     if nb_sample_z_IWAE is not None :
-        wanted_shape = torch.Size((nb_sample_z_IWAE,)) + wanted_shape
-        input_expanded = input_expanded.unsqueeze(0)
+        wanted_shape = wanted_shape[:2] + torch.Size((nb_sample_z_IWAE,)) + wanted_shape[2:]
+        input_expanded = input_expanded.unsqueeze(2)
+
 
     if nb_imputation is not None :
         wanted_shape = torch.Size((nb_imputation,)) + wanted_shape
         input_expanded = input_expanded.unsqueeze(0)
 
-
-    input_expanded = input.expand(wanted_shape)
+    
+    input_expanded = input_expanded.expand(wanted_shape)
 
 
     return input_expanded
@@ -126,7 +129,6 @@ def save_dic_helper(total_dic, dic):
 
 
 def get_all_z(dim):
-    # list_z = []
     output = np.zeros((2**dim, dim))
     number = 0
     for nb_pos in range(dim+1):
@@ -135,7 +137,6 @@ def get_all_z(dim):
             for index in combination :
                 output[number,index]=1
             number+=1
-    # output = torch.tensor(output, dtype=torch.int64).unsqueeze(1).expand(-1, batch_size, -1)
     output = torch.tensor(output, dtype=torch.float)
 
     return output

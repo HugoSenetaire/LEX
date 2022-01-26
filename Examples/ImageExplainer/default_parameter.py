@@ -33,10 +33,11 @@ def get_default():
 
 
     args_complete_trainer = {}
-    args_complete_trainer["complete_trainer"] = ReparametrizedTraining # Ordinary training, Variational Traininig, No Variational Training, post hoc...
+    args_complete_trainer["complete_trainer"] = SELECTION_BASED_CLASSIFICATION
+    args_complete_trainer["monte_carlo_gradient_estimator"] = PytorchDistributionUtils.gradientestimator.REINFORCE # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args_complete_trainer["save_every_epoch"] = 1
     args_complete_trainer["baseline"] = None
-    args_complete_trainer["reshape_mask_function"] = simple_reshape
+    args_complete_trainer["reshape_mask_function"] = utils_reshape.collapse_in_batch
     args_complete_trainer["comply_with_dataset"] = True
 
 
@@ -102,12 +103,11 @@ def get_default():
 
 
     args_distribution_module = {}
-    args_distribution_module["distribution_module"] = DistributionWithSchedulerParameter
-    args_distribution_module["distribution"] = RelaxedBernoulli_thresholded_STE
+    args_distribution_module["distribution_module"] = PytorchDistributionUtils.wrappers.DistributionWithTemperatureParameter
+    args_distribution_module["distribution"] = PytorchDistributionUtils.distribution.RelaxedSubsetSampling_STE
     args_distribution_module["distribution_relaxed"] = None
     args_distribution_module["temperature_init"] = 0.5
-    args_distribution_module["test_temperature"] = 0.0
-    args_distribution_module["scheduler_parameter"] = regular_scheduler
+    args_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler
     args_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
     args_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
     args_distribution_module["antitheis_sampling"] = False 
@@ -115,11 +115,11 @@ def get_default():
 
 
     args_train = {}
-    args_train["nb_epoch"] = 500 # Training the complete model
+    args_train["nb_epoch"] = 1 # Training the complete model
     args_train["nb_epoch_post_hoc"] = 0 # Training the complete model
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training auto encoder
     args_train["nb_epoch_pretrain_selector"] = 0 # Pretrain selector
-    args_train["nb_epoch_pretrain"] = 2 # Training the complete model 
+    args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
     args_train["nb_sample_z_train_monte_carlo"] = 1 # Number K in the IWAE-similar loss 
     args_train["nb_sample_z_train_IWAE"] = 1
     args_train["print_every"] = 1
@@ -132,13 +132,13 @@ def get_default():
     args_train["post_hoc_guidance"] = None
 
     args_compiler = {}
-    args_compiler["optim_classification"] = partial(Adam, lr=1e-4, weight_decay=1e-3) #Learning rate for classification module
-    args_compiler["optim_selection"] = partial(Adam, lr=1e-4, weight_decay=1e-3) # Learning rate for selection module
-    args_compiler["optim_selection_var"] = partial(Adam, lr=1e-4, weight_decay=1e-3) # Learning rate for the variationnal selection module used in Variationnal Training
-    args_compiler["optim_distribution_module"] = partial(Adam, lr=1e-4, weight_decay=1e-3) # Learning rate for the feature extractor if any
-    args_compiler["optim_baseline"] = partial(Adam, lr=1e-4, weight_decay=1e-3) # Learning rate for the baseline network
-    args_compiler["optim_autoencoder"] = partial(Adam, lr=1e-4, weight_decay=1e-3)
-    args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-4, weight_decay=1e-3)
+    args_compiler["optim_classification"] = partial(Adam, lr=5e-4, weight_decay=1e-3) #Learning rate for classification module
+    args_compiler["optim_selection"] = partial(Adam, lr=5e-4, weight_decay=1e-3) # Learning rate for selection module
+    args_compiler["optim_selection_var"] = partial(Adam, lr=5e-4, weight_decay=1e-3) # Learning rate for the variationnal selection module used in Variationnal Training
+    args_compiler["optim_distribution_module"] = partial(Adam, lr=5e-4, weight_decay=1e-3) # Learning rate for the feature extractor if any
+    args_compiler["optim_baseline"] = partial(Adam, lr=5e-4, weight_decay=1e-3) # Learning rate for the baseline network
+    args_compiler["optim_autoencoder"] = partial(Adam, lr=5e-4, weight_decay=1e-3)
+    args_compiler["optim_post_hoc"] = partial(Adam, lr=5e-4, weight_decay=1e-3)
 
     args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) #Learning rate for classification module
     args_compiler["scheduler_selection"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) # Learning rate for selection module
@@ -149,7 +149,6 @@ def get_default():
     args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6)
     
     args_test = {}
-    args_test["temperature_test"] = 0.001
     args_test["nb_sample_z_test"] = 1
 
     return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler
