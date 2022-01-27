@@ -151,9 +151,9 @@ class SELECTION_BASED_CLASSIFICATION():
     def _create_dic(self, loss_total, neg_likelihood, mse_loss, pi_list, loss_rec = None, loss_reg = None, loss_selection = None, ):
         # dic = super()._create_dic(loss_total, neg_likelihood, mse_loss)
         dic = {}
-        dic["loss_total"] = loss_total
-        dic['neg_likelihood'] = neg_likelihood
-        dic['mse_loss'] = mse_loss
+        dic["loss_total"] = loss_total.detach().cpu().item()
+        dic['neg_likelihood'] = neg_likelihood.detach().cpu().item()
+        dic['mse_loss'] = mse_loss.detach().cpu().item()
         dic["mean_pi_list"] = torch.mean(torch.mean(pi_list.flatten(1),1)).item()
         quantiles = torch.tensor([0.25,0.5,0.75])
         if self.use_cuda: 
