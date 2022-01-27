@@ -237,7 +237,6 @@ class SELECTION_BASED_CLASSIFICATION():
         nb_sample_z_IWAE = data_expanded_multiple_imputation.shape[3]
         mask_expanded = self.reshape(mask_expanded)
 
-
         if index_expanded_multiple_imputation is not None :
             index_expanded = index_expanded_multiple_imputation[0]
             index_expanded_multiple_imputation_flatten = index_expanded_multiple_imputation.flatten(0,3)
@@ -252,7 +251,6 @@ class SELECTION_BASED_CLASSIFICATION():
 
         log_y_hat, _ = self.classification_module(data_expanded_multiple_imputation[0], mask_expanded, index = index_expanded)
         log_y_hat = log_y_hat.reshape(data_expanded_multiple_imputation.shape[:4] + torch.Size((dim_output,)))
-        
 
         neg_likelihood = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
                                                             index = index_expanded_multiple_imputation_flatten,
@@ -436,7 +434,8 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
 
         torch.mean(loss_total).backward()
         self.optim_selection.step()
-        self.optim_distribution_module.step()
+        if self.optim_distribution_module is not None :
+            self.optim_distribution_module.step()
 
         if need_dic :
             if self.fix_classifier_parameters :
