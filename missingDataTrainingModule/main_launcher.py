@@ -250,11 +250,18 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
             classification_module = ClassificationModule(classifier, imputation)
 
+            if  args_complete_trainer["complete_trainer"] is REALX and args_train["nb_epoch_pretrain"] > 0 :
+                post_hoc_guidance_eval_x = None
+                post_hoc_eval_x = False
+            else :
+                post_hoc_guidance_eval_x = post_hoc_guidance 
+                post_hoc_eval_x = args_train["post_hoc"]
+
 
             trainer = EVAL_X(classification_module, 
                             reshape_mask_function = args_complete_trainer["reshape_mask_function"],
-                            post_hoc_guidance = post_hoc_guidance,
-                            post_hoc = args_train["post_hoc"],
+                            post_hoc_guidance = post_hoc_guidance_eval_x,
+                            post_hoc = post_hoc_eval_x,
                             argmax_post_hoc = args_train["argmax_post_hoc"],
                             )
             if args_train["use_cuda"]:
@@ -285,15 +292,21 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     elif args_complete_trainer["complete_trainer"] is ordinaryTraining or args_train["nb_epoch_pretrain"]>0 : 
         if args_complete_trainer["complete_trainer"] is ordinaryTraining :
             nb_epoch = int(args_train["nb_epoch"])
+            post_hoc_guidance_ordinary = post_hoc_guidance
+            post_hoc_ordinary = args_train["post_hoc"]
+            
         else :
             nb_epoch = args_train["nb_epoch_pretrain"]
+            post_hoc_guidance_ordinary = None
+            post_hoc_ordinary = False
+
 
         vanilla_classification_module = ClassificationModule(classifier,  imputation = imputation)
 
         
         trainer = ordinaryTraining(vanilla_classification_module, 
-                                post_hoc_guidance = post_hoc_guidance,
-                                post_hoc = args_train["post_hoc"],
+                                post_hoc_guidance = post_hoc_guidance_ordinary,
+                                post_hoc = post_hoc_ordinary,
                                 argmax_post_hoc = args_train["argmax_post_hoc"],
                                 )
         if args_train["use_cuda"]:
