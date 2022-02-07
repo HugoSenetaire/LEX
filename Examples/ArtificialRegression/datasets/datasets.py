@@ -572,7 +572,7 @@ class HypercubeDataset(ArtificialDataset):
 
 
 class LinearDataset(ArtificialDataset):
-    def __init__(self, nb_sample_train = 60000, nb_sample_test = 10000, give_index = False, noise_function = None, **kwargs):
+    def __init__(self, nb_sample_train = 10000, nb_sample_test = 10000, give_index = False, noise_function = None, **kwargs):
         super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
         np.random.seed(0)
         self.nb_sample_train = nb_sample_train
@@ -641,8 +641,7 @@ class LinearDataset(ArtificialDataset):
         return output            
 
     def impute(self, value,  mask, index = None, dataset_type=None): 
-        uniform = torch.distributions.uniform.Uniform(-2.0,2.0)
-        sampled = uniform.sample(value.shape).type(torch.float32)
+        sampled = torch.rand_like(value, device = mask.device) * 4.0 - 2.0
         return sampled
 
 

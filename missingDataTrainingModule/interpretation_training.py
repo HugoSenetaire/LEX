@@ -11,9 +11,19 @@ import torch.nn.functional as F
 class SELECTION_BASED_CLASSIFICATION():
     """ Abstract class to help the classification of the different module """
 
-    def __init__(self, classification_module, selection_module, distribution_module, monte_carlo_gradient_estimator, baseline = None,
-                reshape_mask_function = None, fix_classifier_parameters = False, post_hoc = False,
-                post_hoc_guidance = None, argmax_post_hoc = False, ):
+    def __init__(self,
+                classification_module,
+                selection_module,
+                distribution_module,
+                monte_carlo_gradient_estimator,
+                baseline = None,
+                reshape_mask_function = None,
+                fix_classifier_parameters = False,
+                post_hoc = False,
+                post_hoc_guidance = None,
+                argmax_post_hoc = False,
+                ratio_class_selection = None,
+                ordinaryTraining = None,):
 
         self.classification_module = classification_module
         self.selection_module = selection_module
@@ -24,14 +34,34 @@ class SELECTION_BASED_CLASSIFICATION():
         self.use_cuda = False
         self.compiled = False
 
-              
+        self.ratio_class_selection = ratio_class_selection
+        self.ordinaryTraining = ordinaryTraining
+        if self.ratio_class_selection is not None :
+            if self.ordinaryTraining is None :
+                raise AttributeError("ratio_class_selection is not None but ordinaryTraining is None, nothing is defined for the ratio")
+            else :
+                if not self.ordinaryTraining.compiled :
+                    raise AttributeError("ratio_class_selection is not None but ordinaryTraining is not compiled")
+
+      
         self.fix_classifier_parameters = fix_classifier_parameters
         self.post_hoc_guidance = post_hoc_guidance
         self.post_hoc = post_hoc
         self.argmax_post_hoc = argmax_post_hoc
 
-        if self.fix_classifier_parameters :
-            for param in self.classification_module.parameters():
+        if self.ratio_class_selection is not None and self.post_hoc and self.fix_classifier_parameters and self.post_hoc_guidance is None :
+            raise AttributeError("Using no surrogate in post hoc, but the classifier is fixed. Either provide a guidance function for the surrogate to be trained in the 'onlypred step' or free the classifier parameters")
+              
+
+        # I am not sure the following line is necessary, something is already done in optim step
+        # Maybe for a matter of speed in post hoc but whatever for now
+        # TODO : check of a better way for posthoc
+        # if self.fix_classifier_parameters :
+        #     for param in self.classification_module.parameters():
+        #         param.requires_grad = False
+
+        if self.post_hoc_guidance is not None :
+            for param in self.post_hoc_guidance.parameters():
                 param.requires_grad = False
 
  
@@ -90,7 +120,7 @@ class SELECTION_BASED_CLASSIFICATION():
 
     def optim_step(self):
         assert(self.compiled)
-        if not self.fix_classifier_parameters or self.optim_classification is None :
+        if (not self.fix_classifier_parameters) and (self.optim_classification is not None) :
            self.optim_classification.step()
         self.optim_selection.step()
         if self.optim_distribution_module is not None :
@@ -102,14 +132,52 @@ class SELECTION_BASED_CLASSIFICATION():
         self.train()
         total_dic = {}
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
-        for batch_idx, data in enumerate(loader.train_loader):
-            data, target, index = parse_batch(data)
-            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
-            if batch_idx % print_batch_every == 0 :
-                if verbose :
-                    print_dic(epoch, batch_idx, dic, loader)
-                if save_dic :
-                    total_dic = save_dic_helper(total_dic, dic)
+
+        if self.ratio_class_selection is None :
+            for batch_idx, data in enumerate(loader.train_loader):
+                data, target, index = parse_batch(data)
+                dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+                if batch_idx % print_batch_every == 0 :
+                    if verbose :
+                        print_dic(epoch, batch_idx, dic, loader)
+                    if save_dic :
+                        total_dic = save_dic_helper(total_dic, dic)
+
+        elif self.ratio_class_selection >=1 :
+            step_only_pred = self.ratio_class_selection
+            init_number = np.random.randint(0, step_only_pred+1) # Just changing which part of the dataset is used for ordinary training and the others. TODO, there might be a more interesting way to do this, inside the dataloader for instance ?
+            for batch_idx, data in enumerate(loader.train_loader):
+                data, target, index = parse_batch(data)
+                if (batch_idx + init_number) % (step_only_pred+1) == 0 :
+                    dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+                    if batch_idx % print_batch_every == 0 :
+                        if verbose :
+                            print_dic(epoch, batch_idx, dic, loader)
+                        if save_dic :
+                            total_dic = save_dic_helper(total_dic, dic)
+                else :
+                    dic = self.ordinaryTraining._train_step(data, target, loader.dataset, index=index)
+        else :
+            step_only_selection = np.round(1./self.ratio_class_selection).astype(int)
+            init_number = np.random.randint(0, step_only_selection+1)
+            for batch_idx, data in enumerate(loader.train_loader):
+                data, target, index = parse_batch(data)
+                if (batch_idx + init_number) % (step_only_selection+1) == 0 :
+                    print("ORDINARY")
+                    dic = self.ordinaryTraining._train_step(data, target, loader.dataset, index=index)
+                   
+                else :
+                    print("Selection")
+                    dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+                    if batch_idx % print_batch_every == 0 :
+                        if verbose :
+                            print_dic(epoch, batch_idx, dic, loader)
+                        if save_dic :
+                            total_dic = save_dic_helper(total_dic, dic)
+
+
+
+
         self.scheduler_step()    
         return total_dic
 
@@ -130,9 +198,9 @@ class SELECTION_BASED_CLASSIFICATION():
         if not self.post_hoc:
             neg_likelihood = F.nll_loss(log_y_hat, target.flatten(), reduce = False)
         else :
-            if self.post_hoc_guidance is not None :
+            if self.post_hoc_guidance is not None : # Can handle both case where classifier is fixed or not, meaning we train a surrogate classifier or the surrogate classifier is pretrained and fixed (second case is a bit stupid)
                 out_y, _ = self.post_hoc_guidance(data, index = index)
-            elif self.fix_classifier_parameters :
+            elif self.fix_classifier_parameters : # Case where we do directly posthoc on the classifier.
                 out_y, _ =self.classification_module(data, index=index)
             else :
                 raise AttributeError("You can't have post-hoc without a post hoc guidance or fixing the classifier parameters")
@@ -362,13 +430,34 @@ class SELECTION_BASED_CLASSIFICATION():
 
 
 class REALX(SELECTION_BASED_CLASSIFICATION):
-    def __init__(self, classification_module, selection_module, distribution_module, monte_carlo_gradient_estimator, classification_distribution_module = PytorchDistributionUtils.wrappers.FixedBernoulli(),
-                baseline = None, reshape_mask_function = None, fix_classifier_parameters = False,
-                post_hoc = False, post_hoc_guidance = None, argmax_post_hoc = False, ):
-        super().__init__(classification_module = classification_module, selection_module = selection_module, distribution_module = distribution_module, monte_carlo_gradient_estimator = monte_carlo_gradient_estimator, baseline = baseline,
-                        reshape_mask_function = reshape_mask_function, fix_classifier_parameters = fix_classifier_parameters,
-                        post_hoc = post_hoc, post_hoc_guidance = post_hoc_guidance, argmax_post_hoc = argmax_post_hoc,
+    def __init__(self, classification_module,
+                selection_module,
+                distribution_module,
+                monte_carlo_gradient_estimator,
+                classification_distribution_module = PytorchDistributionUtils.wrappers.FixedBernoulli(),
+                baseline = None,
+                reshape_mask_function = None,
+                fix_classifier_parameters = False,
+                post_hoc = False,
+                post_hoc_guidance = None,
+                argmax_post_hoc = False,
+                ratio_class_selection = None,
+                ordinaryTraining = None,):
+
+        super().__init__(classification_module = classification_module,
+                        selection_module = selection_module,
+                        distribution_module = distribution_module,
+                        monte_carlo_gradient_estimator = monte_carlo_gradient_estimator,
+                        baseline = baseline,
+                        reshape_mask_function = reshape_mask_function,
+                        fix_classifier_parameters = fix_classifier_parameters,
+                        post_hoc = post_hoc,
+                        post_hoc_guidance = post_hoc_guidance,
+                        argmax_post_hoc = argmax_post_hoc,
+                        ratio_class_selection = ratio_class_selection,
+                        ordinaryTraining = ordinaryTraining,
                         )
+
         if self.post_hoc_guidance is not None :
             raise NotImplementedError("REALX does not support post hoc guidance")
         self.classification_distribution_module = classification_distribution_module

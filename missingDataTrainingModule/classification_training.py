@@ -14,6 +14,10 @@ class ordinaryTraining():
         self.post_hoc_guidance = post_hoc_guidance
         self.argmax_post_hoc = argmax_post_hoc
 
+        if self.post_hoc_guidance is not None :
+            for param in self.post_hoc_guidance.parameters():
+                param.requires_grad = False
+
     def _calculate_neg_likelihood(self, data, index, log_y_hat, target,):
         """
         Calculate the negative log likelihood of the classification per element of the batch, no reduction is done. 

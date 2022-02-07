@@ -239,7 +239,9 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         post_hoc_guidance = None
 
     ##### ============ Modules initialisation for ordinary training ============:
-    if (args_complete_trainer["complete_trainer"] is EVAL_X) or (args_complete_trainer["complete_trainer"] is REALX and args_train["nb_epoch_pretrain"] > 0) :
+
+    trainer_ordinary = None
+    if (args_complete_trainer["complete_trainer"] is EVAL_X) or (args_complete_trainer["complete_trainer"] is REALX and (args_train["nb_epoch_pretrain"] > 0 or args_train["ratio_class_selection"] is not None)) :
         
         # if os.path.exists(os.path.join(args_output["path"], "weightsClassifier.pt")):
         #     print(classifier)
@@ -258,25 +260,25 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
                 post_hoc_eval_x = args_train["post_hoc"]
 
 
-            trainer = EVAL_X(classification_module, 
+            trainer_ordinary = EVAL_X(classification_module, 
                             reshape_mask_function = args_complete_trainer["reshape_mask_function"],
                             post_hoc_guidance = post_hoc_guidance_eval_x,
                             post_hoc = post_hoc_eval_x,
                             argmax_post_hoc = args_train["argmax_post_hoc"],
                             )
             if args_train["use_cuda"]:
-                trainer.cuda()
+                trainer_ordinary.cuda()
 
             optim_classification, scheduler_classification = get_optim(classification_module, args_compiler["optim_classification"], args_compiler["scheduler_classification"])
-            trainer.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
+            trainer_ordinary.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
             
 
             total_dic_train = {}
             total_dic_test = {}
             for epoch in range(args_train["nb_epoch_pretrain"]):
-                dic_train = trainer.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],)
+                dic_train = trainer_ordinary.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],)
                 if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == args_train["nb_epoch_pretrain"]-1:
-                    dic_test = trainer.test(loader,)
+                    dic_test = trainer_ordinary.test(loader,)
 
                 total_dic_train = fill_dic(total_dic_train, dic_train)
                 total_dic_test = fill_dic(total_dic_test, dic_test)
@@ -285,11 +287,11 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             dic_list["test_pretraining_eval_x"]  = total_dic_test
 
             if args_complete_trainer["complete_trainer"] is EVAL_X:
-                return final_path, trainer, loader, dic_list
+                return final_path, trainer_ordinary, loader, dic_list
             # with open( os.path.join(args_output["path"], "weightsClassifier.pt"), 'wb') as f:
                 # torch.save(classifier.state_dict(), f)
 
-    elif args_complete_trainer["complete_trainer"] is ordinaryTraining or args_train["nb_epoch_pretrain"]>0 : 
+    elif args_complete_trainer["complete_trainer"] is ordinaryTraining or args_train["nb_epoch_pretrain"]>0 or args_train["ratio_class_selection"] is not None : 
         if args_complete_trainer["complete_trainer"] is ordinaryTraining :
             nb_epoch = int(args_train["nb_epoch"])
             post_hoc_guidance_ordinary = post_hoc_guidance
@@ -304,24 +306,24 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         vanilla_classification_module = ClassificationModule(classifier,  imputation = imputation)
 
         
-        trainer = ordinaryTraining(vanilla_classification_module, 
+        trainer_ordinary = ordinaryTraining(vanilla_classification_module, 
                                 post_hoc_guidance = post_hoc_guidance_ordinary,
                                 post_hoc = post_hoc_ordinary,
                                 argmax_post_hoc = args_train["argmax_post_hoc"],
                                 )
         if args_train["use_cuda"]:
-            trainer.cuda()
+            trainer_ordinary.cuda()
 
         optim_classification, scheduler_classification = get_optim(vanilla_classification_module, args_compiler["optim_classification"], args_compiler["scheduler_classification"])
-        trainer.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
+        trainer_ordinary.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
 
 
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(int(nb_epoch)):
-            dic_train = trainer.train_epoch(epoch, loader, save_dic = True,)
+            dic_train = trainer_ordinary.train_epoch(epoch, loader, save_dic = True,)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
-                dic_test = trainer.test(loader) 
+                dic_test = trainer_ordinary.test(loader) 
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test = fill_dic(total_dic_test, dic_test)
             
@@ -329,7 +331,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         dic_list["test_pretaining"]  = total_dic_test
 
         if args_complete_trainer["complete_trainer"] is ordinaryTraining :
-            return final_path, trainer, loader, dic_list
+            return final_path, trainer_ordinary, loader, dic_list
             
 
                 
@@ -359,7 +361,9 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         post_hoc_guidance = post_hoc_guidance,
         post_hoc = args_train["post_hoc"],
         argmax_post_hoc = args_train["argmax_post_hoc"],
-    )
+        ratio_class_selection = args_train["ratio_class_selection"],
+        ordinaryTraining = trainer_ordinary,
+        )
 
     if args_train["use_cuda"]:
         trainer.cuda()

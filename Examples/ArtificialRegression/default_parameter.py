@@ -126,9 +126,10 @@ def get_default():
     args_train["nb_epoch"] = 10 # Training the complete model
     args_train["nb_epoch_post_hoc"] = 0 # Training post_hoc
     args_train["nb_epoch_pretrain_selector"] = 0 # Pretrain selector
-    args_train["nb_epoch_pretrain"] = 2 # Training the complete model 
+    args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
     args_train["nb_sample_z_train_monte_carlo"] = 1
     args_train["nb_sample_z_train_IWAE"] = 1  # Number K in the IWAE-similar loss
+    args_train["ratio_class_selection"] = None # Ratio of training with only classification compared to selection
     args_train["print_every"] = 1
 
     args_train["sampling_subset_size"] = 2 # Sampling size for the subset 
