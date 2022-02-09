@@ -117,7 +117,7 @@ class NoDestructionImputation(Imputation):
 
 
 
-class SelectionAsInput(Imputation):
+class MaskAsInput(Imputation):
   def __init__(self, nb_imputation = 1, reconstruction_reg = None, mask_reg = None,
                add_mask = False, post_process_regularization = None, **kwargs,
              ):
@@ -127,7 +127,6 @@ class SelectionAsInput(Imputation):
   def imputation_function(self, data, mask, index = None):
     return mask
 
-  
 class ConstantImputation(Imputation):
   def __init__(self, cste = 0, nb_imputation = 1,
                reconstruction_reg = None, mask_reg = None,
@@ -148,6 +147,23 @@ class ConstantImputation(Imputation):
     data_imputed = data *  mask + (1-mask) * self.cste 
     return data_imputed
 
+class MultipleConstantImputation(Imputation):
+  def __init__(self, cste_list_dim = [-2, 2], nb_imputation = 1,
+               reconstruction_reg = None, mask_reg = None,
+               add_mask = False, post_process_regularization = None, **kwargs):
+
+    super().__init__(nb_imputation = nb_imputation, reconstruction_reg=reconstruction_reg,
+                    mask_reg=mask_reg, add_mask= add_mask, post_process_regularization=post_process_regularization,)
+
+    self.cste_list_dim = nn.parameter.Parameter(torch.tensor(cste_list_dim), requires_grad=False)
+
+  def has_constant(self):
+    return False
+
+
+  def imputation_function(self, data, mask, index = None):
+    data_imputed = data *  mask + (1-mask) * self.cste_list_dim
+    return data_imputed
 
 
 class NoiseImputation(Imputation):
@@ -193,7 +209,7 @@ class SumImpute(Imputation):
                       post_process_regularization=post_process_regularization,)
       
   def imputation_function(self, data, mask, index = None):
-      return torch.sum(data * mask, axis=1)
+      return torch.sum(data * mask, axis=-1)
    
 
 class ModuleImputation(Imputation):

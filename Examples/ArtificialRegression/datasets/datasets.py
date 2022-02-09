@@ -143,11 +143,11 @@ def gen_multivariate(n, d, max_sel_dim = 2, sigma = 0.25, prob_simplify = 0.2, m
 
     return X_real, Y_real, S, shapes
 
-def generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_samples = 20):
+def generate_distribution_local(centroids_X, centroids_Y, optimal_S, sigma, nb_samples = 20):
     nb_point, nb_dim = centroids_X.shape
 
     augmented_X = centroids_X.unsqueeze(1).expand(-1, nb_samples, -1).flatten(0,1)
-    new_S_reshaped = new_S.unsqueeze(1).expand(-1,nb_samples,-1).flatten(0,1)
+    optimal_S_reshaped = optimal_S.unsqueeze(1).expand(-1,nb_samples,-1).flatten(0,1)
 
     Y = centroids_Y.unsqueeze(-1).expand(-1, nb_samples).flatten(0,1)
     X = augmented_X + torch.normal(torch.zeros_like(augmented_X), std = sigma)
@@ -155,22 +155,22 @@ def generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_sampl
     # X = X.type(torch.float32)
 
     
-    return X,Y, new_S_reshaped
+    return X,Y, optimal_S_reshaped
 
-def generate_distribution(centroids_X, centroids_Y, new_S, sigma, nb_sample_train = 20, nb_sample_test = 20):
-  X_train, Y_train, new_S_train = generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_sample_train)
-  X_test, Y_test, new_S_test = generate_distribution_local(centroids_X, centroids_Y, new_S, sigma, nb_sample_test) 
+def generate_distribution(centroids_X, centroids_Y, optimal_S, sigma, nb_sample_train = 20, nb_sample_test = 20):
+  X_train, Y_train, optimal_S_train = generate_distribution_local(centroids_X, centroids_Y, optimal_S, sigma, nb_sample_train)
+  X_test, Y_test, optimal_S_test = generate_distribution_local(centroids_X, centroids_Y, optimal_S, sigma, nb_sample_test) 
 
-  return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
+  return X_train, Y_train, optimal_S_train, X_test, Y_test, optimal_S_test
 
 
 def redraw_dependency(S, nb_dim):
   nb_shape = len(S)
-  new_S = torch.zeros((nb_shape, nb_dim))
+  optimal_S = torch.zeros((nb_shape, nb_dim))
   for k in range(len(S)):
-    new_S[k, S[k]] = torch.ones(len(S[k]))
+    optimal_S[k, S[k]] = torch.ones(len(S[k]))
 
-  return new_S
+  return optimal_S
  
 
 
@@ -203,6 +203,8 @@ class CircleDataset():
         self.nb_sample_test = nb_sample_test
         self.noise = noise
         self.factor = factor
+        self.optimal_S_train = None
+        self.optimal_S_test = None
      
         total_samples = self.nb_sample_train + self.nb_sample_test
         test_size = self.nb_sample_test/float(total_samples)
@@ -297,6 +299,8 @@ class ArtificialDataset():
         self.give_index = give_index
         self.noise_function = noise_function
         self.batch_size_calculate = 100
+        self.optimal_S_train = None
+        self.optimal_S_test = None
 
     def get_true_output(self, value, mask = None, index=None, dataset_type = None):
         raise NotImplementedError("Using abstract class ArtificialDataset")
@@ -329,7 +333,6 @@ class ArtificialDataset():
 
         
             if k*self.batch_size_calculate == len(X):
-  
                 continue
 
             batch_size = X_batch.shape[0]
@@ -494,9 +497,9 @@ class HypercubeDataset(ArtificialDataset):
         if not self.give_index :
             raise AttributeError("You need to give the index in the distribution if you want to use true Selection as input of a model")
         if train_dataset :
-            true_S = self.new_S_train
+            true_S = self.optimal_S_train
         else :
-            true_S = self.new_S_test
+            true_S = self.optimal_S_test
         true_S_value = true_S[index]
         return true_S_value
 
@@ -614,9 +617,9 @@ class LinearDataset(ArtificialDataset):
         if not self.give_index :
             raise AttributeError("You need to give the index in the distribution if you want to use true Selection as input of a model")
         if train_dataset :
-            true_S = self.new_S_train
+            true_S = self.optimal_S_train
         else :
-            true_S = self.new_S_test
+            true_S = self.optimal_S_test
 
         if index.is_cuda :
             true_S = true_S.cuda()
@@ -661,9 +664,9 @@ class StandardGaussianDataset(ArtificialDataset):
         if not self.give_index :
             raise AttributeError("You need to give the index in the distribution if you want to use true Selection as input of a model")
         if train_dataset :
-            true_S = self.new_S_train
+            true_S = self.optimal_S_train
         else :
-            true_S = self.new_S_test
+            true_S = self.optimal_S_test
 
         if index.is_cuda :
             true_S = true_S.cuda()
@@ -729,7 +732,7 @@ class S_1(StandardGaussianDataset):
         print(f"Given sigma is {self.sigma}")
         self.nb_dim = 11
         self.nb_classes = 2
-        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbA, getProb2=getProbB)
+        self.X_train, self.Y_train, self.optimal_S_train, self.X_test, self.Y_test, self.optimal_S_test = generate(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbA, getProb2=getProbB)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
 
@@ -740,7 +743,7 @@ class S_2(StandardGaussianDataset):
         print(f"Given sigma is {self.sigma}")
         self.nb_dim = 11
         self.nb_classes = 2
-        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbA, getProb2=getProbC)
+        self.X_train, self.Y_train, self.optimal_S_train, self.X_test, self.Y_test, self.optimal_S_test = generate(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbA, getProb2=getProbC)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
 
@@ -750,7 +753,7 @@ class S_3(StandardGaussianDataset):
         self.nb_dim = 11
         self.nb_classes = 2
         print(f"Given sigma is {self.sigma}")
-        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbB, getProb2=getProbC)
+        self.X_train, self.Y_train, self.optimal_S_train, self.X_test, self.Y_test, self.optimal_S_test = generate(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbB, getProb2=getProbC)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
 
@@ -770,17 +773,17 @@ def generate_XOR(sigma, nb_sample_train, nb_sample_test,):
 
     Y = torch.Bernoulli(prob_test).sample()
     Y_train,  Y_test = Y[:nb_sample_train], Y[nb_sample_train:]
-    new_S_train = torch.cat([torch.ones((nb_sample_train, 2)),torch.zeros((nb_sample_train, 8))], axis=1)
-    new_S_test = torch.cat([torch.ones((nb_sample_test, 2)),torch.zeros((nb_sample_test, 8))], axis=1)
+    optimal_S_train = torch.cat([torch.ones((nb_sample_train, 2)),torch.zeros((nb_sample_train, 8))], axis=1)
+    optimal_S_test = torch.cat([torch.ones((nb_sample_test, 2)),torch.zeros((nb_sample_test, 8))], axis=1)
 
-    return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
+    return X_train, Y_train, optimal_S_train, X_test, Y_test, optimal_S_test
 
 class XOR(StandardGaussianDataset):
     def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
 
         super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
         print(f"Given sigma is {self.sigma}")
-        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generate_XOR(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
+        self.X_train, self.Y_train, self.optimal_S_train, self.X_test, self.Y_test, self.optimal_S_test = generate_XOR(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
 
@@ -801,17 +804,17 @@ def generateOrangeSkin(sigma, nb_sample_train, nb_sample_test,):
 
     Y = torch.Bernoulli(prob_test).sample()
     Y_train,  Y_test = Y[:nb_sample_train], Y[nb_sample_train:]
-    new_S_train = torch.cat([torch.ones((nb_sample_train, 4)),torch.zeros((nb_sample_train, 6))], axis=1)
-    new_S_test = torch.cat([torch.ones((nb_sample_test, 4)),torch.zeros((nb_sample_test, 6))], axis=1)
+    optimal_S_train = torch.cat([torch.ones((nb_sample_train, 4)),torch.zeros((nb_sample_train, 6))], axis=1)
+    optimal_S_test = torch.cat([torch.ones((nb_sample_test, 4)),torch.zeros((nb_sample_test, 6))], axis=1)
 
 
-    return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
+    return X_train, Y_train, optimal_S_train, X_test, Y_test, optimal_S_test
 
 class OrangeSkin(StandardGaussianDataset):
     def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
         super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function=noise_function, **kwargs)
         print(f"Given sigma is {self.sigma}")
-        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generateOrangeSkin(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
+        self.X_train, self.Y_train, self.optimal_S_train, self.X_test, self.Y_test, self.optimal_S_test = generateOrangeSkin(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
 
@@ -832,17 +835,17 @@ def generateNonLinearAdditiveModel(sigma, nb_sample_train, nb_sample_test,):
 
     Y = torch.Bernoulli(prob_test).sample()
     Y_train,  Y_test = Y[:nb_sample_train], Y[nb_sample_train:]
-    new_S_train = torch.cat([torch.ones((nb_sample_train, 2)),torch.zeros((nb_sample_train, 8))], axis=1)
-    new_S_test = torch.cat([torch.ones((nb_sample_test, 2)),torch.zeros((nb_sample_test, 8))], axis=1)
+    optimal_S_train = torch.cat([torch.ones((nb_sample_train, 2)),torch.zeros((nb_sample_train, 8))], axis=1)
+    optimal_S_test = torch.cat([torch.ones((nb_sample_test, 2)),torch.zeros((nb_sample_test, 8))], axis=1)
 
 
-    return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
+    return X_train, Y_train, optimal_S_train, X_test, Y_test, optimal_S_test
 
 class NonLinearAdditiveModel(StandardGaussianDataset):
     def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
         super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function= noise_function, **kwargs)
         print(f"Given sigma is {self.sigma}")
-        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generateNonLinearAdditiveModel(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
+        self.X_train, self.Y_train, self.optimal_S_train, self.X_test, self.Y_test, self.optimal_S_test = generateNonLinearAdditiveModel(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
 
@@ -883,22 +886,22 @@ def generateSwitchFeature(sigma, nb_sample_train, nb_sample_test,): # In the swi
     Y = torch.Bernoulli(prob_test).sample()
     Y_train,  Y_test = Y[:nb_sample_train], Y[nb_sample_train:]
     
-    new_S_train= torch.zeros((nb_sample_train, 10))
-    new_S_train[:nb_sample_train_1, :4] = 1
-    new_S_train[nb_sample_train_1:, 4:-1] = 0
+    optimal_S_train= torch.zeros((nb_sample_train, 10))
+    optimal_S_train[:nb_sample_train_1, :4] = 1
+    optimal_S_train[nb_sample_train_1:, 4:-1] = 0
 
-    new_S_test= torch.zeros((nb_sample_test, 10))
-    new_S_test[:nb_sample_test_1, :4] = 1
-    new_S_test[nb_sample_test_1:, 4:-1] = 0
+    optimal_S_test= torch.zeros((nb_sample_test, 10))
+    optimal_S_test[:nb_sample_test_1, :4] = 1
+    optimal_S_test[nb_sample_test_1:, 4:-1] = 0
 
-    return X_train, Y_train, new_S_train, X_test, Y_test, new_S_test
+    return X_train, Y_train, optimal_S_train, X_test, Y_test, optimal_S_test
   
 
 class SwitchFeature(StandardGaussianDataset):
     def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
         super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function= noise_function, **kwargs)
         print(f"Given sigma is {self.sigma}")
-        self.X_train, self.Y_train, self.new_S_train, self.X_test, self.Y_test, self.new_S_test = generateSwitchFeature(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
+        self.X_train, self.Y_train, self.optimal_S_train, self.X_test, self.Y_test, self.optimal_S_test = generateSwitchFeature(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
         self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test, give_index = self.give_index)
     

@@ -333,6 +333,37 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         if args_complete_trainer["complete_trainer"] is ordinaryTraining :
             return final_path, trainer_ordinary, loader, dic_list
             
+    ##### ======================= Training in selection ==========================:
+
+    selection_module = SelectionModule(selector,
+                    activation=args_selection["activation"],
+                    regularization=regularization,
+                    )
+
+    if args_train["nb_epoch_pretrain_selector"] > 0 :
+        selection_trainer = selectionTraining(selection_module,)
+        optim_selection, scheduler_selection = get_optim(selection_module, args_compiler["optim_selection"], args_compiler["scheduler_selection"])
+        selection_trainer.compile(optim_selection=optim_selection, scheduler_selection = scheduler_selection,)
+        nb_epoch = args_train["nb_epoch_pretrain_selector"]
+    
+        if args_train["use_cuda"]:
+            selection_trainer.cuda()
+
+        if loader.dataset.optimal_S_train is None or loader.dataset.optimal_S_test is None :
+            raise AttributeError("optimal_S_train or optimal_S_test not define for this dataset")
+
+        total_dic_train = {}
+        total_dic_test = {}
+        for epoch in range(int(nb_epoch)):
+            dic_train = selection_trainer.train_epoch(epoch, loader, save_dic = True,)
+            if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
+                dic_test = selection_trainer.test(loader) 
+            total_dic_train = fill_dic(total_dic_train, dic_train)
+            total_dic_test = fill_dic(total_dic_test, dic_test)
+            
+        dic_list["train_selection_pretraining"] = total_dic_train
+        dic_list["test_selection_pretaining"]  = total_dic_test
+
 
                 
 
@@ -341,15 +372,8 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
    
 
 
-    selection_module = SelectionModule(selector,
-                        activation=args_selection["activation"],
-                        regularization=regularization,
-                        )
-
     classification_module = ClassificationModule(classifier, imputation=imputation)
     
-
-
     trainer = args_complete_trainer["complete_trainer"](
         classification_module,
         selection_module,

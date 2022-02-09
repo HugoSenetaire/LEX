@@ -477,7 +477,7 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
 
   if centroids is not None :
     if imputed_centroids :
-      centroids_masks = dataset.new_S
+      centroids_masks = dataset.optimal_S
       imputation = trainer.classification_module.imputation
       centroids, _ = imputation.impute(centroids, centroids_masks)    
 
@@ -566,7 +566,7 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
 def calculate_score(trainer, loader,):
   X_test = loader.dataset.X_test.type(torch.float32)
   Y_test = loader.dataset.Y_test.type(torch.float32)
-  new_S_test = loader.dataset.new_S_test.type(torch.float32)
+  optimal_S_test = loader.dataset.optimal_S_test.type(torch.float32)
 
 
   selection_module = trainer.selection_module.cpu()
@@ -594,7 +594,7 @@ def calculate_score(trainer, loader,):
 
 
   Y_test = Y_test.detach().cpu().numpy()
-  new_S_test = new_S_test.detach().cpu().numpy()
+  optimal_S_test = optimal_S_test.detach().cpu().numpy()
 
   dic = {}
   dic["accuracy_classic"] = 1 - np.mean(np.abs(np.argmax(pred_classic, axis=1) - Y_test))
@@ -606,14 +606,14 @@ def calculate_score(trainer, loader,):
   dic["CPFSelection"] = np.sum(np.exp(log_pi_list[:,10]) > 0.5)/len(log_pi_list)
   dic["CPFR_rate"] = np.mean(np.exp(log_pi_list[:,10]))
 
-  fpr, tpr, thresholds = sklearn.metrics.roc_curve(new_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1),)
+  fpr, tpr, thresholds = sklearn.metrics.roc_curve(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1),)
   
   dic["fpr"] = fpr
   dic["tpr"] = tpr
   dic["thresholds"] = thresholds
 
   sel_pred = (np.exp(log_pi_list) >0.5).astype(int).reshape(-1)
-  sel_true = new_S_test.reshape(-1)
+  sel_true = optimal_S_test.reshape(-1)
   fp = np.sum((sel_pred == 1) & (sel_true == 0))
   tp = np.sum((sel_pred == 1) & (sel_true == 1))
 
@@ -627,8 +627,8 @@ def calculate_score(trainer, loader,):
   dic["fpr2"] = fpr
   dic["tpr2"] = tpr
 
-  dic["selection_auroc"] = sklearn.metrics.roc_auc_score(new_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
-  dic["selection_accuracy"] = 1 - np.mean(np.abs(new_S_test.reshape(-1) - np.round(np.exp(log_pi_list.reshape(-1)))))
+  dic["selection_auroc"] = sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
+  dic["selection_accuracy"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.round(np.exp(log_pi_list.reshape(-1)))))
   dic["mean_selection"] = np.mean(np.exp(log_pi_list), axis=0)
 
 

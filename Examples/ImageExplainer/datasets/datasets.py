@@ -14,6 +14,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 
 
+
 default_MNIST_transform = torchvision.transforms.Compose([
                                     torchvision.transforms.ToTensor(),
                                     torchvision.transforms.Normalize(
@@ -159,34 +160,6 @@ class MnistDataset():
 
 
 
-
-# class MnistVariation1quadrant(MnistDataset):
-#     def __init__(self,
-#             root: str,
-#             train: bool = True,
-#             transform = None,
-#             target_transform = None,
-#             download: bool = False,
-#             noisy: bool = False,
-#             noise_function = None,
-#             rate = 0.5,
-#     ) :
-#         super().__init__(root, train, transform, target_transform, download, noisy, noise_function)
-#         self.data_aux = []
-#         middle_size_x, middle_size_y = int(np.shape(self.data[0])[-2]/2),int(np.shape(self.data[0])[-1]/2) 
-#         for element in self.data:
-#             self.data_aux.append(element)
-#             if np.random.random_sample((0))>rate :
-#                 continue
-#             index_new = np.random.randint(self.__len__())
-#             img_new = self.data[index_new]
-
-#             self.data_aux[-1][middle_size_x:, middle_size_y:] = img_new[middle_size_x:, middle_size_y:]
-#         self.data = self.data_aux
-           
-#     def __str__(self):
-#         return "MnistVariation1quadrant"
-
 class DatasetFromData(Dataset):
     def __init__(self, data, target, transforms = None, target_transforms = None, give_index = False, noise_function = None) -> None:
         self.data = data
@@ -195,6 +168,8 @@ class DatasetFromData(Dataset):
         self.target_transforms = target_transforms
         self.noise_function = noise_function
         self.give_index = give_index
+        self.optimal_S_train = None
+        self.optimal_S_test = None
 
     def __len__(self):
         return len(self.data)
@@ -310,12 +285,16 @@ class MNIST_and_FASHIONMNIST():
         self.data_test += torch.normal(0, 0.2, size = self.data_test.shape)
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
         self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+        self.optimal_S_train = self.quadrant_train
+        self.optimal_S_test = self.quadrant_test
+
 
     def get_dim_input(self,):
         return (1,28,56)
 
     def get_dim_output(self,):
         return 10
+
 
     def __str__(self):
         return "Mnist_and_FashionMNIST"
@@ -405,6 +384,8 @@ class FASHIONMNIST_and_MNIST():
         # plt.show()
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
         self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+        self.optimal_S_train = self.quadrant_train
+        self.optimal_S_test = self.quadrant_test
 
     def get_dim_input(self,):
         return (1,28,56)
@@ -427,6 +408,9 @@ class MNISTImageBackground():
             download: bool = False,
             noise_function = None,
             **kwargs,):
+
+        self.optimal_S_train = None
+        self.optimal_S_test = None
         
         self.ground_truth = False
 
@@ -465,6 +449,9 @@ class MNISTNoiseBackground():
             download: bool = False,
             noise_function = None,
             **kwargs,):
+
+        self.optimal_S_train = None
+        self.optimal_S_test = None
 
         path_train = os.path.join(root_dir, "mnist_background_random_train.pkl")
         path_test = os.path.join(root_dir, "mnist_background_random_test.pkl")
@@ -507,7 +494,12 @@ class FashionMNISTDataset(torchvision.datasets.FashionMNIST):
             noisy: bool = False,
             noise_function = None,
     ) :
+
+
         super().__init__(root, train, transform, target_transform, download)
+
+        self.optimal_S_train = None
+        self.optimal_S_test = None
         self.noisy = noisy
         self.noise_function = noise_function
 

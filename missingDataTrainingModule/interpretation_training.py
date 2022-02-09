@@ -163,11 +163,9 @@ class SELECTION_BASED_CLASSIFICATION():
             for batch_idx, data in enumerate(loader.train_loader):
                 data, target, index = parse_batch(data)
                 if (batch_idx + init_number) % (step_only_selection+1) == 0 :
-                    print("ORDINARY")
                     dic = self.ordinaryTraining._train_step(data, target, loader.dataset, index=index)
                    
                 else :
-                    print("Selection")
                     dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
                     if batch_idx % print_batch_every == 0 :
                         if verbose :
