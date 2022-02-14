@@ -341,7 +341,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
                     )
 
     if args_train["nb_epoch_pretrain_selector"] > 0 :
-        selection_trainer = selectionTraining(selection_module,)
+        selection_trainer = selectionTraining(selection_module, args_train["use_regularization_pretrain_selector"])
         optim_selection, scheduler_selection = get_optim(selection_module, args_compiler["optim_selection"], args_compiler["scheduler_selection"])
         selection_trainer.compile(optim_selection=optim_selection, scheduler_selection = scheduler_selection,)
         nb_epoch = args_train["nb_epoch_pretrain_selector"]
@@ -382,6 +382,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         distribution_module = distribution_module,
         reshape_mask_function = args_complete_trainer["reshape_mask_function"],
         fix_classifier_parameters = args_train["fix_classifier_parameters"],
+        fix_selector_parameters = args_train["fix_selector_parameters"],
         post_hoc_guidance = post_hoc_guidance,
         post_hoc = args_train["post_hoc"],
         argmax_post_hoc = args_train["argmax_post_hoc"],

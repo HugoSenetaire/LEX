@@ -19,6 +19,7 @@ class SELECTION_BASED_CLASSIFICATION():
                 baseline = None,
                 reshape_mask_function = None,
                 fix_classifier_parameters = False,
+                fix_selector_parameters = False,
                 post_hoc = False,
                 post_hoc_guidance = None,
                 argmax_post_hoc = False,
@@ -45,6 +46,7 @@ class SELECTION_BASED_CLASSIFICATION():
 
       
         self.fix_classifier_parameters = fix_classifier_parameters
+        self.fix_selector_parameters = fix_selector_parameters
         self.post_hoc_guidance = post_hoc_guidance
         self.post_hoc = post_hoc
         self.argmax_post_hoc = argmax_post_hoc
@@ -74,15 +76,17 @@ class SELECTION_BASED_CLASSIFICATION():
 
     def compile(self, optim_classification, optim_selection, scheduler_classification = None, scheduler_selection = None, optim_baseline = None, scheduler_baseline = None, optim_distribution_module = None, scheduler_distribution_module = None, **kwargs):
         self.optim_classification = optim_classification
+        if self.optim_classification is None :
+            self.fix_classifier_parameters = True
         self.scheduler_classification = scheduler_classification
         self.optim_selection = optim_selection
+        if self.optim_selection is None :
+            self.fix_selector_parameters = True
         self.scheduler_selection = scheduler_selection
         self.optim_distribution_module = optim_distribution_module
         self.scheduler_distribution_module = scheduler_distribution_module
 
         self.compiled = True
-
-
 
     def zero_grad(self):
         self.classification_module.zero_grad()
@@ -122,12 +126,14 @@ class SELECTION_BASED_CLASSIFICATION():
         assert(self.compiled)
         if (not self.fix_classifier_parameters) and (self.optim_classification is not None) :
            self.optim_classification.step()
-        self.optim_selection.step()
+        if (not self.fix_selector_parameters) and (self.optim_selection is not None) :
+            self.optim_selection.step()
         if self.optim_distribution_module is not None :
             self.optim_distribution_module.step()
-
-    
+   
     def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose=True):
+        if self.fix_classifier_parameters and self.fix_selector_parameters :
+            raise AttributeError("You can't train if both classifiers and selectors are fixed.")
         assert(self.compiled)
         self.train()
         total_dic = {}
@@ -212,8 +218,6 @@ class SELECTION_BASED_CLASSIFICATION():
         return neg_likelihood
 
 
-
-
     def _create_dic(self, loss_total, neg_likelihood, mse_loss, pi_list, loss_rec = None, loss_reg = None, loss_selection = None, ):
         # dic = super()._create_dic(loss_total, neg_likelihood, mse_loss)
         dic = {}
@@ -238,7 +242,6 @@ class SELECTION_BASED_CLASSIFICATION():
         return dic
 
     
-
     def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, need_dic = False):
         self.zero_grad()
 
@@ -267,7 +270,7 @@ class SELECTION_BASED_CLASSIFICATION():
                         )
 
         loss_s, loss_f = self.monte_carlo_gradient_estimator(cost_calculation, pi_list, nb_sample_z_monte_carlo)
-
+        
         if self.monte_carlo_gradient_estimator.combined_grad_f_s :
             loss_total = loss_reg + loss_s # How to treat differently for REINFORCE or REPARAM ?
         else :
@@ -329,14 +332,11 @@ class SELECTION_BASED_CLASSIFICATION():
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=-1) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32))
 
         return neg_likelihood
-
-
-        
-    
+  
 
     def test(self, loader, nb_sample_z = 10):
-        test_loss_mse = 0
-        test_loss_likelihood = 0
+        mse_loss = 0
+        neg_likelihood = 0
         correct_classic = 0
         correct_post_hoc = 0
         correct_destructed = 0
@@ -361,7 +361,7 @@ class SELECTION_BASED_CLASSIFICATION():
                 log_pi_list, _ = self.selection_module(data)
                 pi_list_total.append(torch.exp(log_pi_list).cpu().numpy())
                 self.distribution_module(torch.exp(log_pi_list))
-                z= self.distribution_module.sample((nb_sample_z,))
+                z = self.distribution_module.sample((nb_sample_z,))
                 z = self.reshape(z)
                 
 
@@ -380,21 +380,21 @@ class SELECTION_BASED_CLASSIFICATION():
                 log_y_hat_destructed, _ = self.classification_module(data_expanded.flatten(0,1), z, index = index_expanded_flatten)
                 
                 log_y_hat_destructed = log_y_hat_destructed.reshape(nb_sample_z, batch_size, loader.dataset.get_dim_output())
-                log_y_hat_iwae = torch.logsumexp(log_y_hat_destructed,0) - torch.log(torch.tensor(nb_sample_z).type(torch.float32))
                 log_y_hat_mean = torch.mean(log_y_hat_destructed, axis=0)
                 index = torch.where(torch.any(torch.isnan(log_y_hat_destructed), axis=-1))[1]
 
-                test_loss_likelihood += F.nll_loss(log_y_hat_destructed.flatten(0,1),target_expanded.flatten(0,1))
-                test_loss_mse += torch.mean(torch.sum((torch.exp(log_y_hat_mean)-one_hot_target)**2,1))
+                neg_likelihood += F.nll_loss(log_y_hat_destructed.flatten(0,1),target_expanded.flatten(0,1), reduce=False).reshape((nb_sample_z, batch_size)).mean(0).sum()
+                mse_loss += torch.sum(torch.sum((torch.exp(log_y_hat_mean)-one_hot_target)**2,1))
 
                 pred_destructed = torch.argmax(log_y_hat_mean, dim=1)
                 correct_destructed += pred_destructed.eq(target).sum()
 
 
 
-            test_loss_mse /= len(loader.test_loader.dataset) * batch_size
+            mse_loss /= len(loader.test_loader.dataset) 
+            neg_likelihood /= len(loader.test_loader.dataset) 
             print('\nTest set: MSE: {:.4f}, Likelihood {:.4f}, Accuracy No selection: {}/{} ({:.0f}%), Accuracy selection: {}/{} ({:.0f}%), Accuracy PostHoc: {}/{} ({:.0f}%),'.format(
-                -test_loss_likelihood.item(), test_loss_mse.item(),
+                 mse_loss.item(), -neg_likelihood.item(),
                  correct_classic.item(), len(loader.test_loader.dataset),100. * correct_classic.item() / len(loader.test_loader.dataset),
                  correct_destructed.item(), len(loader.test_loader.dataset), 100. * correct_destructed.item() / len(loader.test_loader.dataset),
                  correct_post_hoc, len(loader.test_loader.dataset), 100. * correct_post_hoc / len(loader.test_loader.dataset),
@@ -402,8 +402,8 @@ class SELECTION_BASED_CLASSIFICATION():
             print("\n")
             total_dic = self._create_dic_test(correct_destructed/len(loader.test_loader.dataset),
                 correct_classic/len(loader.test_loader.dataset),
-                test_loss_likelihood,
-                test_loss_mse,
+                neg_likelihood,
+                mse_loss,
                 pi_list_total,
                 correct_post_hoc=correct_post_hoc)
 
@@ -505,24 +505,24 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             self.zero_grad()
 
 
+        if not self.fix_selector_parameters :
+            cost_calculation = partial(self.calculate_cost,
+                            data_expanded_multiple_imputation = data_expanded_multiple_imputation,
+                            target_expanded_multiple_imputation = target_expanded_multiple_imputation,
+                            index_expanded_multiple_imputation = index_expanded_multiple_imputation,
+                            one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
+                            dim_output = dataset.get_dim_output(),
+                            )
 
-        cost_calculation = partial(self.calculate_cost,
-                        data_expanded_multiple_imputation = data_expanded_multiple_imputation,
-                        target_expanded_multiple_imputation = target_expanded_multiple_imputation,
-                        index_expanded_multiple_imputation = index_expanded_multiple_imputation,
-                        one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
-                        dim_output = dataset.get_dim_output(),
-                        )
-
-        loss_s, _ = self.monte_carlo_gradient_estimator(cost_calculation, pi_list, nb_sample_z_monte_carlo)
+            loss_s, _ = self.monte_carlo_gradient_estimator(cost_calculation, pi_list, nb_sample_z_monte_carlo)
 
 
-        loss_total = loss_reg + loss_s # How to treat differently for REINFORCE or REPARAM ?
+            loss_total = loss_reg + loss_s # How to treat differently for REINFORCE or REPARAM ?
 
-        torch.mean(loss_total).backward()
-        self.optim_selection.step()
-        if self.optim_distribution_module is not None :
-            self.optim_distribution_module.step()
+            torch.mean(loss_total).backward()
+            self.optim_selection.step()
+            if self.optim_distribution_module is not None :
+                self.optim_distribution_module.step()
 
         if need_dic :
             if self.fix_classifier_parameters :

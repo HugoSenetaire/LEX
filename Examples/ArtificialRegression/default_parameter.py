@@ -126,6 +126,7 @@ def get_default():
     args_train["nb_epoch"] = 10 # Training the complete model
     args_train["nb_epoch_post_hoc"] = 0 # Training post_hoc
     args_train["nb_epoch_pretrain_selector"] = 0 # Pretrain selector
+    args_train["use_regularization_pretrain_selector"] = False # Use regularization when pretraining the selector
     args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
     args_train["nb_sample_z_train_monte_carlo"] = 1
     args_train["nb_sample_z_train_IWAE"] = 1  # Number K in the IWAE-similar loss
@@ -157,6 +158,6 @@ def get_default():
     args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9)
     
     args_test = {}
-    args_test["nb_sample_z_test"] = 1
+    args_test["nb_sample_z_test"] = 10
 
     return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler

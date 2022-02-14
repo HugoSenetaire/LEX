@@ -1,10 +1,13 @@
+from missingDataTrainingModule.Classification import classification_module
 from .utils_missing import *
 import torch.nn.functional as F
 
 
 class selectionTraining():
-    def __init__(self, selection_module,):    
+    def __init__(self, selection_module, use_reg = False):    
         self.selection_module = selection_module
+        self.use_reg = use_reg
+
         self.compiled = False
         self.use_cuda = False
 
@@ -22,9 +25,13 @@ class selectionTraining():
             self.use_cuda = True
        
 
-    def _create_dic(self, mse_loss):
+    def _create_dic(self, mse_loss, loss_reg = None):
         dic = {}
         dic["mse_loss"] = mse_loss.item()
+        if loss_reg is not None :
+            dic["loss_reg"] = loss_reg.item()
+        else :
+            dic["loss_reg"] = 0
         return dic
 
     def _create_dic_test(self, correct, mse_loss):
@@ -44,11 +51,18 @@ class selectionTraining():
         self.zero_grad()
         if self.use_cuda :
             data, target, index = on_cuda(data, target, index)
-        log_pi_list, _ = self.selection_module(data,)
+        
+        log_pi_list, loss_reg = self.selection_module(data,)
 
-        mse_loss = F.mse_loss(torch.exp(log_pi_list), target)
-        dic = self._create_dic(mse_loss, )
-        mse_loss.backward()
+        mse_loss = F.mse_loss(torch.exp(log_pi_list), target, reduction='mean')
+
+        if self.use_reg :
+            dic = self._create_dic(mse_loss, loss_reg)
+            (mse_loss + loss_reg).backward()
+        else :
+            dic = self._create_dic(mse_loss, )
+            mse_loss.backward()
+
         self.optim_selection.step()
         return dic
 
