@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle as pkl
 
 
 
@@ -27,8 +28,8 @@ def save_dic(path, dic):
     if not os.path.exists(path):
         os.makedirs(path)
 
-    with open(os.path.join(path,"results_dic.txt"), "w") as f:
-        f.write(str(dic))
+    with open(os.path.join(path, "results_dic.pkl"), "wb") as f:
+        pkl.dump(dic, f)
 
     for key in dic.keys():
         table = dic[key]
@@ -37,4 +38,3 @@ def save_dic(path, dic):
         plt.savefig(os.path.join(path,str(key)+".jpg"))
         plt.clf()
 
-    
