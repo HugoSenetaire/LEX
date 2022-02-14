@@ -136,6 +136,7 @@ def get_default():
     args_train["sampling_subset_size"] = 2 # Sampling size for the subset 
     args_train["use_cuda"] = torch.cuda.is_available()
     args_train["fix_classifier_parameters"] = False
+    args_train["fix_selector_parameters"] = False
     args_train["post_hoc"] = False
     args_train["argmax_post_hoc"] = False
     args_train["post_hoc_guidance"] = None
