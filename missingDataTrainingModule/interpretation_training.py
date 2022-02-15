@@ -42,8 +42,6 @@ class SELECTION_BASED_CLASSIFICATION():
         self.post_hoc = post_hoc
         self.argmax_post_hoc = argmax_post_hoc
 
-        if self.post_hoc and self.fix_classifier_parameters and self.post_hoc_guidance is None :
-            raise AttributeError("Using no surrogate in post hoc, but the classifier is fixed. Either provide a guidance function for the surrogate to be trained in the 'onlypred step' or free the classifier parameters")
               
 
         # I am not sure the following line is necessary, something is already done in optim step
