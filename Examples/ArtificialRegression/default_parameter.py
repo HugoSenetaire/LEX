@@ -117,7 +117,17 @@ def get_default():
     args_distribution_module["antitheis_sampling"] = False 
 
 
-
+    
+    args_classification_distribution_module = {}
+    args_classification_distribution_module["distribution_module"] = PytorchDistributionUtils.wrappers.FixedBernoulli
+    args_classification_distribution_module["distribution"] = Bernoulli
+    args_classification_distribution_module["distribution_relaxed"] = RelaxedBernoulli
+    args_classification_distribution_module["temperature_init"] = 0.1
+    args_classification_distribution_module["test_temperature"] = 0.0
+    args_classification_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler
+    args_classification_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
+    args_classification_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
+    args_classification_distribution_module["antitheis_sampling"] = False 
 
 
 
@@ -130,7 +140,12 @@ def get_default():
     args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
     args_train["nb_sample_z_train_monte_carlo"] = 1
     args_train["nb_sample_z_train_IWAE"] = 1  # Number K in the IWAE-similar loss
-    args_train["ratio_class_selection"] = None # Ratio of training with only classification compared to selection
+
+    args_train["training_type"] = "classic" # Options are ["classic", "alternate_ordinary", "alternate_fixing"]
+    args_train["nb_step_fixed_classifier"] = 1 # Options for alternate fixing (number of step with fixed classifier)
+    args_train["nb_step_fixed_selector"] = 1 # Options for alternate fixing (number of step with fixed selector)
+    args_train["nb_step_all_free"] = 1 # Options for alternate fixing (number of step with all free)
+    args_train["ratio_class_selection"] = 1.0 # Options for alternate ordinary Ratio of training with only classification compared to selection
     args_train["print_every"] = 1
 
     args_train["sampling_subset_size"] = 2 # Sampling size for the subset 
@@ -161,4 +176,4 @@ def get_default():
     args_test = {}
     args_test["nb_sample_z_test"] = 10
 
-    return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler
+    return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, args_classification_distribution_module

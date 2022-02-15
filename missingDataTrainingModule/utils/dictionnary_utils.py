@@ -31,6 +31,9 @@ def save_dic(path, dic):
     with open(os.path.join(path, "results_dic.pkl"), "wb") as f:
         pkl.dump(dic, f)
 
+    with open(os.path.join(path,"results_dic.txt"), "w") as f:
+        f.write(str(dic))
+
     for key in dic.keys():
         table = dic[key]
         plt.figure(0)

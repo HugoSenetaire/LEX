@@ -142,9 +142,23 @@ def check_parameters_compatibility(args_classification, args_selection, args_dis
         and args_selection["activation"] != torch.nn.LogSoftmax() :
         raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
     
+def get_training_method(trainer, args_train, ordinaryTraining ):
+    if args_train["training_type"] == "classic" :  # Options are ["classic", "alternate_ordinary", "alternate_fixing"]
+        return trainer.classic_train_epoch
+    elif args_train["training_type"] == "alternate_ordinary" :
+        return partial(trainer.alternate_ordinary_train_epoch, ratio_class_selection = args_train["ratio_class_selection"], ordinaryTraining = ordinaryTraining)
+    elif args_train["training_type"] == "alternate_fixing" :
+        return partial(trainer.alternate_fixing_train_epoch, 
+                nb_step_fixed_classifier = args_train["nb_step_fixed_classifier"],
+                nb_step_fixed_selector = args_train["nb_step_fixed_selector"],
+                nb_step_all_free = args_train["nb_step_all_free"],
+                )
+    else :
+        raise ValueError(f"Training type {args_train['training_type']} is not implemented")
+    
 
 
-def experiment(dataset, loader, args_output, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = False):
+def experiment(dataset, loader, args_output, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, args_classification_distribution_module, name_modification = False):
     torch.random.manual_seed(0)
     dic_list = {}
 
@@ -188,6 +202,8 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
     ## Sampling :
     distribution_module = get_distribution_module_from_args(args_distribution_module)
+    classification_distribution_module = get_distribution_module_from_args(args_classification_distribution_module)
+    
 
     ### Imputation :
     imputation = get_imputation_method(args_classification, dataset)
@@ -241,8 +257,8 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     ##### ============ Modules initialisation for ordinary training ============:
 
     trainer_ordinary = None
-    if (args_complete_trainer["complete_trainer"] is EVAL_X) or (args_complete_trainer["complete_trainer"] is REALX and (args_train["nb_epoch_pretrain"] > 0 or args_train["ratio_class_selection"] is not None)) :
-        
+    if (args_complete_trainer["complete_trainer"] is EVAL_X) or (args_complete_trainer["complete_trainer"] is REALX) :
+
         # if os.path.exists(os.path.join(args_output["path"], "weightsClassifier.pt")):
         #     print(classifier)
 
@@ -272,10 +288,13 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             optim_classification, scheduler_classification = get_optim(classification_module, args_compiler["optim_classification"], args_compiler["scheduler_classification"])
             trainer_ordinary.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
             
-
+            if args_complete_trainer["complete_trainer"] is EVAL_X :
+                nb_epoch = args_train["nb_epoch"]
+            else :
+                nb_epoch = args_train["nb_epoch_pretrain"]
             total_dic_train = {}
             total_dic_test = {}
-            for epoch in range(args_train["nb_epoch_pretrain"]):
+            for epoch in range(nb_epoch):
                 dic_train = trainer_ordinary.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],)
                 if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == args_train["nb_epoch_pretrain"]-1:
                     dic_test = trainer_ordinary.test(loader,)
@@ -288,10 +307,8 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
             if args_complete_trainer["complete_trainer"] is EVAL_X:
                 return final_path, trainer_ordinary, loader, dic_list
-            # with open( os.path.join(args_output["path"], "weightsClassifier.pt"), 'wb') as f:
-                # torch.save(classifier.state_dict(), f)
 
-    elif args_complete_trainer["complete_trainer"] is ordinaryTraining or args_train["nb_epoch_pretrain"]>0 or args_train["ratio_class_selection"] is not None : 
+    elif args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is SELECTION_BASED_CLASSIFICATION : 
         if args_complete_trainer["complete_trainer"] is ordinaryTraining :
             nb_epoch = int(args_train["nb_epoch"])
             post_hoc_guidance_ordinary = post_hoc_guidance
@@ -373,21 +390,19 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
 
     classification_module = ClassificationModule(classifier, imputation=imputation)
-    
     trainer = args_complete_trainer["complete_trainer"](
         classification_module,
         selection_module,
         monte_carlo_gradient_estimator = args_complete_trainer["monte_carlo_gradient_estimator"],
         baseline = baseline,
         distribution_module = distribution_module,
+        classification_distribution_module = classification_distribution_module,
         reshape_mask_function = args_complete_trainer["reshape_mask_function"],
         fix_classifier_parameters = args_train["fix_classifier_parameters"],
         fix_selector_parameters = args_train["fix_selector_parameters"],
         post_hoc_guidance = post_hoc_guidance,
         post_hoc = args_train["post_hoc"],
         argmax_post_hoc = args_train["argmax_post_hoc"],
-        ratio_class_selection = args_train["ratio_class_selection"],
-        ordinaryTraining = trainer_ordinary,
         )
 
     if args_train["use_cuda"]:
@@ -417,7 +432,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     total_dic_train = {}
     total_dic_test = {}
     for epoch in range(args_train["nb_epoch"]):
-        dic_train = trainer.train_epoch(
+        dic_train = get_training_method(trainer, args_train, trainer_ordinary)(
             epoch, loader,
             save_dic = True,
             nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],

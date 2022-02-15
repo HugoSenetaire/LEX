@@ -23,8 +23,7 @@ class SELECTION_BASED_CLASSIFICATION():
                 post_hoc = False,
                 post_hoc_guidance = None,
                 argmax_post_hoc = False,
-                ratio_class_selection = None,
-                ordinaryTraining = None,):
+                **kwargs):
 
         self.classification_module = classification_module
         self.selection_module = selection_module
@@ -35,14 +34,6 @@ class SELECTION_BASED_CLASSIFICATION():
         self.use_cuda = False
         self.compiled = False
 
-        self.ratio_class_selection = ratio_class_selection
-        self.ordinaryTraining = ordinaryTraining
-        if self.ratio_class_selection is not None :
-            if self.ordinaryTraining is None :
-                raise AttributeError("ratio_class_selection is not None but ordinaryTraining is None, nothing is defined for the ratio")
-            else :
-                if not self.ordinaryTraining.compiled :
-                    raise AttributeError("ratio_class_selection is not None but ordinaryTraining is not compiled")
 
       
         self.fix_classifier_parameters = fix_classifier_parameters
@@ -51,7 +42,7 @@ class SELECTION_BASED_CLASSIFICATION():
         self.post_hoc = post_hoc
         self.argmax_post_hoc = argmax_post_hoc
 
-        if self.ratio_class_selection is not None and self.post_hoc and self.fix_classifier_parameters and self.post_hoc_guidance is None :
+        if self.post_hoc and self.fix_classifier_parameters and self.post_hoc_guidance is None :
             raise AttributeError("Using no surrogate in post hoc, but the classifier is fixed. Either provide a guidance function for the surrogate to be trained in the 'onlypred step' or free the classifier parameters")
               
 
@@ -125,13 +116,15 @@ class SELECTION_BASED_CLASSIFICATION():
     def optim_step(self):
         assert(self.compiled)
         if (not self.fix_classifier_parameters) and (self.optim_classification is not None) :
-           self.optim_classification.step()
+            self.optim_classification.step()
         if (not self.fix_selector_parameters) and (self.optim_selection is not None) :
             self.optim_selection.step()
         if self.optim_distribution_module is not None :
             self.optim_distribution_module.step()
-   
-    def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose=True):
+
+    def alternate_fixing_train_epoch(self, epoch, loader, nb_step_fixed_classifier = 1, nb_step_fixed_selector = 1, nb_step_all_free = 1, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose = True, **kwargs):
+
+        assert np.any(np.array([nb_step_fixed_classifier, nb_step_fixed_selector, nb_step_all_free])>0)
         if self.fix_classifier_parameters and self.fix_selector_parameters :
             raise AttributeError("You can't train if both classifiers and selectors are fixed.")
         assert(self.compiled)
@@ -139,38 +132,69 @@ class SELECTION_BASED_CLASSIFICATION():
         total_dic = {}
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
 
-        if self.ratio_class_selection is None :
-            for batch_idx, data in enumerate(loader.train_loader):
-                data, target, index = parse_batch(data)
-                dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
-                if batch_idx % print_batch_every == 0 :
-                    if verbose :
-                        print_dic(epoch, batch_idx, dic, loader)
-                    if save_dic :
-                        total_dic = save_dic_helper(total_dic, dic)
+        total_program = nb_step_fixed_classifier + nb_step_fixed_selector + nb_step_all_free
+        init_number = np.random.randint(0, total_program+1)
+        for batch_idx, data in enumerate(loader.train_loader):
+            data, target, index = parse_batch(data)
+            if (batch_idx + init_number) % total_program < nb_step_fixed_classifier :
+                self.fix_classifier_parameters = True
+                self.fix_selector_parameters = False
+            elif (batch_idx + init_number) % total_program < nb_step_fixed_classifier + nb_step_fixed_selector :
+                self.fix_classifier_parameters = False
+                self.fix_selector_parameters = True
+            else :
+                self.fix_classifier_parameters = False
+                self.fix_selector_parameters = False
 
-        elif self.ratio_class_selection >=1 :
-            step_only_pred = self.ratio_class_selection
-            init_number = np.random.randint(0, step_only_pred+1) # Just changing which part of the dataset is used for ordinary training and the others. TODO, there might be a more interesting way to do this, inside the dataloader for instance ?
+            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+            if batch_idx % print_batch_every == 0 :
+                if verbose :
+                    print_dic(epoch, batch_idx, dic, loader)
+                if save_dic :
+                    total_dic = save_dic_helper(total_dic, dic)
+                    self.scheduler_step()    
+        return total_dic
+
+    
+    def alternate_ordinary_train_epoch(self, epoch, loader, ratio_class_selection = 2, ordinaryTraining=None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose = True, **kwargs):
+        
+        if ordinaryTraining is None :
+            raise AttributeError("ratio_class_selection is not None but ordinaryTraining is None, nothing is defined for the ratio")
+        else :
+            if not ordinaryTraining.compiled :
+                raise AttributeError("ratio_class_selection is not None but ordinaryTraining is not compiled")
+        assert ratio_class_selection>0
+        if self.fix_classifier_parameters and self.fix_selector_parameters :
+            raise AttributeError("You can't train if both classifiers and selectors are fixed.")
+        assert(self.compiled)
+        self.train()
+        total_dic = {}
+        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
+
+        if ratio_class_selection >=1 :
+            ratio_step = max(np.round(ratio_class_selection), 1)
+            init_number = np.random.randint(0, ratio_step+1) # Just changing which part of the dataset is used for ordinary training and the others. TODO, there might be a more interesting way to do this, inside the dataloader for instance ?
+            for batch_idx, data in enumerate(loader.train_loader):
+                    data, target, index = parse_batch(data)
+                    if (batch_idx + init_number) % (ratio_step+1) == 0 :
+                        dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+                        if batch_idx % print_batch_every == 0 :
+                            if verbose :
+                                print_dic(epoch, batch_idx, dic, loader)
+                            if save_dic :
+                                total_dic = save_dic_helper(total_dic, dic)
+                    else :
+                        dic = ordinaryTraining._train_step(data, target, loader.dataset, index=index)
+        else :
+            step_only_pred = np.round(1./ratio_class_selection).astype(int)
+            init_number = np.random.randint(0, step_only_pred+1)
             for batch_idx, data in enumerate(loader.train_loader):
                 data, target, index = parse_batch(data)
                 if (batch_idx + init_number) % (step_only_pred+1) == 0 :
-                    dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+                    dic = ordinaryTraining._train_step(data, target, loader.dataset, index=index)
                     if batch_idx % print_batch_every == 0 :
                         if verbose :
                             print_dic(epoch, batch_idx, dic, loader)
-                        if save_dic :
-                            total_dic = save_dic_helper(total_dic, dic)
-                else :
-                    dic = self.ordinaryTraining._train_step(data, target, loader.dataset, index=index)
-        else :
-            step_only_selection = np.round(1./self.ratio_class_selection).astype(int)
-            init_number = np.random.randint(0, step_only_selection+1)
-            for batch_idx, data in enumerate(loader.train_loader):
-                data, target, index = parse_batch(data)
-                if (batch_idx + init_number) % (step_only_selection+1) == 0 :
-                    dic = self.ordinaryTraining._train_step(data, target, loader.dataset, index=index)
-                   
                 else :
                     dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
                     if batch_idx % print_batch_every == 0 :
@@ -178,9 +202,27 @@ class SELECTION_BASED_CLASSIFICATION():
                             print_dic(epoch, batch_idx, dic, loader)
                         if save_dic :
                             total_dic = save_dic_helper(total_dic, dic)
+        
+        self.scheduler_step()    
+        return total_dic
+
+    def classic_train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose=True, **kwargs):
+        if self.fix_classifier_parameters and self.fix_selector_parameters :
+            raise AttributeError("You can't train if both classifiers and selectors are fixed.")
+        assert(self.compiled)
+        self.train()
+        total_dic = {}
+        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
 
 
-
+        for batch_idx, data in enumerate(loader.train_loader):
+            data, target, index = parse_batch(data)
+            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+            if batch_idx % print_batch_every == 0 :
+                if verbose :
+                    print_dic(epoch, batch_idx, dic, loader)
+                if save_dic :
+                    total_dic = save_dic_helper(total_dic, dic)
 
         self.scheduler_step()    
         return total_dic
@@ -410,7 +452,6 @@ class SELECTION_BASED_CLASSIFICATION():
         return total_dic
 
     def _create_dic_test(self, correct, correct_no_selection, neg_likelihood, test_loss, pi_list_total, correct_post_hoc = None):
-        # total_dic = super()._create_dic_test(correct_no_selection, neg_likelihood, test_loss)
         total_dic = {}
         total_dic["correct_no_selection"] = correct_no_selection.item()
         total_dic["neg_likelihood"] = neg_likelihood.item()
@@ -436,6 +477,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
                 baseline = None,
                 reshape_mask_function = None,
                 fix_classifier_parameters = False,
+                fix_selector_parameters = False,
                 post_hoc = False,
                 post_hoc_guidance = None,
                 argmax_post_hoc = False,
@@ -449,6 +491,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
                         baseline = baseline,
                         reshape_mask_function = reshape_mask_function,
                         fix_classifier_parameters = fix_classifier_parameters,
+                        fix_selector_parameters = fix_selector_parameters,
                         post_hoc = post_hoc,
                         post_hoc_guidance = post_hoc_guidance,
                         argmax_post_hoc = argmax_post_hoc,
@@ -461,7 +504,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         self.classification_distribution_module = classification_distribution_module
 
 
-    def _train_step(self, data, target, dataset, index = None,  nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1, need_dic = False):
+    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1, need_dic = False):
         self.zero_grad()
         nb_imputation = self.classification_module.imputation.nb_imputation
         if self.monte_carlo_gradient_estimator.fix_n_mc :
@@ -480,65 +523,53 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
 
 
         #### TRAINING CLASSIFICATION :
+        
+        # Train classification module :
+        p_z = self.classification_distribution_module(pi_list)
+        z = self.classification_distribution_module.sample(sample_shape = (nb_sample_z_monte_carlo,))
+        z = self.reshape(z)
+        
+
+
+        # Selection Module :
+        loss_classification = self.calculate_cost(mask_expanded = z,
+                        data_expanded_multiple_imputation = data_expanded_multiple_imputation,
+                        target_expanded_multiple_imputation = target_expanded_multiple_imputation,
+                        index_expanded_multiple_imputation = index_expanded_multiple_imputation,
+                        one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
+                        dim_output = dataset.get_dim_output(),
+                        )
+
+        loss_classification = loss_classification.mean(axis = 0)
+
         if not self.fix_classifier_parameters :
-            
-            # Train classification module :
-            p_z = self.classification_distribution_module(log_pi_list)
-            z = self.classification_distribution_module.sample(sample_shape = (nb_sample_z_monte_carlo,))
-            z = self.reshape(z)
-            
-            # Classification module :
-
-
-            # Selection Module :
-            loss_classification = self.calculate_cost(mask_expanded = z,
-                            data_expanded_multiple_imputation = data_expanded_multiple_imputation,
-                            target_expanded_multiple_imputation = target_expanded_multiple_imputation,
-                            index_expanded_multiple_imputation = index_expanded_multiple_imputation,
-                            one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
-                            dim_output = dataset.get_dim_output(),
-                            )
-
-            loss_classification = loss_classification.mean(axis = 0)
             torch.mean(loss_classification, axis=0).backward()
             self.optim_classification.step()
             self.zero_grad()
 
 
+        cost_calculation = partial(self.calculate_cost,
+                        data_expanded_multiple_imputation = data_expanded_multiple_imputation,
+                        target_expanded_multiple_imputation = target_expanded_multiple_imputation,
+                        index_expanded_multiple_imputation = index_expanded_multiple_imputation,
+                        one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
+                        dim_output = dataset.get_dim_output(),
+                        )
+
+        loss_s, neg_likelihood = self.monte_carlo_gradient_estimator(cost_calculation, pi_list, nb_sample_z_monte_carlo)
+
+
+        loss_total = loss_reg + loss_s #  How to treat differently for REINFORCE or REPARAM ?
         if not self.fix_selector_parameters :
-            cost_calculation = partial(self.calculate_cost,
-                            data_expanded_multiple_imputation = data_expanded_multiple_imputation,
-                            target_expanded_multiple_imputation = target_expanded_multiple_imputation,
-                            index_expanded_multiple_imputation = index_expanded_multiple_imputation,
-                            one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
-                            dim_output = dataset.get_dim_output(),
-                            )
-
-            loss_s, _ = self.monte_carlo_gradient_estimator(cost_calculation, pi_list, nb_sample_z_monte_carlo)
-
-
-            loss_total = loss_reg + loss_s # How to treat differently for REINFORCE or REPARAM ?
-
             torch.mean(loss_total).backward()
             self.optim_selection.step()
             if self.optim_distribution_module is not None :
                 self.optim_distribution_module.step()
 
         if need_dic :
-            if self.fix_classifier_parameters :
-                
-                dic = self._create_dic(loss_total = torch.mean(loss_s+loss_reg),
-                                    neg_likelihood= torch.tensor(0.0).type(torch.float32),
-                                    mse_loss= torch.tensor(0.0).type(torch.float32),
-                                    loss_rec = torch.tensor(0.0).type(torch.float32),
-                                    loss_reg = torch.mean(loss_reg),
-                                    loss_selection = torch.mean(loss_s),
-                                    pi_list = torch.exp(log_pi_list))
-                
-            else :
-                dic = self._create_dic(loss_total = torch.mean(loss_total + loss_classification),
-                                    neg_likelihood= torch.mean(loss_classification),
-                                    mse_loss= torch.tensor(0.0).type(torch.float32),
+            dic = self._create_dic(loss_total = torch.mean(loss_s + loss_reg + loss_classification),
+                                    neg_likelihood = torch.mean(neg_likelihood),
+                                    mse_loss = torch.tensor(0.0).type(torch.float32),
                                     loss_rec = torch.mean(loss_classification),
                                     loss_reg = torch.mean(loss_reg),
                                     loss_selection = torch.mean(loss_s),
