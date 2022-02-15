@@ -17,16 +17,21 @@ from functools import partial
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-def save_parameters(path, args_classification, args_selection, args_complete_trainer, args_train, args_test, args_output, args_compiler):
+def save_parameters(path, args_classification, args_selection, args_distribution, args_complete_trainer, args_train, args_test, args_output, args_compiler, args_classification_distribution):
     complete_path = os.path.join(path, "parameters")
     if not os.path.exists(complete_path):
         os.makedirs(complete_path)
+
+
 
     with open(os.path.join(complete_path,"classification.txt"), "w") as f:
         f.write(str(args_classification))
     
     with open(os.path.join(complete_path,"selection.txt"), "w") as f:
         f.write(str(args_selection))
+
+    with open(os.path.join(complete_path, "distribution_module.txt"), "w") as f:
+        f.write(str(args_distribution))
 
     with open(os.path.join(complete_path,"complete_trainer.txt"), "w") as f:
         f.write(str(args_complete_trainer))
@@ -42,6 +47,9 @@ def save_parameters(path, args_classification, args_selection, args_complete_tra
 
     with open(os.path.join(complete_path,"compiler.txt"), "w") as f:
         f.write(str(args_compiler))
+
+    with open(os.path.join(complete_path, "classification_distribution_module.txt"), "w") as f:
+        f.write(str(args_classification_distribution))
 
 def comply_size(dataset, args_classification, args_selection, args_complete_trainer):
     dim_shape = dataset.get_dim_input()
@@ -188,11 +196,14 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
     save_parameters(final_path, args_classification = args_classification,
                     args_selection = args_selection,
+                    args_distribution= args_distribution_module,
                     args_complete_trainer= args_complete_trainer,
                     args_train = args_train,
                     args_test = args_test,
                     args_output=args_output,
-                    args_compiler=args_compiler)
+                    args_compiler=args_compiler,
+                    args_classification_distribution=args_classification_distribution_module,
+                    )
     
 
     ### Datasets :
