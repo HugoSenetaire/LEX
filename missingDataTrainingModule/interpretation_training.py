@@ -425,8 +425,9 @@ class SELECTION_BASED_CLASSIFICATION():
                 log_y_hat_mean = torch.mean(log_y_hat_destructed, axis=0)
                 index = torch.where(torch.any(torch.isnan(log_y_hat_destructed), axis=-1))[1]
 
+
                 neg_likelihood += F.nll_loss(log_y_hat_destructed.flatten(0,1), target_expanded.flatten(0,1), reduce=False).reshape((nb_sample_z, batch_size)).mean(0).sum()
-                mse_loss += F.mse_loss(torch.exp(log_y_hat_mean.flatten(0,1)), one_hot_target_expanded.flatten(0,1), reduce=False).reshape((nb_sample_z, batch_size)).mean(0).sum()
+                mse_loss += F.mse_loss(torch.exp(log_y_hat_destructed.flatten(0,1)), one_hot_target_expanded.flatten(0,1), reduce=False).sum(-1).reshape((nb_sample_z, batch_size)).mean(0).sum()
 
                 mse_loss_from_mean += torch.sum(torch.sum((torch.exp(log_y_hat_mean)-one_hot_target)**2,1))
                 neg_likelihood_from_mean += F.nll_loss(log_y_hat_mean, target, reduce='sum')
