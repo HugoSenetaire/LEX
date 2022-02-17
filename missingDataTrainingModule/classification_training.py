@@ -157,6 +157,47 @@ class ordinaryTraining():
         return total_dic
 
 
+
+class trueSelectionTraining(ordinaryTraining):
+    def __init__(self, classification_module, post_hoc = False, post_hoc_guidance = None, argmax_post_hoc = False,):   
+        super().__init__(classification_module, post_hoc, post_hoc_guidance, argmax_post_hoc)
+
+    def _train_step(self, data, true_mask, target, dataset, index=None):
+        self.zero_grad()
+
+        
+        data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
+        log_y_hat, _ = self.classification_module(data, index= index, mask = true_mask)
+
+        # neg_likelihood = F.nll_loss(log_y_hat, target)
+        neg_likelihood = self._calculate_neg_likelihood(data, index, log_y_hat, target)
+        loss = torch.mean(neg_likelihood)
+        dic = self._create_dic(loss, torch.mean(neg_likelihood), )
+        loss.backward()
+        self.optim_classification.step()
+        return dic
+
+    def train_epoch(self, epoch, loader,  save_dic = False, verbose = False,):
+        self.train()
+
+        total_dic = {}
+        for batch_idx, data in enumerate(loader.train_loader):
+            data, target, index = parse_batch(data)
+            true_mask = loader.dataset.optimal_S_train[index].type(torch.float32)
+            dic = self._train_step(data, true_mask, target, loader.dataset, index=index)
+
+            if batch_idx % 100 == 0 :
+                if verbose :
+                    print_dic(epoch, batch_idx, dic, loader)
+                if save_dic :
+                    total_dic = save_dic_helper(total_dic, dic)
+        
+        if self.scheduler_classification is not None :
+            self.scheduler_classification.step()
+        
+        return total_dic
+
+
 class EVAL_X(ordinaryTraining):
     def __init__(self, classification_module, fixed_distribution = PytorchDistributionUtils.wrappers.FixedBernoulli(),
                 reshape_mask_function = None, post_hoc = False, post_hoc_guidance = None, argmax_post_hoc = False,):

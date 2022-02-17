@@ -375,7 +375,9 @@ class SELECTION_BASED_CLASSIFICATION():
   
 
     def test(self, loader, nb_sample_z = 10):
+        mse_loss_from_mean = 0
         mse_loss = 0
+        neg_likelihood_from_mean= 0
         neg_likelihood = 0
         correct_classic = 0
         correct_post_hoc = 0
@@ -423,8 +425,11 @@ class SELECTION_BASED_CLASSIFICATION():
                 log_y_hat_mean = torch.mean(log_y_hat_destructed, axis=0)
                 index = torch.where(torch.any(torch.isnan(log_y_hat_destructed), axis=-1))[1]
 
-                neg_likelihood += F.nll_loss(log_y_hat_destructed.flatten(0,1),target_expanded.flatten(0,1), reduce=False).reshape((nb_sample_z, batch_size)).mean(0).sum()
-                mse_loss += torch.sum(torch.sum((torch.exp(log_y_hat_mean)-one_hot_target)**2,1))
+                neg_likelihood += F.nll_loss(log_y_hat_destructed.flatten(0,1), target_expanded.flatten(0,1), reduce=False).reshape((nb_sample_z, batch_size)).mean(0).sum()
+                mse_loss += F.mse_loss(torch.exp(log_y_hat_mean.flatten(0,1)), one_hot_target_expanded.flatten(0,1), reduce=False).reshape((nb_sample_z, batch_size)).mean(0).sum()
+
+                mse_loss_from_mean += torch.sum(torch.sum((torch.exp(log_y_hat_mean)-one_hot_target)**2,1))
+                neg_likelihood_from_mean += F.nll_loss(log_y_hat_mean, target, reduce='sum')
 
                 pred_destructed = torch.argmax(log_y_hat_mean, dim=1)
                 correct_destructed += pred_destructed.eq(target).sum()
@@ -444,16 +449,20 @@ class SELECTION_BASED_CLASSIFICATION():
                 correct_classic/len(loader.test_loader.dataset),
                 neg_likelihood,
                 mse_loss,
+                neg_likelihood_from_mean,
+                mse_loss_from_mean,
                 pi_list_total,
                 correct_post_hoc=correct_post_hoc)
 
         return total_dic
 
-    def _create_dic_test(self, correct, correct_no_selection, neg_likelihood, test_loss, pi_list_total, correct_post_hoc = None):
+    def _create_dic_test(self, correct, correct_no_selection, neg_likelihood, mse_loss, neg_likelihood_from_mean, mse_loss_from_mean, pi_list_total, correct_post_hoc = None):
         total_dic = {}
-        total_dic["correct_no_selection"] = correct_no_selection.item()
+        total_dic["accuracy_prediction_no_selection"] = correct_no_selection.item()
         total_dic["neg_likelihood"] = neg_likelihood.item()
-        total_dic["test_loss"] = test_loss.item()
+        total_dic["mse_loss"] = mse_loss.item()
+        total_dic["neg_likelihood_from_mean"] = neg_likelihood_from_mean.item()
+        total_dic["mse_loss_from_mean"] = mse_loss_from_mean.item()
         treated_pi_list_total = np.concatenate(pi_list_total)
         total_dic["mean_pi_list"] = np.mean(treated_pi_list_total).item()
         total_dic["accuracy_prediction_selection"] = correct.item()
