@@ -1,7 +1,7 @@
 from sched import scheduler
 import torch
 
-from .classification_training import ordinaryTraining, EVAL_X
+from .classification_training import ordinaryTraining, EVAL_X, trueSelectionTraining
 from .interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
 from .selection_training import selectionTraining
 from .utils import *
@@ -101,7 +101,8 @@ def get_imputation_method(args_classification, dataset):
     return imputation
 
 def get_distribution_module_from_args(args_distribution_module):
-    assert(args_distribution_module["distribution"] is not None)
+    if args_distribution_module["distribution_module"] is None :
+        return None
     distribution_module = args_distribution_module["distribution_module"](**args_distribution_module)
     return distribution_module
 
@@ -319,8 +320,8 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             if args_complete_trainer["complete_trainer"] is EVAL_X:
                 return final_path, trainer_ordinary, loader, dic_list
 
-    elif args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is SELECTION_BASED_CLASSIFICATION : 
-        if args_complete_trainer["complete_trainer"] is ordinaryTraining :
+    else :
+        if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trueSelectionTraining :
             nb_epoch = int(args_train["nb_epoch"])
             post_hoc_guidance_ordinary = post_hoc_guidance
             post_hoc_ordinary = args_train["post_hoc"]
@@ -333,12 +334,19 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
         vanilla_classification_module = ClassificationModule(classifier,  imputation = imputation)
 
-        
-        trainer_ordinary = ordinaryTraining(vanilla_classification_module, 
-                                post_hoc_guidance = post_hoc_guidance_ordinary,
-                                post_hoc = post_hoc_ordinary,
-                                argmax_post_hoc = args_train["argmax_post_hoc"],
+        if args_complete_trainer["complete_trainer"] is trueSelectionTraining :
+            trainer_ordinary = ordinaryTraining(vanilla_classification_module, 
+                                    post_hoc_guidance = post_hoc_guidance_ordinary,
+                                    post_hoc = post_hoc_ordinary,
+                                    argmax_post_hoc = args_train["argmax_post_hoc"],
+                                    )
+        else :
+            trainer_ordinary = trueSelectionTraining(vanilla_classification_module,
+                                    post_hoc_guidance = post_hoc_guidance_ordinary,
+                                    post_hoc = post_hoc_ordinary,
+                                    argmax_post_hoc = args_train["argmax_post_hoc"],
                                 )
+
         if args_train["use_cuda"]:
             trainer_ordinary.cuda()
 
@@ -358,7 +366,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         dic_list["train_pretraining"] = total_dic_train
         dic_list["test_pretaining"]  = total_dic_test
 
-        if args_complete_trainer["complete_trainer"] is ordinaryTraining :
+        if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trueSelectionTraining :
             return final_path, trainer_ordinary, loader, dic_list
             
     ##### ======================= Training in selection ==========================:
