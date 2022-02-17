@@ -563,73 +563,87 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
 
 ##  Accuracy of the experiments :
 
+
+
 def calculate_score(trainer, loader,):
   X_test = loader.dataset.X_test.type(torch.float32)
   Y_test = loader.dataset.Y_test.type(torch.float32)
   optimal_S_test = loader.dataset.optimal_S_test.type(torch.float32)
 
-
-  selection_module = trainer.selection_module.cpu()
-  distribution_module = trainer.distribution_module.cpu()
+  if hasattr(trainer, "selection_module"):
+    selection_module = trainer.selection_module.cpu()
+    distribution_module = trainer.distribution_module.cpu()
+    selection_module.eval()
+    distribution_module.eval()
+    selection_evaluation = True
+  else :
+    selection_evaluation = False
   classification_module = trainer.classification_module.cpu()
 
-  selection_module.eval()
-  distribution_module.eval()
+
   classification_module.eval()
 
 
   with torch.no_grad():
-    log_pi_list, _ = selection_module(X_test)
-    distribution_module(torch.exp(log_pi_list))
-    z = distribution_module.sample((1,))
-    z = trainer.reshape(z)
+    if selection_evaluation :
+      log_pi_list, _ = selection_module(X_test)
+      distribution_module(torch.exp(log_pi_list))
+      z = distribution_module.sample((1,))
+      z = trainer.reshape(z)
+      log_y_hat, _ = classification_module(X_test, z, index=None)
+      pred_classic = torch.exp(log_y_hat).detach().cpu().numpy()
+      log_pi_list = log_pi_list.detach().cpu().numpy()
 
-    log_y_hat, _ = classification_module(X_test, z, index=None)
-    pred_classic = torch.exp(log_y_hat).detach().cpu().numpy()
+
+    log_y_hat_true_selection, _ = classification_module(X_test, optimal_S_test, index = None, )
+    pred_true_selection = torch.exp(log_y_hat_true_selection).detach().cpu().numpy()
 
     log_y_hat_no_selection, _ = classification_module(X_test, index = None)
     pred_no_selection = torch.exp(log_y_hat_no_selection).detach().numpy()
-
-    log_pi_list = log_pi_list.detach().cpu().numpy()
 
 
   Y_test = Y_test.detach().cpu().numpy()
   optimal_S_test = optimal_S_test.detach().cpu().numpy()
 
   dic = {}
-  dic["accuracy_classic"] = 1 - np.mean(np.abs(np.argmax(pred_classic, axis=1) - Y_test))
-  dic["accuracy_classic_no_selection"] = 1 - np.mean(np.abs(np.argmax(pred_no_selection, axis=1) - Y_test))
+  if selection_evaluation:
+    dic["accuracy"] = 1 - np.mean(np.abs(np.argmax(pred_classic, axis=1) - Y_test))
+    dic["auroc"] = sklearn.metrics.roc_auc_score(Y_test, pred_classic[:,1])
 
-  dic["auroc"] = sklearn.metrics.roc_auc_score(Y_test, pred_classic[:,1])
+  dic["accuracy_true_selection"] = 1 - np.mean(np.abs(np.argmax(pred_true_selection, axis=1) - Y_test))
+  dic["auroc_true_selection"] = sklearn.metrics.roc_auc_score(Y_test, pred_true_selection[:,1])
+  dic["accuracy_no_selection"] = 1 - np.mean(np.abs(np.argmax(pred_no_selection, axis=1) - Y_test))
   dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(Y_test, pred_no_selection[:,1])
 
-  dic["CPFSelection"] = np.sum(np.exp(log_pi_list[:,10]) > 0.5)/len(log_pi_list)
-  dic["CPFR_rate"] = np.mean(np.exp(log_pi_list[:,10]))
 
-  fpr, tpr, thresholds = sklearn.metrics.roc_curve(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1),)
-  
-  dic["fpr"] = fpr
-  dic["tpr"] = tpr
-  dic["thresholds"] = thresholds
+  if selection_evaluation:
+    dic["CPFSelection"] = np.sum(np.exp(log_pi_list[:,10]) > 0.5)/len(log_pi_list)
+    dic["CPFR_rate"] = np.mean(np.exp(log_pi_list[:,10]))
 
-  sel_pred = (np.exp(log_pi_list) >0.5).astype(int).reshape(-1)
-  sel_true = optimal_S_test.reshape(-1)
-  fp = np.sum((sel_pred == 1) & (sel_true == 0))
-  tp = np.sum((sel_pred == 1) & (sel_true == 1))
+    fpr, tpr, thresholds = sklearn.metrics.roc_curve(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1),)
+    
+    dic["fpr"] = fpr
+    dic["tpr"] = tpr
+    dic["thresholds"] = thresholds
 
-  fn = np.sum((sel_pred == 0) & (sel_true == 1))
-  tn = np.sum((sel_pred == 0) & (sel_true == 0))
+    sel_pred = (np.exp(log_pi_list) >0.5).astype(int).reshape(-1)
+    sel_true = optimal_S_test.reshape(-1)
+    fp = np.sum((sel_pred == 1) & (sel_true == 0))
+    tp = np.sum((sel_pred == 1) & (sel_true == 1))
 
-  fpr = fp / (fp + tn)
-  tpr = tp / (tp + fn)
+    fn = np.sum((sel_pred == 0) & (sel_true == 1))
+    tn = np.sum((sel_pred == 0) & (sel_true == 0))
+
+    fpr = fp / (fp + tn)
+    tpr = tp / (tp + fn)
 
 
-  dic["fpr2"] = fpr
-  dic["tpr2"] = tpr
+    dic["fpr2"] = fpr
+    dic["tpr2"] = tpr
 
-  dic["selection_auroc"] = sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
-  dic["selection_accuracy"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.round(np.exp(log_pi_list.reshape(-1)))))
-  dic["mean_selection"] = np.mean(np.exp(log_pi_list), axis=0)
+    dic["selection_auroc"] = sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
+    dic["selection_accuracy"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.round(np.exp(log_pi_list.reshape(-1)))))
+    dic["mean_selection"] = np.mean(np.exp(log_pi_list), axis=0)
 
 
   return dic
