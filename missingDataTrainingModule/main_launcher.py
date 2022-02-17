@@ -335,13 +335,13 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         vanilla_classification_module = ClassificationModule(classifier,  imputation = imputation)
 
         if args_complete_trainer["complete_trainer"] is trueSelectionTraining :
-            trainer_ordinary = ordinaryTraining(vanilla_classification_module, 
+            trainer_ordinary = trueSelectionTraining(vanilla_classification_module, 
                                     post_hoc_guidance = post_hoc_guidance_ordinary,
                                     post_hoc = post_hoc_ordinary,
                                     argmax_post_hoc = args_train["argmax_post_hoc"],
                                     )
         else :
-            trainer_ordinary = trueSelectionTraining(vanilla_classification_module,
+            trainer_ordinary = ordinaryTraining(vanilla_classification_module,
                                     post_hoc_guidance = post_hoc_guidance_ordinary,
                                     post_hoc = post_hoc_ordinary,
                                     argmax_post_hoc = args_train["argmax_post_hoc"],
