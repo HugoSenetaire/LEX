@@ -74,6 +74,8 @@ class selectionTraining():
         for batch_idx, data in enumerate(loader.train_loader):
             input, _, index = parse_batch(data)
             target = loader.dataset.optimal_S_train[index].type(torch.float32)
+            if self.use_cuda :
+                target = on_cuda(target)
             dic = self._train_step(input, target, loader.dataset, index=index)
 
             if batch_idx % 100 == 0 :
