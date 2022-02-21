@@ -63,18 +63,18 @@ class ordinaryTraining():
             self.use_cuda = True
        
 
-    def _create_dic(self,loss, neg_likelihood, neg_likelihood_no_selection = None, ):
+    def _create_dic(self, loss, neg_likelihood, neg_likelihood_no_selection = None, ):
         dic = {}
-        dic["likelihood"] = -neg_likelihood.item()
+        dic["neg_likelihood"] = neg_likelihood.item()
         dic["total_loss"] = loss.item()
         if neg_likelihood_no_selection is not None :
-            dic["likelihood_no_selection"] = -neg_likelihood_no_selection.item()
+            dic["neg_likelihood_no_selection"] = neg_likelihood_no_selection.item()
         return dic
 
     def _create_dic_test(self, correct, neg_likelihood, mse_loss):
         dic = {}
         dic["accuracy_prediction_no_selection"] = correct.item()
-        dic["likelihood"] = -neg_likelihood.item()
+        dic["neg_likelihood"] = neg_likelihood.item()
         dic["mse"] = mse_loss.item()
         return dic
 
@@ -88,15 +88,14 @@ class ordinaryTraining():
     def _train_step(self, data, target, dataset, index = None):
         self.zero_grad()
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
+        batch_size = data.shape[0]
         log_y_hat, _ = self.classification_module(data, index= index)
 
-        # neg_likelihood = F.nll_loss(log_y_hat, target)
-        neg_likelihood = self._calculate_neg_likelihood(data, index, log_y_hat, target)
+        neg_likelihood = self._calculate_neg_likelihood(data, index, log_y_hat, target).reshape(batch_size)
         loss = torch.mean(neg_likelihood)
         dic = self._create_dic(loss, torch.mean(neg_likelihood), )
         loss.backward()
         self.optim_classification.step()
-        
         return dic
 
 
@@ -125,8 +124,8 @@ class ordinaryTraining():
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
         log_y_hat, _ = self.classification_module(data, index = index)
 
-        neg_likelihood = F.nll_loss(log_y_hat, target)
-        mse_current = torch.mean(torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1))
+        neg_likelihood = F.nll_loss(log_y_hat, target, reduction = 'none')
+        mse_current = torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1)
 
         return log_y_hat, neg_likelihood, mse_current
 
@@ -135,14 +134,16 @@ class ordinaryTraining():
         self.classification_module.eval()
 
         dataset = loader.dataset
-        test_loss = 0
+        mse_total = 0
+        neg_likelihood_total = 0
         correct = 0
         with torch.no_grad():
             for batch_index, data in enumerate(loader.test_loader):
                 data, target, index = parse_batch(data)
                 log_y_hat, neg_likelihood, mse_current = self._test_step(data, target, dataset, index)
                 
-                test_loss += mse_current
+                neg_likelihood_total += neg_likelihood.sum()
+                mse_total += mse_current.sum()
                 pred = log_y_hat.data.max(1, keepdim=True)[1]
                 if self.use_cuda:
                     correct_current = pred.eq(target.cuda().data.view_as(pred)).sum()
@@ -151,11 +152,12 @@ class ordinaryTraining():
                 correct += correct_current
 
 
-        test_loss /= len(loader.test_loader.dataset)
+        mse_total /= len(loader.test_loader.dataset)
+        neg_likelihood_total /= len(loader.test_loader.dataset)
         print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(loader.test_loader.dataset),
+        neg_likelihood_total, correct, len(loader.test_loader.dataset),
         100. * correct / len(loader.test_loader.dataset)))
-        total_dic = self._create_dic_test(correct/len(loader.test_loader.dataset), neg_likelihood, test_loss)
+        total_dic = self._create_dic_test(correct/len(loader.test_loader.dataset), neg_likelihood, mse_total)
         return total_dic
 
 

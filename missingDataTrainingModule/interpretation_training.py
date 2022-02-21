@@ -377,12 +377,15 @@ class SELECTION_BASED_CLASSIFICATION():
     def test(self, loader, nb_sample_z = 10):
         mse_loss_from_mean = 0
         mse_loss = 0
+        mse_loss_no_selection = 0
         neg_likelihood_from_mean= 0
+        neg_likelihood_no_selection = 0
         neg_likelihood = 0
         correct_classic = 0
         correct_post_hoc = 0
         correct_destructed = 0
         correct_baseline = 0
+        nb_imputation_test = self.classification_module.imputation.nb_imputation_test
         self.eval()
         pi_list_total = []
         with torch.no_grad():
@@ -392,7 +395,7 @@ class SELECTION_BASED_CLASSIFICATION():
                 if self.use_cuda :
                     data, target, index = on_cuda(data, target = target, index = index,)
                 one_hot_target = get_one_hot(target, num_classes = loader.dataset.get_dim_output())
-                data_expanded, target_expanded, index_expanded, one_hot_target_expanded = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo = nb_sample_z, nb_imputation = None)
+                data_expanded, target_expanded, index_expanded, one_hot_target_expanded = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo = nb_sample_z, nb_imputation = nb_imputation_test)
                 if index_expanded is not None :
                     index_expanded_flatten = index_expanded.flatten(0,1)
                 else :
@@ -416,14 +419,14 @@ class SELECTION_BASED_CLASSIFICATION():
                 ## Check the prediction without selection on the baseline method
                 log_y_hat, _ = self.classification_module(data, index = index)
                 pred_classic = torch.argmax(log_y_hat,dim = 1)
+                neg_likelihood_no_selection += F.nll_loss(log_y_hat, target, reduction = 'sum')
+                mse_loss_no_selection += F.mse_loss(torch.exp(log_y_hat), one_hot_target, reduce=False).sum(-1).reshape((nb_sample_z, batch_size)).mean(0).sum()
                 correct_classic += pred_classic.eq(target).sum()
 
                 ## Check the prediction with the selection method
                 log_y_hat_destructed, _ = self.classification_module(data_expanded.flatten(0,1), z, index = index_expanded_flatten)
-                
                 log_y_hat_destructed = log_y_hat_destructed.reshape(nb_sample_z, batch_size, loader.dataset.get_dim_output())
                 log_y_hat_mean = torch.mean(log_y_hat_destructed, axis=0)
-                index = torch.where(torch.any(torch.isnan(log_y_hat_destructed), axis=-1))[1]
 
 
                 neg_likelihood += F.nll_loss(log_y_hat_destructed.flatten(0,1), target_expanded.flatten(0,1), reduce=False).reshape((nb_sample_z, batch_size)).mean(0).sum()
@@ -448,25 +451,33 @@ class SELECTION_BASED_CLASSIFICATION():
             print("\n")
             total_dic = self._create_dic_test(correct_destructed/len(loader.test_loader.dataset),
                 correct_classic/len(loader.test_loader.dataset),
-                neg_likelihood,
-                mse_loss,
-                neg_likelihood_from_mean,
-                mse_loss_from_mean,
-                pi_list_total,
-                correct_post_hoc=correct_post_hoc)
+                neg_likelihood = neg_likelihood,
+                neg_likelihood_no_selection = neg_likelihood_no_selection,
+                mse_loss = mse_loss,
+                mse_loss_no_selection = mse_loss_no_selection,
+                neg_likelihood_from_mean = neg_likelihood_from_mean,
+                mse_loss_from_mean = mse_loss_from_mean,
+                pi_list_total = pi_list_total,
+                correct_post_hoc=correct_post_hoc,
+                )
 
         return total_dic
 
-    def _create_dic_test(self, correct, correct_no_selection, neg_likelihood, mse_loss, neg_likelihood_from_mean, mse_loss_from_mean, pi_list_total, correct_post_hoc = None):
+    def _create_dic_test(self, correct, correct_no_selection, neg_likelihood, neg_likelihood_no_selection, neg_likelihood_from_mean, mse_loss, mse_loss_no_selection, mse_loss_from_mean, pi_list_total, correct_post_hoc = None):
         total_dic = {}
         total_dic["accuracy_prediction_no_selection"] = correct_no_selection.item()
+        total_dic["accuracy_prediction_selection"] = correct.item()
+
         total_dic["neg_likelihood"] = neg_likelihood.item()
-        total_dic["mse_loss"] = mse_loss.item()
+        total_dic["neg_likelihood_no_selection"] = neg_likelihood_no_selection.item()
         total_dic["neg_likelihood_from_mean"] = neg_likelihood_from_mean.item()
+
+        total_dic["mse_loss"] = mse_loss.item()
+        total_dic["mse_loss_no_selection"] = mse_loss_no_selection.item()
         total_dic["mse_loss_from_mean"] = mse_loss_from_mean.item()
+
         treated_pi_list_total = np.concatenate(pi_list_total)
         total_dic["mean_pi_list"] = np.mean(treated_pi_list_total).item()
-        total_dic["accuracy_prediction_selection"] = correct.item()
         q = np.quantile(treated_pi_list_total, [0.25,0.5,0.75])
         total_dic["pi_list_q1"] = q[0].item()
         total_dic["pi_list_median"] = q[1].item()
