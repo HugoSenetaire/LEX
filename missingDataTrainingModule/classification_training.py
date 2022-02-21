@@ -237,12 +237,12 @@ class trueSelectionTraining(ordinaryTraining):
                 neg_likelihood_no_selection += torch.sum(F.nll_loss(log_y_hat_no_selection, target))
                 mse_current_no_selection = torch.sum(torch.sum((torch.exp(log_y_hat_no_selection)-one_hot_target)**2,1))
                 mse_no_selection += mse_current_no_selection
-                pred = log_y_hat_no_selection.data.max(1, keepdim=True)[1]
+                pred_no_selection = log_y_hat_no_selection.data.max(1, keepdim=True)[1]
                 if self.use_cuda:
-                    correct_current = pred.eq(target.cuda().data.view_as(pred)).sum()
+                    correct_current_no_selection = pred_no_selection.eq(target.cuda().data.view_as(pred_no_selection)).sum()
                 else :
-                    correct_current = pred.eq(target.data.view_as(pred)).sum()
-                correct_no_selection += correct_current
+                    correct_current_no_selection = pred_no_selection.eq(target.data.view_as(pred_no_selection)).sum()
+                correct_no_selection += correct_current_no_selection
 
 
                 neg_likelihood_selection += torch.sum(F.nll_loss(log_y_hat_selection, target))
