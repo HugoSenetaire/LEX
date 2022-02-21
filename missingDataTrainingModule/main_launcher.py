@@ -363,11 +363,19 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test = fill_dic(total_dic_test, dic_test)
             
-        dic_list["train_pretraining"] = total_dic_train
-        dic_list["test_pretaining"]  = total_dic_test
+       
+
 
         if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trueSelectionTraining :
+            dic_list["train"] = total_dic_train
+            dic_list["test"]  = total_dic_test
+            save_dic(os.path.join(final_path,"train"), total_dic_train)
+            save_dic(os.path.join(final_path,"test"), total_dic_test)
             return final_path, trainer_ordinary, loader, dic_list
+
+        else :
+            dic_list["train_pretraining"] = total_dic_train
+            dic_list["test_pretaining"]  = total_dic_test
             
     ##### ======================= Training in selection ==========================:
 
@@ -396,6 +404,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
                 dic_test = selection_trainer.test(loader) 
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test = fill_dic(total_dic_test, dic_test)
+        
             
         dic_list["train_selection_pretraining"] = total_dic_train
         dic_list["test_selection_pretaining"]  = total_dic_test
