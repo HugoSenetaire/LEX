@@ -420,7 +420,7 @@ class SELECTION_BASED_CLASSIFICATION():
                 log_y_hat, _ = self.classification_module(data, index = index)
                 pred_classic = torch.argmax(log_y_hat,dim = 1)
                 neg_likelihood_no_selection += F.nll_loss(log_y_hat, target, reduction = 'sum')
-                mse_loss_no_selection += F.mse_loss(torch.exp(log_y_hat), one_hot_target, reduce=False).sum(-1).reshape((nb_sample_z, batch_size)).mean(0).sum()
+                mse_loss_no_selection += F.mse_loss(torch.exp(log_y_hat), one_hot_target, reduce=False).sum(-1).sum()
                 correct_classic += pred_classic.eq(target).sum()
 
                 ## Check the prediction with the selection method
