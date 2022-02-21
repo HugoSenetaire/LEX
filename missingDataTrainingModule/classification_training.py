@@ -1,4 +1,5 @@
 from missingDataTrainingModule import PytorchDistributionUtils
+from missingDataTrainingModule.utils.loss import calculate_neg_likelihood
 from .utils_missing import *
 import torch.nn.functional as F
 
@@ -13,41 +14,14 @@ class ordinaryTraining():
         self.post_hoc = post_hoc
         self.post_hoc_guidance = post_hoc_guidance
         self.argmax_post_hoc = argmax_post_hoc
+        
 
         if self.post_hoc_guidance is not None :
             for param in self.post_hoc_guidance.parameters():
                 param.requires_grad = False
-
-    def _calculate_neg_likelihood(self, data, index, log_y_hat, target,):
-        """
-        Calculate the negative log likelihood of the classification per element of the batch, no reduction is done. 
-        The calculation depends on the mode (post hoc, argmax post hoc, or none)
-
-        param:
-            data: the data (batch_size, nb_channel,other dim...)
-            index: the index of the data (batch_size, )
-            log_y_hat: the log of the output of the classification (batch_size, nb_class)
-            target: the target (batch_size, )
-
-
-        return:
-            the negative log likelihood (batch_size, )
-        """
-        if not self.post_hoc:
-            neg_likelihood = F.nll_loss(log_y_hat, target.flatten(), reduce = False)
-        else :
-            if self.post_hoc_guidance is not None :
-                out_y, _ = self.post_hoc_guidance(data, index = index)
-            else :
-                raise AttributeError("You can't have post-hoc without a post hoc guidance if you are only training the classification")
-            out_y = out_y.detach()
-            if self.argmax_post_hoc :
-                out_y = torch.argmax(out_y, -1)
-                neg_likelihood = F.nll_loss(log_y_hat, out_y, reduce = False)
-            else :
-                neg_likelihood = - torch.sum(torch.exp(out_y) * log_y_hat, -1)
-
-        return neg_likelihood
+        
+        if self.post_hoc and self.post_hoc_guidance is None :
+            raise AttributeError("You can't have post-hoc without a post hoc guidance if you are only training the classification")
 
 
     def compile(self, optim_classification, scheduler_classification = None,):
@@ -85,13 +59,13 @@ class ordinaryTraining():
         self.classification_module.train()
 
 
-    def _train_step(self, data, target, dataset, index = None):
+    def _train_step(self, data, target, dataset, index = None, loss_function = calculate_neg_likelihood):
         self.zero_grad()
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
         batch_size = data.shape[0]
         log_y_hat, _ = self.classification_module(data, index= index)
 
-        neg_likelihood = self._calculate_neg_likelihood(data, index, log_y_hat, target).reshape(batch_size)
+        neg_likelihood = loss_function(data, index, log_y_hat, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc).reshape(batch_size,)
         loss = torch.mean(neg_likelihood)
         dic = self._create_dic(loss, torch.mean(neg_likelihood), )
         loss.backward()
@@ -99,14 +73,14 @@ class ordinaryTraining():
         return dic
 
 
-    def train_epoch(self, epoch, loader,  save_dic = False, verbose = False,):
+    def train_epoch(self, epoch, loader, loss_function=calculate_neg_likelihood, save_dic = False, verbose = False,):
         self.train()
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
         total_dic = {}
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
 
-            dic = self._train_step(data, target, loader.dataset, index=index)
+            dic = self._train_step(data, target, loader.dataset, index=index, loss_function= loss_function,)
 
             if batch_idx % print_batch_every == 0 :
                 if verbose :
@@ -166,7 +140,7 @@ class trueSelectionTraining(ordinaryTraining):
     def __init__(self, classification_module, post_hoc = False, post_hoc_guidance = None, argmax_post_hoc = False,):   
         super().__init__(classification_module, post_hoc, post_hoc_guidance, argmax_post_hoc)
     
-    def _train_step(self, data, true_mask, target, dataset, index=None):
+    def _train_step(self, data, true_mask, target, dataset, index=None, loss_function = calculate_neg_likelihood):
         self.zero_grad()
 
         
@@ -174,10 +148,10 @@ class trueSelectionTraining(ordinaryTraining):
         batch_size = data.shape[0]
         true_mask = true_mask.to(data.device)
         log_y_hat, _ = self.classification_module(data, index= index, mask = true_mask)
-        neg_likelihood = self._calculate_neg_likelihood(data, index, log_y_hat, target)
+        neg_likelihood = loss_function(data, index, log_y_hat, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
 
         log_y_hat_no_selection, _ = self.classification_module(data, index= index, mask = None)
-        neg_likelihood_no_selection = self._calculate_neg_likelihood(data, index, log_y_hat_no_selection, target)
+        neg_likelihood_no_selection = loss_function(data, index, log_y_hat_no_selection, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
         if self.classification_module.imputation is not None :
             nb_imputation = self.classification_module.imputation.nb_imputation
         loss = neg_likelihood.reshape(nb_imputation, batch_size)
@@ -188,7 +162,7 @@ class trueSelectionTraining(ordinaryTraining):
         self.optim_classification.step()
         return dic
 
-    def train_epoch(self, epoch, loader,  save_dic = False, verbose = False,):
+    def train_epoch(self, epoch, loader, loss_function = calculate_neg_likelihood, save_dic = False, verbose = False,):
         self.train()
         
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
@@ -197,7 +171,7 @@ class trueSelectionTraining(ordinaryTraining):
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
             true_mask = loader.dataset.optimal_S_train[index].type(torch.float32).to(data.device)
-            dic = self._train_step(data, true_mask, target, loader.dataset, index=index)
+            dic = self._train_step(data, true_mask, target, loader.dataset, index=index, loss_function=loss_function,)
 
             if batch_idx % print_batch_every == 0 :
                 if verbose :
@@ -293,12 +267,11 @@ class EVAL_X(ordinaryTraining):
     def __init__(self, classification_module, fixed_distribution = PytorchDistributionUtils.wrappers.FixedBernoulli(),
                 reshape_mask_function = None, post_hoc = False, post_hoc_guidance = None, argmax_post_hoc = False,):
         super().__init__(classification_module, post_hoc_guidance = post_hoc_guidance, post_hoc = post_hoc, argmax_post_hoc = argmax_post_hoc)
-        # print(self.classification_module)
         self.fixed_distribution = fixed_distribution
         self.reshape_mask_function = reshape_mask_function
 
 
-    def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 1, save_dic=False, verbose=False,):
+    def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 1, loss_function = calculate_neg_likelihood, save_dic=False, verbose=False,):
         self.train()
         total_dic = {}
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
@@ -333,6 +306,7 @@ class EVAL_X(ordinaryTraining):
                     one_hot_target_expanded_multiple_imputation,
                     dim_output,
                     index_expanded_multiple_imputation = None,
+                    loss_function = calculate_neg_likelihood,
                     ):
 
 

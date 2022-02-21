@@ -1,4 +1,4 @@
-from sched import scheduler
+import os
 import torch
 
 from .classification_training import ordinaryTraining, EVAL_X, trueSelectionTraining
@@ -100,6 +100,17 @@ def get_imputation_method(args_classification, dataset):
     #TODO : That's a very poor way to handle multiple possible arguments, can lead to a lot of bugs, check that.
 
     return imputation
+
+def get_loss_function(args_train):
+    if args_train["loss_function"]== "MSE" :
+        loss_function = calculate_sse
+    elif args_train["loss_function"]== "NLL" :
+        loss_function = calculate_neg_likelihood
+    else :
+        raise ValueError("Unknown loss function") 
+    
+    return loss_function
+        
 
 def get_distribution_module_from_args(args_distribution_module):
     if args_distribution_module["distribution_module"] is None :
@@ -227,6 +238,8 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     ### Networks :
     classifier, selector, baseline, selector_var = get_networks(args_classification, args_selection, args_complete_trainer, dataset.get_dim_output())
 
+    ### Loss Function :
+    loss_function = get_loss_function(args_train)
 
 
 
@@ -250,7 +263,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(args_train["nb_epoch_post_hoc"]):
-            dic_train = trainer.train_epoch(epoch, loader, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),)
+            dic_train = trainer.train_epoch(epoch, loader, loss_function=loss_function, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == args_train["nb_epoch_post_hoc"] - 1:
                 dic_test = trainer.test(loader)
 
@@ -308,7 +321,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             total_dic_train = {}
             total_dic_test = {}
             for epoch in range(nb_epoch):
-                dic_train = trainer_ordinary.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"], verbose=True)
+                dic_train = trainer_ordinary.train_epoch(epoch, loader, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"], loss_function = loss_function, save_dic = True, verbose=True)
                 if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == args_train["nb_epoch_pretrain"]-1:
                     dic_test = trainer_ordinary.test(loader,)
 
@@ -358,7 +371,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(int(nb_epoch)):
-            dic_train = trainer_ordinary.train_epoch(epoch, loader, save_dic = True, verbose=True)
+            dic_train = trainer_ordinary.train_epoch(epoch, loader, loss_function = loss_function, save_dic = True, verbose=True)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
                 dic_test = trainer_ordinary.test(loader) 
             total_dic_train = fill_dic(total_dic_train, dic_train)
@@ -451,7 +464,8 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         optim_baseline = optim_baseline,
         scheduler_baseline = scheduler_baseline,
         optim_distribution_module = optim_distribution_module,
-        scheduler_distribution_module = scheduler_distribution_module,)
+        scheduler_distribution_module = scheduler_distribution_module,
+        )
 
 
 
@@ -462,10 +476,12 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     total_dic_test = {}
     for epoch in range(args_train["nb_epoch"]):
         dic_train = get_training_method(trainer, args_train, trainer_ordinary)(
-            epoch, loader,
+            epoch, 
+            loader,
             save_dic = True,
             nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],
             nb_sample_z_IWAE = args_train["nb_sample_z_train_IWAE"],
+            loss_function = loss_function,
             verbose = ((epoch+1) % args_train["print_every"] == 0),
         )
 

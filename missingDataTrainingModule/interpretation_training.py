@@ -1,4 +1,6 @@
 from missingDataTrainingModule import PytorchDistributionUtils
+from missingDataTrainingModule.utils import loss
+from missingDataTrainingModule.utils.loss import calculate_neg_likelihood
 from .utils_missing import *
 from functools import partial
 
@@ -42,18 +44,12 @@ class SELECTION_BASED_CLASSIFICATION():
         self.post_hoc = post_hoc
         self.argmax_post_hoc = argmax_post_hoc
 
-              
-
-        # I am not sure the following line is necessary, something is already done in optim step
-        # Maybe for a matter of speed in post hoc but whatever for now
-        # TODO : check of a better way for posthoc
-        # if self.fix_classifier_parameters :
-        #     for param in self.classification_module.parameters():
-        #         param.requires_grad = False
-
         if self.post_hoc_guidance is not None :
             for param in self.post_hoc_guidance.parameters():
                 param.requires_grad = False
+
+        if self.post_hoc and (self.post_hoc_guidance is None) and (not self.fix_classifier_parameters):
+            raise AttributeError("You can't have post-hoc without a post hoc guidance or fixing the classifier parameters")
 
  
     def reshape(self, z,):
@@ -120,7 +116,7 @@ class SELECTION_BASED_CLASSIFICATION():
         if self.optim_distribution_module is not None :
             self.optim_distribution_module.step()
 
-    def alternate_fixing_train_epoch(self, epoch, loader, nb_step_fixed_classifier = 1, nb_step_fixed_selector = 1, nb_step_all_free = 1, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose = True, **kwargs):
+    def alternate_fixing_train_epoch(self, epoch, loader, nb_step_fixed_classifier = 1, nb_step_fixed_selector = 1, nb_step_all_free = 1, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = calculate_neg_likelihood, save_dic=False, verbose = True, **kwargs):
 
         assert np.any(np.array([nb_step_fixed_classifier, nb_step_fixed_selector, nb_step_all_free])>0)
         if self.fix_classifier_parameters and self.fix_selector_parameters :
@@ -144,7 +140,7 @@ class SELECTION_BASED_CLASSIFICATION():
                 self.fix_classifier_parameters = False
                 self.fix_selector_parameters = False
 
-            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
             if batch_idx % print_batch_every == 0 :
                 if verbose :
                     print_dic(epoch, batch_idx, dic, loader)
@@ -154,7 +150,7 @@ class SELECTION_BASED_CLASSIFICATION():
         return total_dic
 
     
-    def alternate_ordinary_train_epoch(self, epoch, loader, ratio_class_selection = 2, ordinaryTraining=None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose = True, **kwargs):
+    def alternate_ordinary_train_epoch(self, epoch, loader, ratio_class_selection = 2, ordinaryTraining=None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = calculate_neg_likelihood, save_dic=False, verbose = True, **kwargs):
         
         if ordinaryTraining is None :
             raise AttributeError("ratio_class_selection is not None but ordinaryTraining is None, nothing is defined for the ratio")
@@ -175,26 +171,26 @@ class SELECTION_BASED_CLASSIFICATION():
             for batch_idx, data in enumerate(loader.train_loader):
                     data, target, index = parse_batch(data)
                     if (batch_idx + init_number) % (ratio_step+1) == 0 :
-                        dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+                        dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
                         if batch_idx % print_batch_every == 0 :
                             if verbose :
                                 print_dic(epoch, batch_idx, dic, loader)
                             if save_dic :
                                 total_dic = save_dic_helper(total_dic, dic)
                     else :
-                        dic = ordinaryTraining._train_step(data, target, loader.dataset, index=index)
+                        dic = ordinaryTraining._train_step(data, target, loader.dataset, index=index, loss_function = loss_function)
         else :
             step_only_pred = np.round(1./ratio_class_selection).astype(int)
             init_number = np.random.randint(0, step_only_pred+1)
             for batch_idx, data in enumerate(loader.train_loader):
                 data, target, index = parse_batch(data)
                 if (batch_idx + init_number) % (step_only_pred+1) == 0 :
-                    dic = ordinaryTraining._train_step(data, target, loader.dataset, index=index)
+                    dic = ordinaryTraining._train_step(data, target, loader.dataset, index=index, loss_function = loss_function)
                     if batch_idx % print_batch_every == 0 :
                         if verbose :
                             print_dic(epoch, batch_idx, dic, loader)
                 else :
-                    dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+                    dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
                     if batch_idx % print_batch_every == 0 :
                         if verbose :
                             print_dic(epoch, batch_idx, dic, loader)
@@ -204,7 +200,7 @@ class SELECTION_BASED_CLASSIFICATION():
         self.scheduler_step()    
         return total_dic
 
-    def classic_train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose=True, **kwargs):
+    def classic_train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose=True, loss_function = calculate_neg_likelihood,**kwargs):
         if self.fix_classifier_parameters and self.fix_selector_parameters :
             raise AttributeError("You can't train if both classifiers and selectors are fixed.")
         assert(self.compiled)
@@ -215,7 +211,7 @@ class SELECTION_BASED_CLASSIFICATION():
 
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
-            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
             if batch_idx % print_batch_every == 0 :
                 if verbose :
                     print_dic(epoch, batch_idx, dic, loader)
@@ -258,12 +254,10 @@ class SELECTION_BASED_CLASSIFICATION():
         return neg_likelihood
 
 
-    def _create_dic(self, loss_total, neg_likelihood, mse_loss, pi_list, loss_rec = None, loss_reg = None, loss_selection = None, ):
+    def _create_dic(self, loss_total, pi_list, loss_rec = None, loss_reg = None, loss_selection = None, ):
         # dic = super()._create_dic(loss_total, neg_likelihood, mse_loss)
         dic = {}
         dic["loss_total"] = loss_total.detach().cpu().item()
-        dic['neg_likelihood'] = neg_likelihood.detach().cpu().item()
-        dic['mse_loss'] = mse_loss.detach().cpu().item()
         dic["mean_pi_list"] = torch.mean(torch.mean(pi_list.flatten(1),1)).item()
         quantiles = torch.tensor([0.25,0.5,0.75])
         if self.use_cuda: 
@@ -282,7 +276,7 @@ class SELECTION_BASED_CLASSIFICATION():
         return dic
 
     
-    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, need_dic = False):
+    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = calculate_neg_likelihood, need_dic = False):
         self.zero_grad()
 
         nb_imputation = self.classification_module.imputation.nb_imputation
@@ -307,6 +301,7 @@ class SELECTION_BASED_CLASSIFICATION():
                         index_expanded_multiple_imputation = index_expanded_multiple_imputation,
                         one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
                         dim_output = dataset.get_dim_output(),
+                        loss_function = loss_function,
                         )
 
         loss_s, loss_f = self.monte_carlo_gradient_estimator(cost_calculation, pi_list, nb_sample_z_monte_carlo)
@@ -339,6 +334,7 @@ class SELECTION_BASED_CLASSIFICATION():
                     one_hot_target_expanded_multiple_imputation,
                     dim_output,
                     index_expanded_multiple_imputation = None,
+                    loss_function = calculate_neg_likelihood,
                     ):
 
 
@@ -361,12 +357,16 @@ class SELECTION_BASED_CLASSIFICATION():
         log_y_hat, _ = self.classification_module(data_expanded_multiple_imputation[0], mask_expanded, index = index_expanded)
         log_y_hat = log_y_hat.reshape(data_expanded_multiple_imputation.shape[:4] + torch.Size((dim_output,)))
 
-        neg_likelihood = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
-                                                            index = index_expanded_multiple_imputation_flatten,
-                                                            log_y_hat=log_y_hat.flatten(0,3),
-                                                            target = target_expanded_multiple_imputation_flatten,
-                                                            )
 
+        neg_likelihood = loss_function(data = data_expanded_multiple_imputation_flatten,
+                                        index = index_expanded_multiple_imputation_flatten,
+                                        log_y_hat=log_y_hat.flatten(0,3),
+                                        target = target_expanded_multiple_imputation_flatten,
+                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten,
+                                        post_hoc = self.post_hoc,
+                                        post_hoc_guidance = self.post_hoc_guidance,
+                                        argmax_post_hoc = self.argmax_post_hoc,
+                                    )
         neg_likelihood = neg_likelihood.reshape(data_expanded_multiple_imputation.shape[:4])
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=-1) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32))
@@ -522,8 +522,13 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             raise NotImplementedError("REALX does not support post hoc guidance")
         self.classification_distribution_module = classification_distribution_module
 
+    def _create_dic(self,loss_total,loss_rec_evalx,loss_rec,loss_reg,loss_selection,pi_list):
+        dic = super()._create_dic(loss_total = loss_total, pi_list = pi_list, loss_rec = loss_rec, loss_reg = loss_reg, loss_selection = loss_selection)
+        dic["loss_rec_evalx"] = loss_rec_evalx.detach().cpu().item()
+        return dic
 
-    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1, need_dic = False):
+
+    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1, loss_function = calculate_neg_likelihood, need_dic = False,):
         self.zero_grad()
         nb_imputation = self.classification_module.imputation.nb_imputation
         if self.monte_carlo_gradient_estimator.fix_n_mc :
@@ -549,7 +554,6 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         z = self.reshape(z)
         
 
-
         # Selection Module :
         loss_classification = self.calculate_cost(mask_expanded = z,
                         data_expanded_multiple_imputation = data_expanded_multiple_imputation,
@@ -557,6 +561,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
                         index_expanded_multiple_imputation = index_expanded_multiple_imputation,
                         one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
                         dim_output = dataset.get_dim_output(),
+                        loss_function=loss_function,
                         )
 
         loss_classification = loss_classification.mean(axis = 0)
@@ -573,9 +578,10 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
                         index_expanded_multiple_imputation = index_expanded_multiple_imputation,
                         one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
                         dim_output = dataset.get_dim_output(),
+                        loss_function = loss_function,
                         )
 
-        loss_s, neg_likelihood = self.monte_carlo_gradient_estimator(cost_calculation, pi_list, nb_sample_z_monte_carlo)
+        loss_s, loss_f = self.monte_carlo_gradient_estimator(cost_calculation, pi_list, nb_sample_z_monte_carlo)
 
 
         loss_total = loss_reg + loss_s #  How to treat differently for REINFORCE or REPARAM ?
@@ -587,9 +593,8 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
 
         if need_dic :
             dic = self._create_dic(loss_total = torch.mean(loss_s + loss_reg + loss_classification),
-                                    neg_likelihood = torch.mean(neg_likelihood),
-                                    mse_loss = torch.tensor(0.0).type(torch.float32),
-                                    loss_rec = torch.mean(loss_classification),
+                                    loss_rec_evalx = torch.mean(loss_classification),
+                                    loss_rec = torch.mean(loss_f),
                                     loss_reg = torch.mean(loss_reg),
                                     loss_selection = torch.mean(loss_s),
                                     pi_list = torch.exp(log_pi_list))
