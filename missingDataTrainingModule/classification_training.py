@@ -168,7 +168,7 @@ class trueSelectionTraining(ordinaryTraining):
         
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
         batch_size = data.shape[0]
-        true_mask.to(data.device)
+        true_mask = true_mask.to(data.device)
         log_y_hat, _ = self.classification_module(data, index= index, mask = true_mask)
 
         neg_likelihood = self._calculate_neg_likelihood(data, index, log_y_hat, target)
