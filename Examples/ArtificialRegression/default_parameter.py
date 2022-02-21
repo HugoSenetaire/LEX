@@ -65,7 +65,8 @@ def get_default():
     args_classification["sigma_noise_imputation"] = 1.0
     args_classification["add_mask"] = False
     args_classification["module_imputation"] = None
-    args_classification["nb_imputation"] = 2
+    args_classification["nb_imputation"] = 1
+    args_classification["nb_imputation_test"] = None #If none is given, turn to 1
 
 
     args_classification["reconstruction_regularization"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
