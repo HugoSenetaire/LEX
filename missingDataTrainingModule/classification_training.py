@@ -234,8 +234,8 @@ class trueSelectionTraining(ordinaryTraining):
                 log_y_hat_no_selection, _ = self.classification_module(data, index = index)
                 log_y_hat_selection, _ = self.classification_module(data,mask = true_mask, index = index)
 
-                neg_likelihood_no_selection += torch.mean(F.nll_loss(log_y_hat_no_selection, target))
-                mse_current_no_selection = torch.mean(torch.sum((torch.exp(log_y_hat_no_selection)-one_hot_target)**2,1))
+                neg_likelihood_no_selection += torch.sum(F.nll_loss(log_y_hat_no_selection, target))
+                mse_current_no_selection = torch.sum(torch.sum((torch.exp(log_y_hat_no_selection)-one_hot_target)**2,1))
                 mse_no_selection += mse_current_no_selection
                 pred = log_y_hat_no_selection.data.max(1, keepdim=True)[1]
                 if self.use_cuda:
@@ -245,8 +245,8 @@ class trueSelectionTraining(ordinaryTraining):
                 correct_no_selection += correct_current
 
 
-                neg_likelihood_selection += torch.mean(F.nll_loss(log_y_hat_selection, target))
-                mse_current_selection = torch.mean(torch.sum((torch.exp(log_y_hat_selection)-one_hot_target)**2,1))
+                neg_likelihood_selection += torch.sum(F.nll_loss(log_y_hat_selection, target))
+                mse_current_selection = torch.sum(torch.sum((torch.exp(log_y_hat_selection)-one_hot_target)**2,1))
                 mse_selection += mse_current_selection
                 pred = log_y_hat_selection.data.max(1, keepdim=True)[1]
                 if self.use_cuda:
@@ -255,7 +255,10 @@ class trueSelectionTraining(ordinaryTraining):
                     correct_current = pred.eq(target.data.view_as(pred)).sum()
                 correct_selection += correct_current
 
-
+        neg_likelihood_selection = neg_likelihood_selection / len(loader.test_loader.dataset)
+        neg_likelihood_no_selection = neg_likelihood_no_selection / len(loader.test_loader.dataset)
+        mse_selection = mse_selection / len(loader.test_loader.dataset)
+        mse_no_selection = mse_no_selection / len(loader.test_loader.dataset)
         print('\nTest set Selection: Neg-Likelihood: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         neg_likelihood_selection, correct_selection, len(loader.test_loader.dataset),
         100. * correct_selection / len(loader.test_loader.dataset)))
