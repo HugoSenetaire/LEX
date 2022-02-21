@@ -161,7 +161,7 @@ class ordinaryTraining():
 class trueSelectionTraining(ordinaryTraining):
     def __init__(self, classification_module, post_hoc = False, post_hoc_guidance = None, argmax_post_hoc = False,):   
         super().__init__(classification_module, post_hoc, post_hoc_guidance, argmax_post_hoc)
-
+    
     def _train_step(self, data, true_mask, target, dataset, index=None):
         self.zero_grad()
 
@@ -200,6 +200,75 @@ class trueSelectionTraining(ordinaryTraining):
         if self.scheduler_classification is not None :
             self.scheduler_classification.step()
         
+        return total_dic
+
+
+    
+    def _create_dic_test(self,  accuracy, accuracy_no_selection,neg_likelihood, neg_likelihood_no_selection, mse_loss, mse_loss_no_selection):
+        dic = {}
+
+
+        dic["accuracy_prediction_no_selection"] = accuracy_no_selection.item()
+        dic["accuracy_prediction_selection"] = accuracy.item()
+        dic["neg_likelihood"] = neg_likelihood.item()
+        dic["neg_likelihood_no_selection"] = neg_likelihood_no_selection.item()
+        dic["mse"] = mse_loss.item()
+        dic["mse_no_selection"] = mse_loss_no_selection.item()
+        return dic
+
+    def test(self,loader):
+        self.classification_module.eval()
+
+        dataset = loader.dataset
+        mse_no_selection = 0
+        mse_selection = 0
+        neg_likelihood_no_selection = 0
+        neg_likelihood_selection = 0
+        correct_selection = 0
+        correct_no_selection = 0
+        with torch.no_grad():
+            for batch_index, data in enumerate(loader.test_loader):
+                data, target, index = parse_batch(data)
+                data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
+                true_mask = loader.dataset.optimal_S_train[index].type(torch.float32).to(data.device)
+                log_y_hat_no_selection, _ = self.classification_module(data, index = index)
+                log_y_hat_selection, _ = self.classification_module(data,mask = true_mask, index = index)
+
+                neg_likelihood_no_selection += torch.mean(F.nll_loss(log_y_hat_no_selection, target))
+                mse_current_no_selection = torch.mean(torch.sum((torch.exp(log_y_hat_no_selection)-one_hot_target)**2,1))
+                mse_no_selection += mse_current_no_selection
+                pred = log_y_hat_no_selection.data.max(1, keepdim=True)[1]
+                if self.use_cuda:
+                    correct_current = pred.eq(target.cuda().data.view_as(pred)).sum()
+                else :
+                    correct_current = pred.eq(target.data.view_as(pred)).sum()
+                correct_no_selection += correct_current
+
+
+                neg_likelihood_selection += torch.mean(F.nll_loss(log_y_hat_selection, target))
+                mse_current_selection = torch.mean(torch.sum((torch.exp(log_y_hat_selection)-one_hot_target)**2,1))
+                mse_selection += mse_current_selection
+                pred = log_y_hat_selection.data.max(1, keepdim=True)[1]
+                if self.use_cuda:
+                    correct_current = pred.eq(target.cuda().data.view_as(pred)).sum()
+                else :
+                    correct_current = pred.eq(target.data.view_as(pred)).sum()
+                correct_selection += correct_current
+
+
+        print('\nTest set Selection: Neg-Likelihood: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        neg_likelihood_selection, correct_selection, len(loader.test_loader.dataset),
+        100. * correct_selection / len(loader.test_loader.dataset)))
+        print('Test set no Selection: Neg-Likelihood: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        neg_likelihood_no_selection, correct_no_selection, len(loader.test_loader.dataset),
+        100. * correct_no_selection / len(loader.test_loader.dataset)))
+        total_dic = self._create_dic_test(
+                                        accuracy = correct_selection/len(loader.test_loader.dataset),
+                                        accuracy_no_selection = correct_no_selection/len(loader.test_loader.dataset),
+                                        neg_likelihood = neg_likelihood_selection,
+                                        neg_likelihood_no_selection= neg_likelihood_no_selection,
+                                        mse_loss = mse_selection,
+                                        mse_loss_no_selection = mse_no_selection,)
         return total_dic
 
 
