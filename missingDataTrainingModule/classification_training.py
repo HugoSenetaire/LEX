@@ -157,7 +157,7 @@ class ordinaryTraining():
         print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         neg_likelihood_total, correct, len(loader.test_loader.dataset),
         100. * correct / len(loader.test_loader.dataset)))
-        total_dic = self._create_dic_test(correct/len(loader.test_loader.dataset), neg_likelihood, mse_total)
+        total_dic = self._create_dic_test(correct/len(loader.test_loader.dataset), neg_likelihood_total, mse_total)
         return total_dic
 
 
