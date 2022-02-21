@@ -307,7 +307,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             total_dic_train = {}
             total_dic_test = {}
             for epoch in range(nb_epoch):
-                dic_train = trainer_ordinary.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],)
+                dic_train = trainer_ordinary.train_epoch(epoch, loader, save_dic = True, nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"], verbose=True)
                 if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == args_train["nb_epoch_pretrain"]-1:
                     dic_test = trainer_ordinary.test(loader,)
 
@@ -357,7 +357,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(int(nb_epoch)):
-            dic_train = trainer_ordinary.train_epoch(epoch, loader, save_dic = True,)
+            dic_train = trainer_ordinary.train_epoch(epoch, loader, save_dic = True, verbose=True)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
                 dic_test = trainer_ordinary.test(loader) 
             total_dic_train = fill_dic(total_dic_train, dic_train)

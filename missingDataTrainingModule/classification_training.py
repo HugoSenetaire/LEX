@@ -102,14 +102,14 @@ class ordinaryTraining():
 
     def train_epoch(self, epoch, loader,  save_dic = False, verbose = False,):
         self.train()
-
+        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
         total_dic = {}
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
 
             dic = self._train_step(data, target, loader.dataset, index=index)
 
-            if batch_idx % 100 == 0 :
+            if batch_idx % print_batch_every == 0 :
                 if verbose :
                     print_dic(epoch, batch_idx, dic, loader)
                 if save_dic :
@@ -188,6 +188,8 @@ class trueSelectionTraining(ordinaryTraining):
 
     def train_epoch(self, epoch, loader,  save_dic = False, verbose = False,):
         self.train()
+        
+        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
 
         total_dic = {}
         for batch_idx, data in enumerate(loader.train_loader):
@@ -195,7 +197,7 @@ class trueSelectionTraining(ordinaryTraining):
             true_mask = loader.dataset.optimal_S_train[index].type(torch.float32).to(data.device)
             dic = self._train_step(data, true_mask, target, loader.dataset, index=index)
 
-            if batch_idx % 100 == 0 :
+            if batch_idx % print_batch_every == 0 :
                 if verbose :
                     print_dic(epoch, batch_idx, dic, loader)
                 if save_dic :
