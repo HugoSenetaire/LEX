@@ -63,10 +63,12 @@ class ordinaryTraining():
             self.use_cuda = True
        
 
-    def _create_dic(self,loss, neg_likelihood,):
+    def _create_dic(self,loss, neg_likelihood, neg_likelihood_no_selection = None, ):
         dic = {}
         dic["likelihood"] = -neg_likelihood.item()
         dic["total_loss"] = loss.item()
+        if neg_likelihood_no_selection is not None :
+            dic["likelihood_no_selection"] = -neg_likelihood_no_selection.item()
         return dic
 
     def _create_dic_test(self, correct, neg_likelihood, mse_loss):
@@ -170,14 +172,16 @@ class trueSelectionTraining(ordinaryTraining):
         batch_size = data.shape[0]
         true_mask = true_mask.to(data.device)
         log_y_hat, _ = self.classification_module(data, index= index, mask = true_mask)
-
         neg_likelihood = self._calculate_neg_likelihood(data, index, log_y_hat, target)
+
+        log_y_hat_no_selection, _ = self.classification_module(data, index= index, mask = None)
+        neg_likelihood_no_selection = self._calculate_neg_likelihood(data, index, log_y_hat_no_selection, target)
         if self.classification_module.imputation is not None :
             nb_imputation = self.classification_module.imputation.nb_imputation
         loss = neg_likelihood.reshape(nb_imputation, batch_size)
         loss = torch.logsumexp(loss, dim=0) - torch.log(torch.tensor(nb_imputation, dtype=torch.float32))
         loss = torch.mean(loss)
-        dic = self._create_dic(loss, torch.mean(neg_likelihood), )
+        dic = self._create_dic(loss, loss, neg_likelihood_no_selection.mean())
         loss.backward()
         self.optim_classification.step()
         return dic
