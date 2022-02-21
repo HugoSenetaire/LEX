@@ -33,13 +33,17 @@ def expand_for_imputations(data, mask, nb_imputation, index = None):
 ## Abstract imputation class :
 
 class Imputation(nn.Module):
-  def __init__(self, nb_imputation = 1, reconstruction_reg = None, mask_reg = None, add_mask = False, post_process_regularization = None, **kwargs):
+  def __init__(self, nb_imputation = 1, nb_imputation_test = None, reconstruction_reg = None, mask_reg = None, add_mask = False, post_process_regularization = None, **kwargs):
     super().__init__()
     self.add_mask = add_mask
     self.reconstruction_reg = prepare_process(reconstruction_reg)
     self.post_process_regularization = prepare_process(post_process_regularization)
     self.mask_reg = prepare_process(mask_reg)
     self.nb_imputation = nb_imputation
+    if nb_imputation_test is None :
+      self.nb_imputation_test = 1
+    else :
+      self.nb_imputation_test = nb_imputation_test
   
   def has_constant(self):
     return False
@@ -91,7 +95,7 @@ class Imputation(nn.Module):
     if self.training :
       nb_imputation = self.nb_imputation
     else :
-      nb_imputation = 1
+      nb_imputation = self.nb_imputation_test
 
     data_expanded, mask_expanded, index_expanded = expand_for_imputations(data, mask, nb_imputation, index = index)
     data_imputed = self.imputation_function(data_expanded, mask_expanded, index_expanded)

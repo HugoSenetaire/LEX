@@ -87,6 +87,7 @@ def get_imputation_method(args_classification, dataset):
     
     imputation = args_classification["imputation"](
                                         nb_imputation = args_classification["nb_imputation"],
+                                        nb_imputation_test = args_classification["nb_imputation_test"],
                                         reconstruction_reg = reconstruction_regularization,
                                         mask_reg = mask_reg,
                                         post_process_regularization = post_process_regularization,

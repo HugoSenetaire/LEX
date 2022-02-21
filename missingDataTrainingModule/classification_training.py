@@ -232,15 +232,19 @@ class trueSelectionTraining(ordinaryTraining):
         neg_likelihood_selection = 0
         correct_selection = 0
         correct_no_selection = 0
+        nb_imputation_test = self.classification_module.imputation.nb_imputation_test
         with torch.no_grad():
             for batch_index, data in enumerate(loader.test_loader):
                 data, target, index = parse_batch(data)
                 data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
-                true_mask = loader.dataset.optimal_S_train[index].type(torch.float32).to(data.device)
+                batch_size = data.shape[0]
+
+
+                true_mask = loader.dataset.optimal_S_test[index].type(torch.float32).to(data.device)
                 log_y_hat_no_selection, _ = self.classification_module(data, index = index)
                 log_y_hat_selection, _ = self.classification_module(data,mask = true_mask, index = index)
 
-                neg_likelihood_no_selection += torch.sum(F.nll_loss(log_y_hat_no_selection, target))
+                neg_likelihood_no_selection += torch.sum(F.nll_loss(log_y_hat_no_selection, target, reduction = 'none'))
                 mse_current_no_selection = torch.sum(torch.sum((torch.exp(log_y_hat_no_selection)-one_hot_target)**2,1))
                 mse_no_selection += mse_current_no_selection
                 pred_no_selection = log_y_hat_no_selection.data.max(1, keepdim=True)[1]
@@ -251,7 +255,9 @@ class trueSelectionTraining(ordinaryTraining):
                 correct_no_selection += correct_current_no_selection
 
 
-                neg_likelihood_selection += torch.sum(F.nll_loss(log_y_hat_selection, target))
+            
+                output_nll = torch.logsumexp(F.nll_loss(log_y_hat_selection, target, reduction = 'none').reshape(nb_imputation_test, batch_size), dim=0)
+                neg_likelihood_selection += torch.sum(output_nll)
                 mse_current_selection = torch.sum(torch.sum((torch.exp(log_y_hat_selection)-one_hot_target)**2,1))
                 mse_selection += mse_current_selection
                 pred = log_y_hat_selection.data.max(1, keepdim=True)[1]
