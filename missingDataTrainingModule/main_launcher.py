@@ -1,10 +1,11 @@
 import os
 import torch
+import torch.nn as nn
 
 from .classification_training import ordinaryTraining, EVAL_X, trueSelectionTraining
 from .interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
 from .selection_training import selectionTraining
-from .utils import *
+from .utils import MSELossLastDim, define_target, continuous_NLLLoss, fill_dic, save_dic
 from .PytorchDistributionUtils.distribution import RelaxedSubsetSampling, RelaxedBernoulli_thresholded_STE, RelaxedSubsetSampling_STE, L2X_Distribution_STE, L2X_Distribution
 from .Selection.selection_module import SelectionModule
 from .Classification.classification_module import ClassificationModule
@@ -22,7 +23,8 @@ def save_parameters(path, args_classification, args_selection, args_distribution
     if not os.path.exists(complete_path):
         os.makedirs(complete_path)
 
-
+    print(complete_path)
+    print(os.path.exists(complete_path))
 
     with open(os.path.join(complete_path,"classification.txt"), "w") as f:
         f.write(str(args_classification))
@@ -101,11 +103,17 @@ def get_imputation_method(args_classification, dataset):
 
     return imputation
 
+
+
 def get_loss_function(args_train):
     if args_train["loss_function"]== "MSE" :
-        loss_function = calculate_sse
+        loss_function = MSELossLastDim(reduction='none')
+        print(loss_function.reduction)
     elif args_train["loss_function"]== "NLL" :
-        loss_function = calculate_neg_likelihood
+        if args_train["post_hoc"] and (not args_train["argmax_post_hoc"]):
+            loss_function = continuous_NLLLoss(reduction='none')
+        else :
+            loss_function = nn.NLLLoss(reduction='none')
     else :
         raise ValueError("Unknown loss function") 
     

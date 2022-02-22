@@ -141,6 +141,7 @@ def get_default():
     args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
     args_train["nb_sample_z_train_monte_carlo"] = 1
     args_train["nb_sample_z_train_IWAE"] = 1  # Number K in the IWAE-similar loss
+    args_train["loss_function"] = "NLL" # NLL, MSE
 
     args_train["training_type"] = "classic" # Options are ["classic", "alternate_ordinary", "alternate_fixing"]
     args_train["nb_step_fixed_classifier"] = 1 # Options for alternate fixing (number of step with fixed classifier)

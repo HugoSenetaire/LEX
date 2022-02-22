@@ -1,7 +1,9 @@
 from missingDataTrainingModule import PytorchDistributionUtils
-from missingDataTrainingModule.utils.loss import calculate_neg_likelihood
+from missingDataTrainingModule.utils.loss import continuous_NLLLoss
+from .utils import define_target
 from .utils_missing import *
 import torch.nn.functional as F
+import torch.nn as nn
 
 
 
@@ -59,21 +61,22 @@ class ordinaryTraining():
         self.classification_module.train()
 
 
-    def _train_step(self, data, target, dataset, index = None, loss_function = calculate_neg_likelihood):
+    def _train_step(self, data, target, dataset, index = None, loss_function = continuous_NLLLoss(reduce= 'none'),):
         self.zero_grad()
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
+        target, one_hot_target = define_target(data, index, target, one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
         batch_size = data.shape[0]
         log_y_hat, _ = self.classification_module(data, index= index)
 
-        neg_likelihood = loss_function(data, index, log_y_hat, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc).reshape(batch_size,)
-        loss = torch.mean(neg_likelihood)
-        dic = self._create_dic(loss, torch.mean(neg_likelihood), )
+        loss_rec = loss_function(input = log_y_hat, target = target, one_hot_target = one_hot_target)
+        loss = torch.mean(loss_rec)
+        dic = self._create_dic(loss, torch.mean(loss_rec),)
         loss.backward()
         self.optim_classification.step()
         return dic
 
 
-    def train_epoch(self, epoch, loader, loss_function=calculate_neg_likelihood, save_dic = False, verbose = False,):
+    def train_epoch(self, epoch, loader, loss_function=continuous_NLLLoss(reduce= 'none'),save_dic = False, verbose = False,):
         self.train()
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
         total_dic = {}
@@ -97,10 +100,8 @@ class ordinaryTraining():
     def _test_step(self, data, target, dataset, index):
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
         log_y_hat, _ = self.classification_module(data, index = index)
-
         neg_likelihood = F.nll_loss(log_y_hat, target, reduction = 'none')
         mse_current = torch.sum((torch.exp(log_y_hat)-one_hot_target)**2,1)
-
         return log_y_hat, neg_likelihood, mse_current
 
 
@@ -140,20 +141,22 @@ class trueSelectionTraining(ordinaryTraining):
     def __init__(self, classification_module, post_hoc = False, post_hoc_guidance = None, argmax_post_hoc = False,):   
         super().__init__(classification_module, post_hoc, post_hoc_guidance, argmax_post_hoc)
     
-    def _train_step(self, data, true_mask, target, dataset, index=None, loss_function = calculate_neg_likelihood):
+    def _train_step(self, data, true_mask, target, dataset, index=None, loss_function = continuous_NLLLoss(reduce= 'none'), ):
         self.zero_grad()
-
-        
         data, target, one_hot_target = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
-        batch_size = data.shape[0]
-        true_mask = true_mask.to(data.device)
-        log_y_hat, _ = self.classification_module(data, index= index, mask = true_mask)
-        neg_likelihood = loss_function(data, index, log_y_hat, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
+        target, one_hot_target = define_target(data, index, target, one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
 
-        log_y_hat_no_selection, _ = self.classification_module(data, index= index, mask = None)
-        neg_likelihood_no_selection = loss_function(data, index, log_y_hat_no_selection, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
+        batch_size = data.shape[0]
         if self.classification_module.imputation is not None :
             nb_imputation = self.classification_module.imputation.nb_imputation
+
+        true_mask = true_mask.to(data.device)
+        log_y_hat, _ = self.classification_module(data, index= index, mask = true_mask)
+        neg_likelihood = loss_function(input = log_y_hat, target = target, one_hot_target = one_hot_target)
+
+        log_y_hat_no_selection, _ = self.classification_module(data, index= index, mask = None)
+        neg_likelihood_no_selection = loss_function(input = log_y_hat_no_selection, target = target, one_hot_target = one_hot_target)
+
         loss = neg_likelihood.reshape(nb_imputation, batch_size)
         loss = torch.logsumexp(loss, dim=0) - torch.log(torch.tensor(nb_imputation, dtype=torch.float32))
         loss = torch.mean(loss)
@@ -162,7 +165,7 @@ class trueSelectionTraining(ordinaryTraining):
         self.optim_classification.step()
         return dic
 
-    def train_epoch(self, epoch, loader, loss_function = calculate_neg_likelihood, save_dic = False, verbose = False,):
+    def train_epoch(self, epoch, loader, loss_function = continuous_NLLLoss(reduce= 'none'), save_dic = False, verbose = False,):
         self.train()
         
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
@@ -170,6 +173,8 @@ class trueSelectionTraining(ordinaryTraining):
         total_dic = {}
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
+            one_hot_target = get_one_hot(target, num_classes=loader.dataset.get_dim_output())
+            target, one_hot_target = define_target(data, index, target, one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
             true_mask = loader.dataset.optimal_S_train[index].type(torch.float32).to(data.device)
             dic = self._train_step(data, true_mask, target, loader.dataset, index=index, loss_function=loss_function,)
 
@@ -271,14 +276,14 @@ class EVAL_X(ordinaryTraining):
         self.reshape_mask_function = reshape_mask_function
 
 
-    def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 1, loss_function = calculate_neg_likelihood, save_dic=False, verbose=False,):
+    def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 1, loss_function = continuous_NLLLoss(reduce= 'none'), save_dic=False, verbose=False,):
         self.train()
         total_dic = {}
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
         for batch_idx, data in enumerate(loader.train_loader):
             input, target, index = parse_batch(data)
 
-            dic = self._train_step(input, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE=nb_sample_z_IWAE, need_dic= (batch_idx % print_batch_every == 0))
+            dic = self._train_step(input, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE=nb_sample_z_IWAE, loss_function=loss_function, need_dic= (batch_idx % print_batch_every == 0))
             
             if batch_idx % print_batch_every == 0 :
                 if verbose :
@@ -306,7 +311,7 @@ class EVAL_X(ordinaryTraining):
                     one_hot_target_expanded_multiple_imputation,
                     dim_output,
                     index_expanded_multiple_imputation = None,
-                    loss_function = calculate_neg_likelihood,
+                    loss_function = continuous_NLLLoss(reduce= 'none'), 
                     ):
 
 
@@ -321,16 +326,14 @@ class EVAL_X(ordinaryTraining):
             index_expanded = None
         
         target_expanded_multiple_imputation_flatten = target_expanded_multiple_imputation.flatten(0,3)
-        data_expanded_multiple_imputation_flatten = data_expanded_multiple_imputation.flatten(0,3)
 
         log_y_hat, _ = self.classification_module(data_expanded_multiple_imputation[0], mask_expanded, index = index_expanded)
         log_y_hat = log_y_hat.reshape(data_expanded_multiple_imputation.shape[:4] + torch.Size((dim_output,)))
         
-        neg_likelihood = self._calculate_neg_likelihood(data = data_expanded_multiple_imputation_flatten,
-                            index = None,
-                            log_y_hat = log_y_hat.flatten(0,3),
+
+        neg_likelihood = loss_function(input = log_y_hat, 
                             target = target_expanded_multiple_imputation_flatten,
-                            )
+                            one_hot_target = one_hot_target_expanded_multiple_imputation)
 
         neg_likelihood = neg_likelihood.reshape(data_expanded_multiple_imputation.shape[:4])
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
@@ -340,12 +343,13 @@ class EVAL_X(ordinaryTraining):
 
 
 
-    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 1, need_dic = False,):
+    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 10, nb_sample_z_IWAE = 1, loss_function = continuous_NLLLoss(reduction="none"), need_dic = False,):
         nb_imputation = self.classification_module.imputation.nb_imputation        
         batch_size = data.shape[0]
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
         one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
+        target, one_hot_target = define_target(data, index, target, one_hot_target=one_hot_target, post_hoc=self.post_hoc, post_hoc_guidance=self.post_hoc_guidance, argmax_post_hoc=self.argmax_post_hoc)
         data_expanded_multiple_imputation, target_expanded_multiple_imputation, index_expanded_multiple_imputation, one_hot_target_expanded_multiple_imputation = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo= nb_sample_z_monte_carlo,  nb_sample_z_IWAE= nb_sample_z_IWAE, nb_imputation = nb_imputation)
 
         # Destructive module :
@@ -361,6 +365,7 @@ class EVAL_X(ordinaryTraining):
                         index_expanded_multiple_imputation = index_expanded_multiple_imputation,
                         one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
                         dim_output = dataset.get_dim_output(),
+                        loss_function = loss_function,
                         )
 
         loss_classification = loss_classification.mean(axis = 0) # Monte Carlo average

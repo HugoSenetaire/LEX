@@ -1,6 +1,5 @@
 from missingDataTrainingModule import PytorchDistributionUtils
-from missingDataTrainingModule.utils import loss
-from missingDataTrainingModule.utils.loss import calculate_neg_likelihood
+from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented
 from .utils_missing import *
 from functools import partial
 
@@ -47,6 +46,9 @@ class SELECTION_BASED_CLASSIFICATION():
         if self.post_hoc_guidance is not None :
             for param in self.post_hoc_guidance.parameters():
                 param.requires_grad = False
+
+        if self.post_hoc and(self.post_hoc_guidance is None) and self.fix_classifier_parameters :
+            self.post_hoc_guidance = self.classification_module
 
         if self.post_hoc and (self.post_hoc_guidance is None) and (not self.fix_classifier_parameters):
             raise AttributeError("You can't have post-hoc without a post hoc guidance or fixing the classifier parameters")
@@ -116,7 +118,7 @@ class SELECTION_BASED_CLASSIFICATION():
         if self.optim_distribution_module is not None :
             self.optim_distribution_module.step()
 
-    def alternate_fixing_train_epoch(self, epoch, loader, nb_step_fixed_classifier = 1, nb_step_fixed_selector = 1, nb_step_all_free = 1, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = calculate_neg_likelihood, save_dic=False, verbose = True, **kwargs):
+    def alternate_fixing_train_epoch(self, epoch, loader, nb_step_fixed_classifier = 1, nb_step_fixed_selector = 1, nb_step_all_free = 1, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = continuous_NLLLoss(reduction = "none"), save_dic=False, verbose = True, **kwargs):
 
         assert np.any(np.array([nb_step_fixed_classifier, nb_step_fixed_selector, nb_step_all_free])>0)
         if self.fix_classifier_parameters and self.fix_selector_parameters :
@@ -150,7 +152,7 @@ class SELECTION_BASED_CLASSIFICATION():
         return total_dic
 
     
-    def alternate_ordinary_train_epoch(self, epoch, loader, ratio_class_selection = 2, ordinaryTraining=None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = calculate_neg_likelihood, save_dic=False, verbose = True, **kwargs):
+    def alternate_ordinary_train_epoch(self, epoch, loader, ratio_class_selection = 2, ordinaryTraining=None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = continuous_NLLLoss(reduction = "none"), save_dic=False, verbose = True, **kwargs):
         
         if ordinaryTraining is None :
             raise AttributeError("ratio_class_selection is not None but ordinaryTraining is None, nothing is defined for the ratio")
@@ -200,7 +202,7 @@ class SELECTION_BASED_CLASSIFICATION():
         self.scheduler_step()    
         return total_dic
 
-    def classic_train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose=True, loss_function = calculate_neg_likelihood,**kwargs):
+    def classic_train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose=True, loss_function = continuous_NLLLoss(reduction = "none"),**kwargs):
         if self.fix_classifier_parameters and self.fix_selector_parameters :
             raise AttributeError("You can't train if both classifiers and selectors are fixed.")
         assert(self.compiled)
@@ -276,7 +278,7 @@ class SELECTION_BASED_CLASSIFICATION():
         return dic
 
     
-    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = calculate_neg_likelihood, need_dic = False):
+    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = continuous_NLLLoss(reduction = "none"), need_dic = False):
         self.zero_grad()
 
         nb_imputation = self.classification_module.imputation.nb_imputation
@@ -287,6 +289,7 @@ class SELECTION_BASED_CLASSIFICATION():
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
         one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
+        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
         data_expanded_multiple_imputation, target_expanded_multiple_imputation, index_expanded_multiple_imputation, one_hot_target_expanded_multiple_imputation = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo= nb_sample_z_monte_carlo,  nb_sample_z_IWAE= nb_sample_z_IWAE, nb_imputation = nb_imputation)
 
         
@@ -316,8 +319,6 @@ class SELECTION_BASED_CLASSIFICATION():
 
         if need_dic :
             dic = self._create_dic(loss_total = torch.mean(loss_total),
-                        neg_likelihood = torch.mean(loss_f),
-                        mse_loss = torch.tensor(0.0),
                         loss_rec = torch.mean(loss_f),
                         loss_reg = torch.mean(loss_reg),
                         loss_selection = torch.mean(loss_s),
@@ -334,7 +335,7 @@ class SELECTION_BASED_CLASSIFICATION():
                     one_hot_target_expanded_multiple_imputation,
                     dim_output,
                     index_expanded_multiple_imputation = None,
-                    loss_function = calculate_neg_likelihood,
+                    loss_function = continuous_NLLLoss(reduction = "none"),
                     ):
 
 
@@ -344,29 +345,18 @@ class SELECTION_BASED_CLASSIFICATION():
 
         if index_expanded_multiple_imputation is not None :
             index_expanded = index_expanded_multiple_imputation[0]
-            index_expanded_multiple_imputation_flatten = index_expanded_multiple_imputation.flatten(0,3)
         else :
-            index_expanded_multiple_imputation_flatten = None
             index_expanded = None
         
-        data_expanded_multiple_imputation_flatten = data_expanded_multiple_imputation.flatten(0,3)
         target_expanded_multiple_imputation_flatten = target_expanded_multiple_imputation.flatten(0,3)
         one_hot_target_expanded_multiple_imputation_flatten = one_hot_target_expanded_multiple_imputation.flatten(0,3)
 
 
         log_y_hat, _ = self.classification_module(data_expanded_multiple_imputation[0], mask_expanded, index = index_expanded)
-        log_y_hat = log_y_hat.reshape(data_expanded_multiple_imputation.shape[:4] + torch.Size((dim_output,)))
+        # log_y_hat = log_y_hat.reshape(data_expanded_multiple_imputation.shape[:4] + torch.Size((dim_output,)))
+        log_y_hat = log_y_hat.reshape((-1, dim_output))
 
-
-        neg_likelihood = loss_function(data = data_expanded_multiple_imputation_flatten,
-                                        index = index_expanded_multiple_imputation_flatten,
-                                        log_y_hat=log_y_hat.flatten(0,3),
-                                        target = target_expanded_multiple_imputation_flatten,
-                                        one_hot_target = one_hot_target_expanded_multiple_imputation_flatten,
-                                        post_hoc = self.post_hoc,
-                                        post_hoc_guidance = self.post_hoc_guidance,
-                                        argmax_post_hoc = self.argmax_post_hoc,
-                                    )
+        neg_likelihood = loss_function(log_y_hat, target_expanded_multiple_imputation_flatten, one_hot_target_expanded_multiple_imputation_flatten)
         neg_likelihood = neg_likelihood.reshape(data_expanded_multiple_imputation.shape[:4])
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
         neg_likelihood = torch.logsumexp(neg_likelihood, axis=-1) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32))
@@ -518,8 +508,8 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
                         ordinaryTraining = ordinaryTraining,
                         )
 
-        if self.post_hoc_guidance is not None :
-            raise NotImplementedError("REALX does not support post hoc guidance")
+        # if self.post_hoc_guidance is not None :
+            # raise NotImplementedError("REALX does not support post hoc guidance")
         self.classification_distribution_module = classification_distribution_module
 
     def _create_dic(self,loss_total,loss_rec_evalx,loss_rec,loss_reg,loss_selection,pi_list):
@@ -528,7 +518,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         return dic
 
 
-    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1, loss_function = calculate_neg_likelihood, need_dic = False,):
+    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1, loss_function = continuous_NLLLoss(reduction = "none"), need_dic = False,):
         self.zero_grad()
         nb_imputation = self.classification_module.imputation.nb_imputation
         if self.monte_carlo_gradient_estimator.fix_n_mc :
@@ -538,6 +528,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
         one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
+        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
         data_expanded_multiple_imputation, target_expanded_multiple_imputation, index_expanded_multiple_imputation, one_hot_target_expanded_multiple_imputation = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo= nb_sample_z_monte_carlo,  nb_sample_z_IWAE= nb_sample_z_IWAE, nb_imputation = nb_imputation)
 
         # Destructive module :
