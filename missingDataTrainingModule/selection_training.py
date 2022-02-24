@@ -90,7 +90,7 @@ class selectionTraining():
 
 
 
-    def test(self,loader):
+    def test(self, epoch, loader):
         self.selection_module.eval()
 
         dataset = loader.dataset
@@ -111,6 +111,7 @@ class selectionTraining():
 
 
         test_loss /= len(loader.test_loader.dataset)
+        print('\n Epoch {}'.format(epoch))
         print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(loader.test_loader.dataset) * np.prod(loader.dataset.get_dim_input()),
         100. * correct / len(loader.test_loader.dataset) / np.prod(loader.dataset.get_dim_input())))
