@@ -305,7 +305,7 @@ def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwa
                     loss_function=MSELossLastDim(reduction = 'none', iwae_reg='prod'),
                     log_y_hat = log_y_hat,
                 )
-                mse_loss_selection_prod += mse_loss.mean(0).sum(0) # Mean in MC sum in batch
+                mse_loss_selection_prod += mse_loss_prod.mean(0).sum(0) # Mean in MC sum in batch
 
 
                 accuracy = calculate_cost(
