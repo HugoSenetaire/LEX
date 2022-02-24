@@ -566,6 +566,11 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
 
 
 def calculate_score(trainer, loader,):
+  trainer.classification_module.imputation.nb_imputation_mc_test = 1
+  trainer.classification_module.imputation.nb_imputation_iwae_test = 1     
+  trainer.eval()
+  
+
   X_test = loader.dataset.X_test.type(torch.float32)
   Y_test = loader.dataset.Y_test.type(torch.float32)
   optimal_S_test = loader.dataset.optimal_S_test.type(torch.float32)
