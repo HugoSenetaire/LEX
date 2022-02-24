@@ -37,7 +37,8 @@ def define_target(data, index, target, one_hot_target, post_hoc = None, post_hoc
             wanted_one_hot_target = torch.zeros_like(log_probs)
             wanted_one_hot_target.scatter_(-1, wanted_target.unsqueeze(-1), 1)
         else :
-            wanted_target = log_probs #In that case, we need a special form a loss because Nll wont work as is.
+            #In that case, we need a special form a loss because Nll wont work as is.
+            wanted_target = torch.argmax(log_probs, -1) 
             wanted_one_hot_target = log_probs
     
     else :
