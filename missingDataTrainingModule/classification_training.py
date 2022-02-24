@@ -171,7 +171,7 @@ class trueSelectionTraining(ordinaryTraining):
         return true_mask
         
 
-    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (3,1,1,1), (1,3,1,1), (1,1,3,1), (1,1,1,3)]):
+    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (10,1,1,1), (1,10,1,1), (1,1,10,1), (1,1,1,10)]):
         total_dic = super().test(epoch, loader)
         for mc_config in liste_mc :
             nb_sample_z_monte_carlo = mc_config[0]
@@ -272,7 +272,7 @@ class EVAL_X(ordinaryTraining):
         z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo,))
         return z
     
-    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (3,1,1,1), (1,3,1,1), (1,1,3,1), (1,1,1,3)]):
+    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (10,1,1,1), (1,10,1,1), (1,1,10,1), (1,1,1,10)]):
         total_dic = super().test(epoch, loader)
         for mc_config in liste_mc :
             nb_sample_z_monte_carlo = mc_config[0]
