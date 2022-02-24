@@ -1,7 +1,7 @@
 from missingDataTrainingModule import PytorchDistributionUtils
-from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented
-from .utils_missing import *
-from functools import partial
+from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, test_selection, test_no_selection
+from .utils.utils import *
+from functools import partial, total_ordering
 
 
 import numpy as np
@@ -118,7 +118,7 @@ class SELECTION_BASED_CLASSIFICATION():
         if self.optim_distribution_module is not None :
             self.optim_distribution_module.step()
 
-    def alternate_fixing_train_epoch(self, epoch, loader, nb_step_fixed_classifier = 1, nb_step_fixed_selector = 1, nb_step_all_free = 1, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = continuous_NLLLoss(reduction = "none"), save_dic=False, verbose = True, **kwargs):
+    def alternate_fixing_train_epoch(self, epoch, loader, nb_step_fixed_classifier = 1, nb_step_fixed_selector = 1, nb_step_all_free = 1, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, loss_function = continuous_NLLLoss(reduction = "none"), save_dic=False, verbose = True, **kwargs):
 
         assert np.any(np.array([nb_step_fixed_classifier, nb_step_fixed_selector, nb_step_all_free])>0)
         if self.fix_classifier_parameters and self.fix_selector_parameters :
@@ -142,7 +142,7 @@ class SELECTION_BASED_CLASSIFICATION():
                 self.fix_classifier_parameters = False
                 self.fix_selector_parameters = False
 
-            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
+            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
             if batch_idx % print_batch_every == 0 :
                 if verbose :
                     print_dic(epoch, batch_idx, dic, loader)
@@ -152,7 +152,7 @@ class SELECTION_BASED_CLASSIFICATION():
         return total_dic
 
     
-    def alternate_ordinary_train_epoch(self, epoch, loader, ratio_class_selection = 2, ordinaryTraining=None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = continuous_NLLLoss(reduction = "none"), save_dic=False, verbose = True, **kwargs):
+    def alternate_ordinary_train_epoch(self, epoch, loader, ratio_class_selection = 2, ordinaryTraining=None, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, loss_function = continuous_NLLLoss(reduction = "none"), save_dic=False, verbose = True, **kwargs):
         
         if ordinaryTraining is None :
             raise AttributeError("ratio_class_selection is not None but ordinaryTraining is None, nothing is defined for the ratio")
@@ -173,7 +173,7 @@ class SELECTION_BASED_CLASSIFICATION():
             for batch_idx, data in enumerate(loader.train_loader):
                     data, target, index = parse_batch(data)
                     if (batch_idx + init_number) % (ratio_step+1) == 0 :
-                        dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
+                        dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
                         if batch_idx % print_batch_every == 0 :
                             if verbose :
                                 print_dic(epoch, batch_idx, dic, loader)
@@ -192,7 +192,7 @@ class SELECTION_BASED_CLASSIFICATION():
                         if verbose :
                             print_dic(epoch, batch_idx, dic, loader)
                 else :
-                    dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
+                    dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
                     if batch_idx % print_batch_every == 0 :
                         if verbose :
                             print_dic(epoch, batch_idx, dic, loader)
@@ -202,7 +202,7 @@ class SELECTION_BASED_CLASSIFICATION():
         self.scheduler_step()    
         return total_dic
 
-    def classic_train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, save_dic=False, verbose=True, loss_function = continuous_NLLLoss(reduction = "none"),**kwargs):
+    def classic_train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, save_dic=False, verbose=True, loss_function = continuous_NLLLoss(reduction = "none"),**kwargs):
         if self.fix_classifier_parameters and self.fix_selector_parameters :
             raise AttributeError("You can't train if both classifiers and selectors are fixed.")
         assert(self.compiled)
@@ -213,7 +213,7 @@ class SELECTION_BASED_CLASSIFICATION():
 
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
-            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
+            dic = self._train_step(data, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, loss_function = loss_function, need_dic= (batch_idx % print_batch_every == 0))
             if batch_idx % print_batch_every == 0 :
                 if verbose :
                     print_dic(epoch, batch_idx, dic, loader)
@@ -223,37 +223,6 @@ class SELECTION_BASED_CLASSIFICATION():
         self.scheduler_step()    
         return total_dic
 
-    def _calculate_neg_likelihood(self, data, index, log_y_hat, target,):
-        """
-        Calculate the negative log likelihood of the classification per element of the batch, no reduction is done
-
-        param:
-            data: the data (batch_size, nb_channel,other dim...)
-            index: the index of the data (batch_size, )
-            log_y_hat: the log of the output of the classification (batch_size, nb_class)
-            target: the target (batch_size, )
-
-
-        return:
-            the negative log likelihood (batch_size, )
-        """
-        if not self.post_hoc:
-            neg_likelihood = F.nll_loss(log_y_hat, target.flatten(), reduce = False)
-        else :
-            if self.post_hoc_guidance is not None : # Can handle both case where classifier is fixed or not, meaning we train a surrogate classifier or the surrogate classifier is pretrained and fixed (second case is a bit stupid)
-                out_y, _ = self.post_hoc_guidance(data, index = index)
-            elif self.fix_classifier_parameters : # Case where we do directly posthoc on the classifier.
-                out_y, _ =self.classification_module(data, index=index)
-            else :
-                raise AttributeError("You can't have post-hoc without a post hoc guidance or fixing the classifier parameters")
-            out_y = out_y.detach()
-            if self.argmax_post_hoc :
-                out_y = torch.argmax(out_y, -1)
-                neg_likelihood = F.nll_loss(log_y_hat, out_y, reduce = False)
-            else :
-                neg_likelihood = - torch.sum(torch.exp(out_y) * log_y_hat, -1)
-
-        return neg_likelihood
 
 
     def _create_dic(self, loss_total, pi_list, loss_rec = None, loss_reg = None, loss_selection = None, ):
@@ -278,31 +247,40 @@ class SELECTION_BASED_CLASSIFICATION():
         return dic
 
     
-    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 3, nb_sample_z_IWAE = 3, loss_function = continuous_NLLLoss(reduction = "none"), need_dic = False):
+    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, loss_function = continuous_NLLLoss(reduction = "none"), need_dic = False):
         self.zero_grad()
 
-        nb_imputation = self.classification_module.imputation.nb_imputation
+        nb_imputation_iwae = self.classification_module.imputation.nb_imputation_iwae
+        nb_imputation_mc = self.classification_module.imputation.nb_imputation_mc
+
         if self.monte_carlo_gradient_estimator.fix_n_mc :
-            nb_sample_z_monte_carlo = 2**(np.prod(data.shape[1:])*nb_sample_z_IWAE)
+            nb_sample_z_monte_carlo = 2**(np.prod(data.shape[1:])*nb_sample_z_iwae)
         
         batch_size = data.shape[0]
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
         one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
         target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
-        data_expanded_multiple_imputation, target_expanded_multiple_imputation, index_expanded_multiple_imputation, one_hot_target_expanded_multiple_imputation = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo= nb_sample_z_monte_carlo,  nb_sample_z_IWAE= nb_sample_z_IWAE, nb_imputation = nb_imputation)
+        data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
+                                                                                                        target = target,
+                                                                                                        index=index,
+                                                                                                        one_hot_target = one_hot_target,
+                                                                                                        mc_part = nb_sample_z_monte_carlo,
+                                                                                                        iwae_part= nb_sample_z_iwae,
+                                                                                                        )
 
         
         # Selection Module :
         log_pi_list, loss_reg = self.selection_module(data)
-        log_pi_list = log_pi_list.unsqueeze(1).expand(batch_size, nb_sample_z_IWAE, -1)
+        log_pi_list = log_pi_list.unsqueeze(1).expand(batch_size, nb_sample_z_iwae, -1) # IWae is part of the parameters while monte carlo is used in the monte carlo gradient estimator.
         pi_list = torch.exp(log_pi_list)
 
-        cost_calculation = partial(self.calculate_cost,
-                        data_expanded_multiple_imputation = data_expanded_multiple_imputation,
-                        target_expanded_multiple_imputation = target_expanded_multiple_imputation,
-                        index_expanded_multiple_imputation = index_expanded_multiple_imputation,
-                        one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
+        cost_calculation = partial(calculate_cost,
+                        trainer = self,
+                        data_expanded = data_expanded,
+                        target_expanded = target_expanded,
+                        index_expanded = index_expanded,
+                        one_hot_target_expanded = one_hot_target_expanded,
                         dim_output = dataset.get_dim_output(),
                         loss_function = loss_function,
                         )
@@ -328,153 +306,56 @@ class SELECTION_BASED_CLASSIFICATION():
             dic = {}
         return dic
 
-    def calculate_cost(self, 
-                    mask_expanded,
-                    data_expanded_multiple_imputation, # Shape is (nb_imputation, nb_sample_z_monte_carlo, nb_sample_z_IWAE, batch_size, channel, dim...)
-                    target_expanded_multiple_imputation,
-                    one_hot_target_expanded_multiple_imputation,
-                    dim_output,
-                    index_expanded_multiple_imputation = None,
-                    loss_function = continuous_NLLLoss(reduction = "none"),
-                    ):
+    
+    def sample_z(self, data, target, index, dataset, nb_sample_z_monte_carlo, nb_sample_z_iwae):
+        batch_size = data.shape[0]
+        log_pi_list, loss_reg = self.selection_module(data)
+        log_pi_list = log_pi_list.unsqueeze(1).expand(batch_size, nb_sample_z_iwae, -1) # IWae is part of the parameters while monte carlo is used in the monte carlo gradient estimator.
+        pi_list = torch.exp(log_pi_list)
+        p_z = self.distribution_module(probs = pi_list)
+        z = self.distribution_module.sample((nb_sample_z_monte_carlo,))
+        return z
 
-
-        nb_imputation = self.classification_module.imputation.nb_imputation
-        nb_sample_z_IWAE = data_expanded_multiple_imputation.shape[3]
-        mask_expanded = self.reshape(mask_expanded)
-
-        if index_expanded_multiple_imputation is not None :
-            index_expanded = index_expanded_multiple_imputation[0]
-        else :
-            index_expanded = None
-        
-        target_expanded_multiple_imputation_flatten = target_expanded_multiple_imputation.flatten(0,3)
-        one_hot_target_expanded_multiple_imputation_flatten = one_hot_target_expanded_multiple_imputation.flatten(0,3)
-
-
-        log_y_hat, _ = self.classification_module(data_expanded_multiple_imputation[0], mask_expanded, index = index_expanded)
-        # log_y_hat = log_y_hat.reshape(data_expanded_multiple_imputation.shape[:4] + torch.Size((dim_output,)))
-        log_y_hat = log_y_hat.reshape((-1, dim_output))
-
-        neg_likelihood = loss_function(log_y_hat, target_expanded_multiple_imputation_flatten, one_hot_target_expanded_multiple_imputation_flatten)
-        neg_likelihood = neg_likelihood.reshape(data_expanded_multiple_imputation.shape[:4])
-        neg_likelihood = torch.logsumexp(neg_likelihood, axis=0)  - torch.log(torch.tensor(nb_imputation).type(torch.float32))
-        neg_likelihood = torch.logsumexp(neg_likelihood, axis=-1) - torch.log(torch.tensor(nb_sample_z_IWAE).type(torch.float32))
-
-        return neg_likelihood
-  
-
-    def test(self, loader, nb_sample_z = 10):
-        mse_loss_from_mean = 0
-        mse_loss = 0
-        mse_loss_no_selection = 0
-        neg_likelihood_from_mean= 0
-        neg_likelihood_no_selection = 0
-        neg_likelihood = 0
-        correct_classic = 0
-        correct_post_hoc = 0
-        correct_destructed = 0
-        correct_baseline = 0
-        nb_imputation_test = self.classification_module.imputation.nb_imputation_test
-        self.eval()
+    def get_pi_list(self, loader,):
         pi_list_total = []
+        dic = {}
         with torch.no_grad():
             for batch_index, data in enumerate(loader.test_loader):
                 data, target, index = parse_batch(data)
-                batch_size = data.shape[0]
                 if self.use_cuda :
                     data, target, index = on_cuda(data, target = target, index = index,)
-                one_hot_target = get_one_hot(target, num_classes = loader.dataset.get_dim_output())
-                data_expanded, target_expanded, index_expanded, one_hot_target_expanded = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo = nb_sample_z, nb_imputation = nb_imputation_test)
-                if index_expanded is not None :
-                    index_expanded_flatten = index_expanded.flatten(0,1)
-                else :
-                    index_expanded_flatten = None
-
-
-
                 log_pi_list, _ = self.selection_module(data)
                 pi_list_total.append(torch.exp(log_pi_list).cpu().numpy())
-                self.distribution_module(torch.exp(log_pi_list))
-                z = self.distribution_module.sample((nb_sample_z,))
-                z = self.reshape(z)
-                
-
-                if self.post_hoc_guidance is not None:
-                    ## Check the prediction without selection on the post-hoc-guidance method
-                    log_y_hat, _ = self.post_hoc_guidance(data, index = index)
-                    pred_post_hoc = torch.argmax(log_y_hat,dim = 1)
-                    correct_post_hoc += pred_post_hoc.eq(target).sum().item()
- 
-                ## Check the prediction without selection on the baseline method
-                log_y_hat, _ = self.classification_module(data, index = index)
-                pred_classic = torch.argmax(log_y_hat,dim = 1)
-                neg_likelihood_no_selection += F.nll_loss(log_y_hat, target, reduction = 'sum')
-                mse_loss_no_selection += F.mse_loss(torch.exp(log_y_hat), one_hot_target, reduce=False).sum(-1).sum()
-                correct_classic += pred_classic.eq(target).sum()
-
-                ## Check the prediction with the selection method
-                log_y_hat_destructed, _ = self.classification_module(data_expanded.flatten(0,1), z, index = index_expanded_flatten)
-                log_y_hat_destructed = log_y_hat_destructed.reshape(nb_sample_z, batch_size, loader.dataset.get_dim_output())
-                log_y_hat_mean = torch.mean(log_y_hat_destructed, axis=0)
-
-
-                neg_likelihood += F.nll_loss(log_y_hat_destructed.flatten(0,1), target_expanded.flatten(0,2), reduce=False).reshape((nb_sample_z, batch_size)).mean(0).sum()
-                mse_loss += F.mse_loss(torch.exp(log_y_hat_destructed.flatten(0,1)), one_hot_target_expanded.flatten(0,2), reduce=False).sum(-1).reshape((nb_sample_z, batch_size)).mean(0).sum()
-
-                mse_loss_from_mean += torch.sum(torch.sum((torch.exp(log_y_hat_mean)-one_hot_target)**2,1))
-                neg_likelihood_from_mean += F.nll_loss(log_y_hat_mean, target, reduce='sum')
-
-                pred_destructed = torch.argmax(log_y_hat_mean, dim=1)
-                correct_destructed += pred_destructed.eq(target).sum()
-
-
-
-            mse_loss /= len(loader.test_loader.dataset) 
-            neg_likelihood /= len(loader.test_loader.dataset) 
-            print('\nTest set: MSE: {:.4f}, Likelihood {:.4f}, Accuracy No selection: {}/{} ({:.0f}%), Accuracy selection: {}/{} ({:.0f}%), Accuracy PostHoc: {}/{} ({:.0f}%),'.format(
-                 mse_loss.item(), -neg_likelihood.item(),
-                 correct_classic.item(), len(loader.test_loader.dataset),100. * correct_classic.item() / len(loader.test_loader.dataset),
-                 correct_destructed.item(), len(loader.test_loader.dataset), 100. * correct_destructed.item() / len(loader.test_loader.dataset),
-                 correct_post_hoc, len(loader.test_loader.dataset), 100. * correct_post_hoc / len(loader.test_loader.dataset),
-                ))
-            print("\n")
-            total_dic = self._create_dic_test(correct_destructed/len(loader.test_loader.dataset),
-                correct_classic/len(loader.test_loader.dataset),
-                neg_likelihood = neg_likelihood,
-                neg_likelihood_no_selection = neg_likelihood_no_selection,
-                mse_loss = mse_loss,
-                mse_loss_no_selection = mse_loss_no_selection,
-                neg_likelihood_from_mean = neg_likelihood_from_mean,
-                mse_loss_from_mean = mse_loss_from_mean,
-                pi_list_total = pi_list_total,
-                correct_post_hoc=correct_post_hoc,
-                )
-
-        return total_dic
-
-    def _create_dic_test(self, correct, correct_no_selection, neg_likelihood, neg_likelihood_no_selection, neg_likelihood_from_mean, mse_loss, mse_loss_no_selection, mse_loss_from_mean, pi_list_total, correct_post_hoc = None):
-        total_dic = {}
-        total_dic["accuracy_prediction_no_selection"] = correct_no_selection.item()
-        total_dic["accuracy_prediction_selection"] = correct.item()
-
-        total_dic["neg_likelihood"] = neg_likelihood.item()
-        total_dic["neg_likelihood_no_selection"] = neg_likelihood_no_selection.item()
-        total_dic["neg_likelihood_from_mean"] = neg_likelihood_from_mean.item()
-
-        total_dic["mse_loss"] = mse_loss.item()
-        total_dic["mse_loss_no_selection"] = mse_loss_no_selection.item()
-        total_dic["mse_loss_from_mean"] = mse_loss_from_mean.item()
-
+        
         treated_pi_list_total = np.concatenate(pi_list_total)
-        total_dic["mean_pi_list"] = np.mean(treated_pi_list_total).item()
+        dic["mean_pi_list"] = np.mean(treated_pi_list_total).item()
         q = np.quantile(treated_pi_list_total, [0.25,0.5,0.75])
-        total_dic["pi_list_q1"] = q[0].item()
-        total_dic["pi_list_median"] = q[1].item()
-        total_dic["pi_list_q2"] = q[2].item()
-        total_dic["correct_post_hoc"] = correct_post_hoc
+        dic["pi_list_q1"] = q[0].item()
+        dic["pi_list_median"] = q[1].item()
+        dic["pi_list_q2"] = q[2].item()
+
+        return dic
+        
+
+    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (10,1,1,1), (1,10,1,1), (1,1,10,1), (1,1,1,10)]):
+        """
+        Do multiple test with/without sel, with different number of MC samples for mask sampling and imputation sampling.
+        """
+        print("\nTest epoch {}".format(epoch))
+        total_dic = {}
+        total_dic.update(test_no_selection(trainer = self, loader = loader,))
+        for mc_config in liste_mc :
+            nb_sample_z_monte_carlo = mc_config[0]
+            nb_sample_z_iwae = mc_config[1]
+            nb_imputation_mc = mc_config[2]
+            nb_imputation_iwae = mc_config[3]
+            self.classification_module.imputation.nb_imputation_mc_test = nb_imputation_mc
+            self.classification_module.imputation.nb_imputation_iwae_test = nb_imputation_iwae
+            total_dic.update(test_selection(trainer = self, loader = loader, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, mask_sampling = self.sample_z))
+        total_dic.update(self.get_pi_list(loader = loader,))
 
         return total_dic
+
 
 
 class REALX(SELECTION_BASED_CLASSIFICATION):
@@ -518,22 +399,28 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         return dic
 
 
-    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = 1, loss_function = continuous_NLLLoss(reduction = "none"), need_dic = False,):
+    def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1, loss_function = continuous_NLLLoss(reduction = "none"), need_dic = False,):
         self.zero_grad()
-        nb_imputation = self.classification_module.imputation.nb_imputation
         if self.monte_carlo_gradient_estimator.fix_n_mc :
-            nb_sample_z_monte_carlo = 2**(np.prod(data.shape[1:])*nb_sample_z_IWAE)
+            nb_sample_z_monte_carlo = 2**(np.prod(data.shape[1:])*nb_sample_z_iwae)
         
         batch_size = data.shape[0]
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
         one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
         target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
-        data_expanded_multiple_imputation, target_expanded_multiple_imputation, index_expanded_multiple_imputation, one_hot_target_expanded_multiple_imputation = prepare_data_augmented(data, target = target, index=index, one_hot_target = one_hot_target, nb_sample_z_monte_carlo= nb_sample_z_monte_carlo,  nb_sample_z_IWAE= nb_sample_z_IWAE, nb_imputation = nb_imputation)
+        data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
+                                                                                                target = target,
+                                                                                                index=index,
+                                                                                                one_hot_target = one_hot_target,
+                                                                                                mc_part = nb_sample_z_monte_carlo,
+                                                                                                iwae_part = nb_sample_z_iwae,
+                                                                                                )
+
 
         # Destructive module :
         log_pi_list, loss_reg = self.selection_module(data)
-        log_pi_list = log_pi_list.unsqueeze(1).expand(batch_size, nb_sample_z_IWAE, -1)
+        log_pi_list = log_pi_list.unsqueeze(1).expand(batch_size, nb_sample_z_iwae, -1) # IWae is part of the parameters while monte carlo is used in the monte carlo gradient estimator.
         pi_list = torch.exp(log_pi_list)
 
 
@@ -544,18 +431,17 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         z = self.classification_distribution_module.sample(sample_shape = (nb_sample_z_monte_carlo,))
         z = self.reshape(z)
         
-
-        # Selection Module :
-        loss_classification = self.calculate_cost(mask_expanded = z,
-                        data_expanded_multiple_imputation = data_expanded_multiple_imputation,
-                        target_expanded_multiple_imputation = target_expanded_multiple_imputation,
-                        index_expanded_multiple_imputation = index_expanded_multiple_imputation,
-                        one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
+        loss_classification = calculate_cost(mask_expanded = z,
+                        trainer = self,
+                        data_expanded = data_expanded,
+                        target_expanded = target_expanded,
+                        index_expanded = index_expanded,
+                        one_hot_target_expanded = one_hot_target_expanded,
                         dim_output = dataset.get_dim_output(),
-                        loss_function=loss_function,
+                        loss_function = loss_function,
                         )
 
-        loss_classification = loss_classification.mean(axis = 0)
+        loss_classification = loss_classification.mean(axis = 0) # Mean on MC SAmples here
 
         if not self.fix_classifier_parameters :
             torch.mean(loss_classification, axis=0).backward()
@@ -563,11 +449,12 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             self.zero_grad()
 
 
-        cost_calculation = partial(self.calculate_cost,
-                        data_expanded_multiple_imputation = data_expanded_multiple_imputation,
-                        target_expanded_multiple_imputation = target_expanded_multiple_imputation,
-                        index_expanded_multiple_imputation = index_expanded_multiple_imputation,
-                        one_hot_target_expanded_multiple_imputation = one_hot_target_expanded_multiple_imputation,
+        cost_calculation = partial(calculate_cost,
+                        trainer = self,
+                        data_expanded = data_expanded,
+                        target_expanded = target_expanded,
+                        index_expanded = index_expanded,
+                        one_hot_target_expanded = one_hot_target_expanded,
                         dim_output = dataset.get_dim_output(),
                         loss_function = loss_function,
                         )

@@ -2,6 +2,8 @@ import os
 import torch
 import torch.nn as nn
 
+from missingDataTrainingModule.utils.loss import NLLLossAugmented
+
 from .classification_training import ordinaryTraining, EVAL_X, trueSelectionTraining
 from .interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
 from .selection_training import selectionTraining
@@ -23,8 +25,6 @@ def save_parameters(path, args_classification, args_selection, args_distribution
     if not os.path.exists(complete_path):
         os.makedirs(complete_path)
 
-    print(complete_path)
-    print(os.path.exists(complete_path))
 
     with open(os.path.join(complete_path,"classification.txt"), "w") as f:
         f.write(str(args_classification))
@@ -86,10 +86,12 @@ def get_imputation_method(args_classification, dataset):
     else :
         reconstruction_regularization = None
     
-    
+
     imputation = args_classification["imputation"](
-                                        nb_imputation = args_classification["nb_imputation"],
-                                        nb_imputation_test = args_classification["nb_imputation_test"],
+                                        nb_imputation_mc = args_classification["nb_imputation_mc"],
+                                        nb_imputation_mc_test = args_classification["nb_imputation_mc_test"],
+                                        nb_imputation_iwae = args_classification["nb_imputation_iwae"],
+                                        nb_imputation_iwae_test = args_classification["nb_imputation_iwae_test"],
                                         reconstruction_reg = reconstruction_regularization,
                                         mask_reg = mask_reg,
                                         post_process_regularization = post_process_regularization,
@@ -108,12 +110,11 @@ def get_imputation_method(args_classification, dataset):
 def get_loss_function(args_train):
     if args_train["loss_function"]== "MSE" :
         loss_function = MSELossLastDim(reduction='none')
-        print(loss_function.reduction)
     elif args_train["loss_function"]== "NLL" :
         if args_train["post_hoc"] and (not args_train["argmax_post_hoc"]):
             loss_function = continuous_NLLLoss(reduction='none')
         else :
-            loss_function = nn.NLLLoss(reduction='none')
+            loss_function = NLLLossAugmented(reduction='none')
     else :
         raise ValueError("Unknown loss function") 
     
@@ -273,7 +274,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         for epoch in range(args_train["nb_epoch_post_hoc"]):
             dic_train = trainer.train_epoch(epoch, loader, loss_function=loss_function, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == args_train["nb_epoch_post_hoc"] - 1:
-                dic_test = trainer.test(loader)
+                dic_test = trainer.test(epoch, loader)
 
             
             total_dic_train = fill_dic(total_dic_train, dic_train)
@@ -381,7 +382,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         for epoch in range(int(nb_epoch)):
             dic_train = trainer_ordinary.train_epoch(epoch, loader, loss_function = loss_function, save_dic = True, verbose=True)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
-                dic_test = trainer_ordinary.test(loader) 
+                dic_test = trainer_ordinary.test(epoch, loader) 
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test = fill_dic(total_dic_test, dic_test)
             
@@ -423,7 +424,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         for epoch in range(int(nb_epoch)):
             dic_train = selection_trainer.train_epoch(epoch, loader, save_dic = True,)
             if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == nb_epoch-1:
-                dic_test = selection_trainer.test(loader) 
+                dic_test = selection_trainer.test(epoch, loader) 
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test = fill_dic(total_dic_test, dic_test)
         
@@ -488,13 +489,13 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             loader,
             save_dic = True,
             nb_sample_z_monte_carlo = args_train["nb_sample_z_train_monte_carlo"],
-            nb_sample_z_IWAE = args_train["nb_sample_z_train_IWAE"],
+            nb_sample_z_iwae = args_train["nb_sample_z_train_IWAE"],
             loss_function = loss_function,
             verbose = ((epoch+1) % args_train["print_every"] == 0),
         )
 
         if (epoch+1)%args_complete_trainer["save_every_epoch"] == 0 or epoch == args_train["nb_epoch"]-1:
-            dic_test = trainer.test(loader, nb_sample_z=args_test["nb_sample_z_test"])
+            dic_test = trainer.test(epoch, loader, )
             total_dic_train = fill_dic(total_dic_train, dic_train)
             total_dic_test = fill_dic(total_dic_test, dic_test)
         

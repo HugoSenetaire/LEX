@@ -24,13 +24,15 @@ def get_item(tensor):
     else :
         return None
 
-def prepare_data(data, target, num_classes=10, use_cuda = False):
+def prepare_data(data, target, index = None, num_classes=10, use_cuda = False):
     if use_cuda:
         data =data.cuda()
         target = target.cuda()
+        if index is not None :
+            index = index.cuda()
     one_hot_target = torch.nn.functional.one_hot(target, num_classes = num_classes)
 
-    return data, target, one_hot_target
+    return data, target, one_hot_target, index
 
 
 
@@ -61,50 +63,45 @@ def get_one_hot(target, num_classes = 10):
 
     return one_hot_target
 
-def extend_input(input, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = None, nb_imputation = None):
+# def extend_input_mask(input, mc_part = 1, iwae_part = 1,):
+#     shape = input.shape
+#     reshape_shape = torch.Size((1,1,)) + shape
+#     wanted_shape = torch.Size((iwae_part, mc_part,)) + shape
+#     input_expanded = input.reshape(reshape_shape).expand(wanted_shape)
+#     return input_expanded
+
+def extend_input(input, mc_part = 1, iwae_part = 1,):
     shape = input.shape
-    
-    wanted_shape = torch.Size((nb_sample_z_monte_carlo,)) + shape
-    input_expanded = input.unsqueeze(0)
-
-    if nb_sample_z_IWAE is not None :
-        wanted_shape = wanted_shape[:2] + torch.Size((nb_sample_z_IWAE,)) + wanted_shape[2:]
-        input_expanded = input_expanded.unsqueeze(2)
-
-
-    if nb_imputation is not None :
-        wanted_shape = torch.Size((nb_imputation,)) + wanted_shape
-        input_expanded = input_expanded.unsqueeze(0)
-
-    
-    input_expanded = input_expanded.expand(wanted_shape)
-
-
+    reshape_shape = torch.Size((1,)) + torch.Size((shape[0],)) + torch.Size((1,)) + shape[1:]
+    wanted_shape = torch.Size((mc_part,)) + torch.Size((shape[0],)) + torch.Size((iwae_part,)) + shape[1:]
+    input_expanded = input.reshape(reshape_shape).expand(wanted_shape)
     return input_expanded
-    
+     
+# def extend_input_sample(input, mc_part = 1, iwae_part = 1,):
+#     shape = input.shape
+#     reshape_shape = torch.Size((shape[0],)) + torch.Size((1,1,)) + shape[1:]
+#     wanted_shape = torch.Size((shape[0],)) + torch.Size((mc_part, iwae_part,)) + shape[1:]
+#     input_expanded = input.reshape(reshape_shape).expand(wanted_shape)
+#     return input_expanded
 
-    
-def prepare_data_augmented(data, target = None, index=None, one_hot_target = None, nb_sample_z_monte_carlo = 1, nb_sample_z_IWAE = None, nb_imputation = None):
+def sampling_augmentation(data, target = None, index=None, one_hot_target = None, mc_part = 1, iwae_part = 1,):
     if index is not None :
-        index_expanded = extend_input(index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, nb_imputation = nb_imputation)
+        index_expanded = extend_input(index, mc_part = mc_part, iwae_part = iwae_part,)
     else :
         index_expanded = None
 
     if one_hot_target is not None :
-        one_hot_target_expanded = extend_input(one_hot_target, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, nb_imputation = nb_imputation)
+        one_hot_target_expanded = extend_input(one_hot_target, mc_part = mc_part, iwae_part = iwae_part,)
     else :
         one_hot_target_expanded = None
 
-    
-    
     if target is not None :
-        target_expanded = extend_input(target, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, nb_imputation = nb_imputation)
+        target_expanded = extend_input(target, mc_part = mc_part, iwae_part = iwae_part,)
     else :
         target_expanded = None
-    data_expanded = extend_input(data, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_IWAE = nb_sample_z_IWAE, nb_imputation = nb_imputation)
+
+    data_expanded = extend_input(data, mc_part = mc_part, iwae_part = iwae_part,)
      
-
-
     return data_expanded, target_expanded, index_expanded, one_hot_target_expanded
 
 
@@ -140,3 +137,15 @@ def get_all_z(dim):
     output = torch.tensor(output, dtype=torch.float)
 
     return output
+
+
+def dic_evaluation(accuracy, mse, neg_likelihood, suffix = "", mse_loss_prod = None):
+    dic = {}
+    dic["accuracy" + suffix] = accuracy
+    dic["mse" + suffix] = mse
+    dic["neg_likelihood" + suffix] = neg_likelihood
+    if mse_loss_prod is not None :
+        dic["mse_loss_prod" + suffix] = mse_loss_prod
+    return dic
+
+

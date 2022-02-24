@@ -65,9 +65,10 @@ def get_default():
     args_classification["sigma_noise_imputation"] = 1.0
     args_classification["add_mask"] = False
     args_classification["module_imputation"] = None
-    args_classification["nb_imputation"] = 1
-    args_classification["nb_imputation_test"] = None #If none is given, turn to 1
-
+    args_classification["nb_imputation_iwae"] = 1
+    args_classification["nb_imputation_iwae_test"] = None #If none is given, turn to 1
+    args_classification["nb_imputation_mc"] = 1
+    args_classification["nb_imputation_mc_test"] = None #If none is given, turn to 1
 
     args_classification["reconstruction_regularization"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
     args_classification["network_reconstruction"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
@@ -176,6 +177,7 @@ def get_default():
     args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9)
     
     args_test = {}
-    args_test["nb_sample_z_test"] = 10
+    args_test["nb_sample_z_mc_test"] = 1
+    args_test["nb_sample_z_iwae_test"] = 1
 
     return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, args_classification_distribution_module

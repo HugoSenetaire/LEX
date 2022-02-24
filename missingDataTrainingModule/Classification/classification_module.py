@@ -28,16 +28,16 @@ class ClassificationModule(nn.Module):
         
         Parameters:
         -----------
-        data : torch.Tensor of shape (nb_sample_z_MC * nb_sample_z_IWAE * batch_size, channels, size_lists...)
+        data : torch.Tensor of shape (nb_sample_z_MC * nb_sample_z_iwae * batch_size, channels, size_lists...)
             The data to be classified
-        mask : torch.Tensor of shape (nb_sample_z_MC * nb_sample_z_IWAE * batch_size, channels, size_lists...)
+        mask : torch.Tensor of shape (nb_sample_z_MC * nb_sample_z_iwae * batch_size, channels, size_lists...)
             The mask to be used for the classification, shoudl be in the same shape as the data
-        index : torch.Tensor of shape (nb_sample_z_MC * nb_sample_z_IWAE * batch_size, )
+        index : torch.Tensor of shape (nb_sample_z_MC * nb_sample_z_iwae * batch_size, )
             The index to be used for imputation
 
         Returns:
         --------
-        y_hat : torch.Tensor of shape (nb_imputation * nb_sample_z_MC * nb_sample_z_IWAE * batch_size, nb_category)
+        y_hat : torch.Tensor of shape (nb_imputation * nb_sample_z_MC * nb_sample_z_iwae * batch_size, nb_category)
             The output of the classification
         loss_reconstruction : torch.Tensor of shape (1)
             Some regularization term that can be added to the loss (for instance in the case of version Autoencoder regularisation)
@@ -45,7 +45,7 @@ class ClassificationModule(nn.Module):
         """
         
         if mask is not None :
-            data = data.reshape(mask.shape) # Quick fix when the reshape function do not match the shape of the data (change the dataset might be better), TODO
+            mask = mask.reshape(data.shape)
         if self.imputation is not None and mask is not None :
             x_imputed, loss_reconstruction = self.imputation(data, mask, index)
             y_hat = self.classifier(x_imputed)
