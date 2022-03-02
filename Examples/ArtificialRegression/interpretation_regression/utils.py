@@ -598,7 +598,9 @@ def calculate_score(trainer, loader,):
       log_y_hat, _ = classification_module(X_test, z, index=None)
       pred_classic = torch.exp(log_y_hat).detach().cpu().numpy()
       log_pi_list = log_pi_list.detach().cpu().numpy()
-
+      if selection_module.activation is torch.nn.Softmax():
+        log_pi_list = distribution_module.sample((1000,)).mean(dim = 0)
+        # log_pi_list = log_pi_list * np.prod(log_pi_list.shape[1:])
 
     log_y_hat_true_selection, _ = classification_module(X_test, optimal_S_test, index = None, )
     pred_true_selection = torch.exp(log_y_hat_true_selection).detach().cpu().numpy()

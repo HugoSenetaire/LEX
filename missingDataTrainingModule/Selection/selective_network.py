@@ -29,7 +29,7 @@ class AbstractSelector(nn.Module):
 class SelectorLinear(AbstractSelector):
     def __init__(self,input_size = (1,28,28), output_size = (1,28,28)):
       super().__init__(input_size = input_size, output_size = output_size)
-      self.pi = nn.Linear(np.prod(self.input_size), np.prod(self.input_size))
+      self.pi = nn.Linear(np.prod(self.input_size), np.prod(self.output_size))
       
 
     def __call__(self, x):
