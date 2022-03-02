@@ -374,6 +374,8 @@ def test_no_selection(trainer, loader, ):
             if trainer.use_cuda :
                 data, target, index = on_cuda(data, target = target, index = index,)
             one_hot_target = get_one_hot(target, num_classes = loader.dataset.get_dim_output())
+            target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = trainer.post_hoc, post_hoc_guidance = trainer.post_hoc_guidance, argmax_post_hoc = trainer.argmax_post_hoc)
+
             ## Check the prediction without selection on the baseline method
             log_y_hat, _ = trainer.classification_module(data, index = index)
             log_y_hat = log_y_hat.reshape(-1, loader.dataset.get_dim_output())
