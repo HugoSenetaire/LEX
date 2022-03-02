@@ -8,14 +8,15 @@ from .classification_training import ordinaryTraining, EVAL_X, trueSelectionTrai
 from .interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
 from .selection_training import selectionTraining
 from .utils import MSELossLastDim, define_target, continuous_NLLLoss, fill_dic, save_dic
-from .PytorchDistributionUtils.distribution import RelaxedSubsetSampling, RelaxedBernoulli_thresholded_STE, RelaxedSubsetSampling_STE, L2X_Distribution_STE, L2X_Distribution
+from .PytorchDistributionUtils.distribution import self_regularized_distributions, RelaxedSubsetSampling, RelaxedBernoulli_thresholded_STE, RelaxedSubsetSampling_STE, L2XDistribution_STE, L2XDistribution
 from .Selection.selection_module import SelectionModule
 from .Classification.classification_module import ClassificationModule
 
-
 from torch.distributions import *
 from torch.optim import *
+import numpy as np
 from functools import partial
+
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -24,7 +25,6 @@ def save_parameters(path, args_classification, args_selection, args_distribution
     complete_path = os.path.join(path, "parameters")
     if not os.path.exists(complete_path):
         os.makedirs(complete_path)
-
 
     with open(os.path.join(complete_path,"classification.txt"), "w") as f:
         f.write(str(args_classification))
@@ -161,15 +161,24 @@ def get_networks(args_classification, args_selection, args_complete_trainer, out
  
     return classifier, selector, baseline, selector_var
 
-def get_regularization_method(args_selection):
+def get_regularization_method(args_selection, args_distribution_module):
+    sampling_distrib = args_distribution_module["distribution"]
+    if sampling_distrib in self_regularized_distributions :
+        
+        k = int(np.round(args_selection["rate"] * np.prod(args_selection["output_size_selector"]),))
+        if k == 0 :
+            print("Warning : k = 0, you need to select at least one variable. K =1 is used instead.")
+            k = 1
+        args_distribution_module["distribution"] = partial(sampling_distrib, k=k)
+    
     regularization = args_selection["regularization"](**args_selection)
     return regularization
 
 def check_parameters_compatibility(args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_output):
     sampling_distrib = args_distribution_module["distribution"]
     activation = args_selection["activation"]
-    if args_distribution_module["distribution"] in [RelaxedSubsetSampling, RelaxedSubsetSampling_STE, L2X_Distribution_STE, L2X_Distribution] \
-        and args_selection["activation"] != torch.nn.LogSoftmax() :
+    if sampling_distrib in [RelaxedSubsetSampling, RelaxedSubsetSampling_STE, L2XDistribution_STE, L2XDistribution] \
+        and activation is torch.nn.LogSoftmax() :
         raise ValueError(f"Sampling distribution {sampling_distrib} is not compatible with the activation function {activation}")
     
 def get_training_method(trainer, args_train, ordinaryTraining ):
@@ -233,6 +242,10 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     if args_complete_trainer["comply_with_dataset"] :
         comply_size(dataset, args_classification, args_selection, args_complete_trainer)
 
+    ### Regularization method :
+    regularization = get_regularization_method(args_selection, args_distribution_module)
+
+
     ## Sampling :
     distribution_module = get_distribution_module_from_args(args_distribution_module)
     classification_distribution_module = get_distribution_module_from_args(args_classification_distribution_module)
@@ -241,8 +254,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     ### Imputation :
     imputation = get_imputation_method(args_classification, dataset)
 
-    ### Regularization method :
-    regularization = get_regularization_method(args_selection)
+
 
     ### Networks :
     classifier, selector, baseline, selector_var = get_networks(args_classification, args_selection, args_complete_trainer, dataset.get_dim_output())
