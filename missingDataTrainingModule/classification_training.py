@@ -174,7 +174,7 @@ class trueSelectionTraining(ordinaryTraining):
         return true_mask
         
 
-    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (10,1,1,1), (1,10,1,1), (1,1,10,1), (1,1,1,10)]):
+    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (100,1,1,1), (1,100,1,1), (1,1,100,1), (1,1,1,100)]):
         total_dic = super().test(epoch, loader)
         total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
 
@@ -278,7 +278,7 @@ class EVAL_X(ordinaryTraining):
         z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo,))
         return z
     
-    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (10,1,1,1), (1,10,1,1), (1,1,10,1), (1,1,1,10)]):
+    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (100,1,1,1), (1,100,1,1), (1,1,100,1), (1,1,1,100)]):
         total_dic = super().test(epoch, loader)
         total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
         for mc_config in liste_mc :

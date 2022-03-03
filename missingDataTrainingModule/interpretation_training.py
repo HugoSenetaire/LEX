@@ -350,7 +350,7 @@ class SELECTION_BASED_CLASSIFICATION():
         return dic
         
 
-    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (10,1,1,1), (1,10,1,1), (1,1,10,1), (1,1,1,10)]):
+    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (100,1,1,1), (1,100,1,1), (1,1,100,1), (1,1,1,100)]):
         """
         Do multiple test with/without sel, with different number of MC samples for mask sampling and imputation sampling.
         """
