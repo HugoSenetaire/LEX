@@ -1,5 +1,5 @@
 from missingDataTrainingModule import PytorchDistributionUtils
-from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, test_selection, test_no_selection
+from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, test_selection, test_train_loss, eval_selection
 from .utils.utils import *
 from functools import partial, total_ordering
 
@@ -128,6 +128,12 @@ class SELECTION_BASED_CLASSIFICATION():
         total_dic = {}
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
 
+        
+        self.last_loss_function = loss_function
+        self.last_nb_sample_z_monte_carlo = nb_sample_z_monte_carlo
+        self.last_nb_sample_z_iwae = nb_sample_z_iwae
+
+
         total_program = nb_step_fixed_classifier + nb_step_fixed_selector + nb_step_all_free
         init_number = np.random.randint(0, total_program+1)
         for batch_idx, data in enumerate(loader.train_loader):
@@ -166,6 +172,12 @@ class SELECTION_BASED_CLASSIFICATION():
         self.train()
         total_dic = {}
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
+
+        
+        self.last_loss_function = loss_function
+        self.last_nb_sample_z_monte_carlo = nb_sample_z_monte_carlo
+        self.last_nb_sample_z_iwae = nb_sample_z_iwae
+
 
         if ratio_class_selection >=1 :
             ratio_step = max(np.round(ratio_class_selection), 1)
@@ -210,6 +222,12 @@ class SELECTION_BASED_CLASSIFICATION():
         total_dic = {}
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
 
+        
+        self.last_loss_function = loss_function
+        self.last_nb_sample_z_monte_carlo = nb_sample_z_monte_carlo
+        self.last_nb_sample_z_iwae = nb_sample_z_iwae
+
+
 
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
@@ -249,13 +267,9 @@ class SELECTION_BASED_CLASSIFICATION():
     
     def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, loss_function = continuous_NLLLoss(reduction = "none"), need_dic = False):
         self.zero_grad()
-
-        nb_imputation_iwae = self.classification_module.imputation.nb_imputation_iwae
-        nb_imputation_mc = self.classification_module.imputation.nb_imputation_mc
-
         if self.monte_carlo_gradient_estimator.fix_n_mc :
             nb_sample_z_monte_carlo = 2**(np.prod(data.shape[1:])*nb_sample_z_iwae)
-        
+
         batch_size = data.shape[0]
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
@@ -268,7 +282,6 @@ class SELECTION_BASED_CLASSIFICATION():
                                                                                                         mc_part = nb_sample_z_monte_carlo,
                                                                                                         iwae_part= nb_sample_z_iwae,
                                                                                                         )
-
         
         # Selection Module :
         log_pi_list, loss_reg = self.selection_module(data)
@@ -343,7 +356,12 @@ class SELECTION_BASED_CLASSIFICATION():
         """
         print("\nTest epoch {}".format(epoch))
         total_dic = {}
-        total_dic.update(test_no_selection(trainer = self, loader = loader,))
+        # total_dic.update(test_no_selection(trainer = self, loader = loader,))
+        print(self.last_loss_function)
+        total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
+        total_dic.update(eval_selection(trainer = self, loader = loader))
+        total_dic.update(test_selection(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
+
         for mc_config in liste_mc :
             nb_sample_z_monte_carlo = mc_config[0]
             nb_sample_z_iwae = mc_config[1]

@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+import sklearn
 
 from .utils import *
 
@@ -196,6 +197,7 @@ def calculate_cost(mask_expanded,
                     log_y_hat = None,
                     no_imputation = False,
                     ):
+
         if log_y_hat is None :
             mask_expanded = trainer.reshape(mask_expanded)
             if index_expanded is not None :
@@ -208,7 +210,7 @@ def calculate_cost(mask_expanded,
         
 
         nb_sample_z_monte_carlo, batch_size, nb_sample_z_iwae = data_expanded.shape[:3]
-        if no_imputation  :
+        if no_imputation :
             nb_imputation_iwae = 1
             nb_imputation_mc = 1
         else :
@@ -219,7 +221,6 @@ def calculate_cost(mask_expanded,
                 nb_imputation_iwae = trainer.classification_module.imputation.nb_imputation_iwae_test
                 nb_imputation_mc = trainer.classification_module.imputation.nb_imputation_mc_test
             
-
 
         target_expanded_multiple_imputation = extend_input(target_expanded.flatten(0,2), mc_part = nb_imputation_mc, iwae_part = nb_imputation_iwae)
         one_hot_target_expanded_multiple_imputation = extend_input(one_hot_target_expanded.flatten(0,2), mc_part = nb_imputation_mc, iwae_part = nb_imputation_iwae)
@@ -238,14 +239,74 @@ def calculate_cost(mask_expanded,
         return loss_result
   
 
-def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, mask_sampling = None,):
+
+def test_train_loss(trainer, loader, loss_function = None, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, mask_sampling = None,):
+    trainer.train()
+    loss_train_total = 0
+    with torch.no_grad():
+        for batch_index, data in enumerate(loader.test_loader):
+            data, target, index = parse_batch(data)
+            batch_size = data.shape[0]
+            if trainer.use_cuda :
+                data, target, index = on_cuda(data, target = target, index = index,)
+            one_hot_target = get_one_hot(target, num_classes = loader.dataset.get_dim_output())
+            target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = trainer.post_hoc, post_hoc_guidance = trainer.post_hoc_guidance, argmax_post_hoc = trainer.argmax_post_hoc)
+            
+            data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
+                                                                                                            target = target,
+                                                                                                            index=index,
+                                                                                                            one_hot_target = one_hot_target,
+                                                                                                            mc_part = nb_sample_z_monte_carlo,
+                                                                                                            iwae_part = nb_sample_z_iwae,
+                                                                                                            )
+            if index_expanded is not None :
+                index_expanded_flatten = index_expanded.flatten(0,2)
+            else :
+                index_expanded_flatten = None
+
+            if mask_sampling is None :
+                z = None
+                no_imputation = True
+            else :
+                z = mask_sampling(data, index, target, loader.dataset, nb_sample_z_monte_carlo, nb_sample_z_iwae)
+                z = trainer.reshape(z)
+                no_imputation = False
+
+
+            log_y_hat, _ = trainer.classification_module(data_expanded.flatten(0,2), z, index = index_expanded_flatten)
+            log_y_hat = log_y_hat.reshape(-1, loader.dataset.get_dim_output())
+
+            loss_train = calculate_cost(
+                trainer = trainer,
+                mask_expanded = z,
+                data_expanded = data_expanded,
+                target_expanded = target_expanded,
+                index_expanded = index_expanded,
+                one_hot_target_expanded = one_hot_target_expanded,
+                dim_output = loader.dataset.get_dim_output(),
+                log_y_hat = log_y_hat,
+                loss_function = loss_function,
+                no_imputation = no_imputation,
+                )
+            loss_train_total += loss_train.mean(0).sum(0) #Mean in MC sum in batch
+
+    dic = {"train_loss_in_test": loss_train_total.item()}
+
+    print('\nTest set: Train Loss in Test {}'.format(
+        loss_train_total.item()))
+            
+    return dic
+
+
+def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, mask_sampling = None, set_manual_seed = None,):
         trainer.eval()
         mse_loss_selection = 0
         mse_loss_selection_prod = 0
         neg_likelihood_selection = 0
         correct_selection = 0
         
-        torch.random.manual_seed(0)
+        if set_manual_seed is not None :
+            torch.manual_seed(set_manual_seed)
         with torch.no_grad():
             for batch_index, data in enumerate(loader.test_loader):
                 data, target, index = parse_batch(data)
@@ -267,19 +328,23 @@ def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwa
                 else :
                     index_expanded_flatten = None
 
-                
-                z = mask_sampling(data, index, target, loader.dataset, nb_sample_z_monte_carlo, nb_sample_z_iwae)
-                z = trainer.reshape(z)
-
-
+                if mask_sampling is None :
+                    z = None
+                    no_imputation = True
+                else :
+                    z = mask_sampling(data, index, target, loader.dataset, nb_sample_z_monte_carlo, nb_sample_z_iwae)
+                    z = trainer.reshape(z)
+                    no_imputation = False
 
                 log_y_hat, _ = trainer.classification_module(data_expanded.flatten(0,2), z, index = index_expanded_flatten)
                 log_y_hat = log_y_hat.reshape(-1, loader.dataset.get_dim_output())
+
 
                 if trainer.post_hoc and (not trainer.argmax_post_hoc) :
                     nll_loss = continuous_NLLLoss(reduction='none')
                 else :
                     nll_loss = NLLLossAugmented(reduction='none')
+                
 
                 neg_likelihood = calculate_cost(
                     trainer = trainer,
@@ -291,6 +356,7 @@ def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwa
                     dim_output = loader.dataset.get_dim_output(),
                     loss_function=nll_loss,
                     log_y_hat = log_y_hat,
+                    no_imputation = no_imputation,
                     )
                 neg_likelihood_selection += neg_likelihood.mean(0).sum(0) #Mean in MC sum in batch
 
@@ -304,6 +370,7 @@ def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwa
                     dim_output = loader.dataset.get_dim_output(),
                     loss_function=MSELossLastDim(reduction = 'none'),
                     log_y_hat = log_y_hat,
+                    no_imputation = no_imputation,
                 )
                 mse_loss_selection += mse_loss.mean(0).sum(0) # Mean in MC sum in batch
 
@@ -318,6 +385,7 @@ def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwa
                     dim_output = loader.dataset.get_dim_output(),
                     loss_function=MSELossLastDim(reduction = 'none', iwae_reg='prod'),
                     log_y_hat = log_y_hat,
+                    no_imputation = no_imputation,
                 )
                 mse_loss_selection_prod += mse_loss_prod.mean(0).sum(0) # Mean in MC sum in batch
 
@@ -332,6 +400,7 @@ def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwa
                     dim_output = loader.dataset.get_dim_output(),
                     loss_function=AccuracyLoss(reduction = 'none'),
                     log_y_hat = log_y_hat,
+                    no_imputation = no_imputation,
                 )
                 correct_selection += accuracy.mean(0).sum(0) # Mean in MC sum in batch
 
@@ -340,7 +409,10 @@ def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwa
         neg_likelihood_selection /= len(loader.test_loader.dataset)
         accuracy_selection = correct_selection / len(loader.test_loader.dataset)
         mse_loss_selection_prod /= len(loader.test_loader.dataset)
-        suffix = "selection_mc_{}_iwae_{}_imputemc_{}_iwaemc_{}".format(nb_sample_z_monte_carlo, nb_sample_z_iwae,
+        if mask_sampling is None :
+            suffix = "no_selection"
+        else :
+            suffix = "selection_mc_{}_iwae_{}_imputemc_{}_iwaemc_{}".format(nb_sample_z_monte_carlo, nb_sample_z_iwae,
                                                                 trainer.classification_module.imputation.nb_imputation_mc_test,
                                                                 trainer.classification_module.imputation.nb_imputation_iwae_test)
         dic = dic_evaluation(accuracy = accuracy_selection.item(),
@@ -360,116 +432,67 @@ def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwa
 
 
 
-def test_no_selection(trainer, loader, ):
+
+def eval_selection(trainer, loader,):
+    trainer.classification_module.imputation.nb_imputation_mc_test = 1
+    trainer.classification_module.imputation.nb_imputation_iwae_test = 1     
     trainer.eval()
-    mse_loss_no_selection = 0
-    mse_loss_prod_no_selection = 0
-    neg_likelihood_no_selection = 0
-    correct_no_selection = 0
-    torch.random.manual_seed(0)
+
+    X_test = loader.dataset.X_test.type(torch.float32)
+    Y_test = loader.dataset.Y_test.type(torch.float32)
+    if not hasattr(loader.dataset, "optimal_S_test") :
+        raise AttributeError("This dataset do not have an optimal S defined")
+    else :
+        optimal_S_test = loader.dataset.optimal_S_test.type(torch.float32)
+
+    if hasattr(trainer, "selection_module"):
+        selection_module = trainer.selection_module.cpu()
+        distribution_module = trainer.distribution_module.cpu()
+        selection_module.eval()
+        distribution_module.eval()
+        selection_evaluation = True
+    else :
+        selection_evaluation = False
+    classification_module = trainer.classification_module.cpu()
+
+
+    classification_module.eval()
+
+
     with torch.no_grad():
-        for batch_index, data in enumerate(loader.test_loader):
-            data, target, index = parse_batch(data)
-            batch_size = data.shape[0]
-            if trainer.use_cuda :
-                data, target, index = on_cuda(data, target = target, index = index,)
-            one_hot_target = get_one_hot(target, num_classes = loader.dataset.get_dim_output())
-            target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = trainer.post_hoc, post_hoc_guidance = trainer.post_hoc_guidance, argmax_post_hoc = trainer.argmax_post_hoc)
-
-            ## Check the prediction without selection on the baseline method
-            log_y_hat, _ = trainer.classification_module(data, index = index)
-            log_y_hat = log_y_hat.reshape(-1, loader.dataset.get_dim_output())
-
-            if trainer.post_hoc and (not trainer.argmax_post_hoc) :
-                nll_loss = continuous_NLLLoss(reduction='none')
-            else :
-                nll_loss = NLLLossAugmented(reduction='none')
-
-            data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
-                                                                                                target = target,
-                                                                                                index=index,
-                                                                                                one_hot_target = one_hot_target,
-                                                                                                mc_part = 1,
-                                                                                                iwae_part = 1,
-                                                                                                )
-            neg_likelihood = calculate_cost(
-                    trainer = trainer,
-                    mask_expanded = None,
-                    data_expanded = data_expanded,
-                    target_expanded = target_expanded,
-                    index_expanded = index_expanded,
-                    one_hot_target_expanded = one_hot_target_expanded,
-                    dim_output = loader.dataset.get_dim_output(),
-                    loss_function=nll_loss,
-                    log_y_hat = log_y_hat,
-                    no_imputation=True,
-                    )
-            neg_likelihood_no_selection += neg_likelihood.mean(0).sum(0) #Mean in MC sum in batch
-
-            mse_loss = calculate_cost(
-                trainer = trainer,
-                mask_expanded = None,
-                data_expanded = data_expanded,
-                target_expanded = target_expanded,
-                index_expanded = index_expanded,
-                one_hot_target_expanded = one_hot_target_expanded,
-                dim_output = loader.dataset.get_dim_output(),
-                loss_function=MSELossLastDim(reduction = 'none'),
-                log_y_hat = log_y_hat,
-                no_imputation=True,
-            )
-            mse_loss_no_selection += mse_loss.mean(0).sum(0) # Mean in MC sum in batch
+        log_pi_list, _ = selection_module(X_test)
+        distribution_module(torch.exp(log_pi_list))
+        z = distribution_module.sample((1,))
+        z = trainer.reshape(z)
+        log_pi_list = log_pi_list.detach().cpu().numpy()
+        pi_list = np.exp(log_pi_list)
+        if selection_module.activation is torch.nn.Softmax():
+            log_pi_list = distribution_module.sample((1000,)).mean(dim = 0)
+            pi_list = np.exp(log_pi_list)
+            # log_pi_list = log_pi_list * np.prod(log_pi_list.shape[1:])
 
 
-            mse_loss_prod = calculate_cost(
-                trainer = trainer,
-                mask_expanded = None,
-                data_expanded = data_expanded,
-                target_expanded = target_expanded,
-                index_expanded = index_expanded,
-                one_hot_target_expanded = one_hot_target_expanded,
-                dim_output = loader.dataset.get_dim_output(),
-                loss_function=MSELossLastDim(reduction = 'none', iwae_reg='prod'),
-                log_y_hat = log_y_hat,
-                no_imputation=True,
-            )
-            mse_loss_prod_no_selection += mse_loss_prod.mean(0).sum(0) # Mean in MC sum in batch
+    optimal_S_test = optimal_S_test.detach().cpu().numpy()
 
+    dic = {}
 
-            accuracy = calculate_cost(
-                trainer = trainer,
-                mask_expanded = None,
-                data_expanded = data_expanded,
-                target_expanded = target_expanded,
-                index_expanded = index_expanded,
-                one_hot_target_expanded = one_hot_target_expanded,
-                dim_output = loader.dataset.get_dim_output(),
-                loss_function=AccuracyLoss(reduction = 'none'),
-                log_y_hat = log_y_hat,
-                no_imputation=True,
-            )
-            correct_no_selection += accuracy.mean(0).sum(0) # Mean in MC sum in batch
+    sel_pred = (pi_list >0.5).astype(int).reshape(-1)
+    sel_true = optimal_S_test.reshape(-1)
+    fp = np.sum((sel_pred == 1) & (sel_true == 0))
+    tp = np.sum((sel_pred == 1) & (sel_true == 1))
 
+    fn = np.sum((sel_pred == 0) & (sel_true == 1))
+    tn = np.sum((sel_pred == 0) & (sel_true == 0))
 
-            # pred_no_selection = torch.argmax(log_y_hat,dim = 1)
-            # neg_likelihood_no_selection += F.nll_loss(log_y_hat, target, reduction = 'sum')
-            # mse_loss_no_selection += F.mse_loss(torch.exp(log_y_hat), one_hot_target, reduce=False).sum(-1).sum()
-            # correct_no_selection += pred_no_selection.eq(target).sum()
-        
-        mse_loss_no_selection /= len(loader.test_loader.dataset) 
-        neg_likelihood_no_selection /= len(loader.test_loader.dataset)
-        accuracy_no_selection = correct_no_selection / len(loader.test_loader.dataset)
-        suffix = "no_selection"
-        dic = dic_evaluation(accuracy = accuracy_no_selection.item(),
-                            neg_likelihood = neg_likelihood_no_selection.item(),
-                            mse = mse_loss_no_selection.item(),
-                            mse_loss_prod=mse_loss_prod_no_selection.item(),
-                            suffix = suffix,)
+    fpr = fp / (fp + tn)
+    tpr = tp / (tp + fn)
 
-        print('\nTest {} set: MSE: {:.4f}, Likelihood {:.4f}, Accuracy : {}/{} ({:.0f}%)'.format(
-                    suffix, mse_loss_no_selection, -neg_likelihood_no_selection,
-                    correct_no_selection, len(loader.test_loader.dataset),100. * correct_no_selection / len(loader.test_loader.dataset),
-                    )
-            )
+    dic["fpr2"] = fpr
+    dic["tpr2"] = tpr
 
-        return dic
+    dic["selection_auroc"] = sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), pi_list.reshape(-1))
+    dic["selection_accuracy"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.round(pi_list.reshape(-1))))
+
+    print("Selection Test : fpr {:.4f} tpr {:.4f} auroc {:.4f} accuracy {:.4f}".format(fpr, tpr, dic["selection_auroc"], dic["selection_accuracy"]))
+
+    return dic

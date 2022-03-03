@@ -1,6 +1,6 @@
 from missingDataTrainingModule import PytorchDistributionUtils
 from missingDataTrainingModule.utils.loss import continuous_NLLLoss
-from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, test_no_selection, test_selection
+from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, test_selection, test_train_loss
 from .utils.utils import *
 import torch.nn.functional as F
 import torch.nn as nn
@@ -99,7 +99,7 @@ class ordinaryTraining():
         """
         print("\nTest epoch {}".format(epoch))
         total_dic = {}
-        total_dic.update(test_no_selection(trainer = self, loader = loader,))
+        total_dic.update(test_selection(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
         return total_dic
 
 
@@ -148,6 +148,11 @@ class trueSelectionTraining(ordinaryTraining):
     def train_epoch(self, epoch, loader, loss_function = continuous_NLLLoss(reduce= 'none'), save_dic = False, verbose = False,):
         self.train()
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
+        
+        self.last_loss_function = loss_function
+        self.last_nb_sample_z_monte_carlo = 1
+        self.last_nb_sample_z_iwae = 1
+
         total_dic = {}
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)
@@ -171,6 +176,8 @@ class trueSelectionTraining(ordinaryTraining):
 
     def test(self, epoch, loader, liste_mc = [(1,1,1,1), (10,1,1,1), (1,10,1,1), (1,1,10,1), (1,1,1,10)]):
         total_dic = super().test(epoch, loader)
+        total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
+
         for mc_config in liste_mc :
             nb_sample_z_monte_carlo = mc_config[0]
             nb_sample_z_iwae = mc_config[1]
@@ -194,6 +201,11 @@ class EVAL_X(ordinaryTraining):
         self.train()
         total_dic = {}
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
+
+        self.last_loss_function = loss_function
+        self.last_nb_sample_z_monte_carlo = nb_sample_z_monte_carlo
+        self.last_nb_sample_z_iwae = nb_sample_z_iwae
+
         for batch_idx, data in enumerate(loader.train_loader):
             input, target, index = parse_batch(data)
 
@@ -217,10 +229,6 @@ class EVAL_X(ordinaryTraining):
             return self.reshape_mask_function(z)
         else :
             return z
-
-
-
-
 
     def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 10, nb_sample_z_iwae = 1, loss_function = continuous_NLLLoss(reduction="none"), need_dic = False,):
         nb_imputation = self.classification_module.imputation.nb_imputation        
@@ -272,6 +280,7 @@ class EVAL_X(ordinaryTraining):
     
     def test(self, epoch, loader, liste_mc = [(1,1,1,1), (10,1,1,1), (1,10,1,1), (1,1,10,1), (1,1,1,10)]):
         total_dic = super().test(epoch, loader)
+        total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
         for mc_config in liste_mc :
             nb_sample_z_monte_carlo = mc_config[0]
             nb_sample_z_iwae = mc_config[1]
