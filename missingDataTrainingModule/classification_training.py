@@ -35,7 +35,7 @@ class ordinaryTraining():
         if not torch.cuda.is_available() :
             print("CUDA not found, using cpu instead")
         else :
-            self.classification_module.cuda()
+            self.classification_module = self.classification_module.cuda()
             self.use_cuda = True
        
 
