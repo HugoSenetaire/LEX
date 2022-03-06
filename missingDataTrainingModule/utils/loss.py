@@ -341,7 +341,9 @@ def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwa
 
                 log_y_hat, _ = trainer.classification_module(data_expanded.flatten(0,2), z, index = index_expanded_flatten)
                 log_y_hat = log_y_hat.reshape(-1, loader.dataset.get_dim_output())
-
+                if torch.any(torch.isnan(log_y_hat)) :
+                    print(torch.any(torch.isnan(z)))
+                    assert 1==0
 
                 if trainer.post_hoc and (not trainer.argmax_post_hoc) :
                     nll_loss = continuous_NLLLoss(reduction='none')
@@ -415,7 +417,7 @@ def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwa
         if mask_sampling is None :
             suffix = "no_selection"
         else :
-            suffix = "selection_mc_{}_iwae_{}_imputemc_{}_iwaemc_{}".format(nb_sample_z_monte_carlo, nb_sample_z_iwae,
+            suffix = "selection_mc_{}_iwae_{}_imputemc_{}_imputeiwae_{}".format(nb_sample_z_monte_carlo, nb_sample_z_iwae,
                                                                 trainer.classification_module.imputation.nb_imputation_mc_test,
                                                                 trainer.classification_module.imputation.nb_imputation_iwae_test)
         dic = dic_evaluation(accuracy = accuracy_selection.item(),
