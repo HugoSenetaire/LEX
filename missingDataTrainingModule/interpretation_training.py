@@ -94,9 +94,9 @@ class SELECTION_BASED_CLASSIFICATION():
         if not torch.cuda.is_available() :
             print("CUDA not found, using cpu instead")
         else :
-            self.classification_module = self.classification_module.cuda()
-            self.selection_module = self.selection_module.cuda()
-            self.distribution_module = self.distribution_module.cuda()
+            self.classification_module.cuda()
+            self.selection_module.cuda()
+            self.distribution_module.cuda()
             self.use_cuda = True
 
     def scheduler_step(self):

@@ -21,7 +21,7 @@ class selectionTraining():
         if not torch.cuda.is_available() :
             print("CUDA not found, using cpu instead")
         else :
-            self.selection_module = self.selection_module.cuda()
+            self.selection_module.cuda()
             self.use_cuda = True
        
 
