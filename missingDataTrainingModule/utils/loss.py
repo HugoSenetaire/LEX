@@ -242,7 +242,9 @@ def calculate_cost(mask_expanded,
 
 def test_train_loss(trainer, loader, loss_function = None, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, mask_sampling = None,):
     trainer.train()
-    loss_train_total = 0
+    if hasattr(trainer, "distribution_module") :
+        trainer.distribution_module.eval()
+    loss_train_total = 0.
     with torch.no_grad():
         for batch_index, data in enumerate(loader.test_loader):
             data, target, index = parse_batch(data)
@@ -268,7 +270,7 @@ def test_train_loss(trainer, loader, loss_function = None, nb_sample_z_monte_car
                 z = None
                 no_imputation = True
             else :
-                z = mask_sampling(data, index, target, loader.dataset, nb_sample_z_monte_carlo, nb_sample_z_iwae)
+                z = mask_sampling(data = data, target = target, index = index, dataset = loader.dataset, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae)
                 z = trainer.reshape(z)
                 no_imputation = False
 
@@ -290,9 +292,10 @@ def test_train_loss(trainer, loader, loss_function = None, nb_sample_z_monte_car
                 )
             loss_train_total += loss_train.mean(0).sum(0) #Mean in MC sum in batch
 
+    loss_train_total = loss_train_total / len(loader.test_loader.dataset)
     dic = {"train_loss_in_test": loss_train_total.item()}
 
-    print('\nTest set: Train Loss in Test {}'.format(
+    print('\nTest set: Train Loss in Test {:.4f}'.format(
         loss_train_total.item()))
             
     return dic

@@ -38,7 +38,8 @@ def get_default():
     args_complete_trainer = {}
     args_complete_trainer["complete_trainer"] = SELECTION_BASED_CLASSIFICATION
     args_complete_trainer["monte_carlo_gradient_estimator"] = PytorchDistributionUtils.gradientestimator.REINFORCE # Ordinary training, Variational Traininig, No Variational Training, post hoc...
-    args_complete_trainer["save_every_epoch"] = 1
+    args_complete_trainer["save_every_epoch"] = 20
+    args_complete_trainer["save_epoch_function"] = lambda epoch, nb_epoch: (epoch % args_complete_trainer["save_every_epoch"] == 0) or (epoch == nb_epoch-1) or (epoch<10)
     args_complete_trainer["baseline"] = None
     args_complete_trainer["reshape_mask_function"] = utils_reshape.collapse_in_batch
     args_complete_trainer["comply_with_dataset"] = True
@@ -161,7 +162,7 @@ def get_default():
 
     args_compiler = {}
     args_compiler["optim_classification"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) #Learning rate for classification module
-    args_compiler["optim_selection"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for selection module
+    args_compiler["optim_selection"] = partial(Adam, lr=1e-3, weight_decay = 1e-3) # Learning rate for selection module
     args_compiler["optim_selection_var"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the variationnal selection module used in Variationnal Training
     args_compiler["optim_distribution_module"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the feature extractor if any
     args_compiler["optim_baseline"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the baseline network

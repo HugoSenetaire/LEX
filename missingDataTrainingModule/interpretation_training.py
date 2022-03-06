@@ -322,7 +322,7 @@ class SELECTION_BASED_CLASSIFICATION():
     
     def sample_z(self, data, target, index, dataset, nb_sample_z_monte_carlo, nb_sample_z_iwae):
         batch_size = data.shape[0]
-        log_pi_list, loss_reg = self.selection_module(data)
+        log_pi_list, _ = self.selection_module(data)
         log_pi_list = log_pi_list.unsqueeze(1).expand(batch_size, nb_sample_z_iwae, -1) # IWae is part of the parameters while monte carlo is used in the monte carlo gradient estimator.
         pi_list = torch.exp(log_pi_list)
         p_z = self.distribution_module(probs = pi_list)
@@ -356,8 +356,6 @@ class SELECTION_BASED_CLASSIFICATION():
         """
         print("\nTest epoch {}".format(epoch))
         total_dic = {}
-        # total_dic.update(test_no_selection(trainer = self, loader = loader,))
-        print(self.last_loss_function)
         total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
         total_dic.update(eval_selection(trainer = self, loader = loader))
         total_dic.update(test_selection(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
