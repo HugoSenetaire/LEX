@@ -112,7 +112,7 @@ def get_default():
     args_distribution_module["distribution_module"] = PytorchDistributionUtils.wrappers.DistributionModule
     args_distribution_module["distribution"] = Bernoulli
     args_distribution_module["distribution_relaxed"] = RelaxedBernoulli
-    args_distribution_module["temperature_init"] = 0.1
+    args_distribution_module["temperature_init"] = 1.0
     args_distribution_module["test_temperature"] = 0.0
     args_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler
     args_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
