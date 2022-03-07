@@ -13,7 +13,7 @@ class NetworkBasedReconstructionRegularization(nn.Module):
     self.network_reconstruction = network_reconstruction
     self.lambda_reconstruction = nn.Parameter(torch.tensor(lambda_reconstruction, dtype = torch.float32), requires_grad = False)
 
-  def __call__(self, data_expanded, data_imputed, sample_b,index = None):
+  def __call__(self, data_imputed, data, mask, index = None):
     raise NotImplementedError
 
 
@@ -25,8 +25,8 @@ class AutoEncoderReconstructionRegularization(NetworkBasedReconstructionRegulari
     super().__init__(network_reconstruction = network_reconstruction, lambda_reconstruction = lambda_reconstruction,)
 
   
-  def __call__(self, data_expanded, data_imputed, sample_b,index = None,):
+  def __call__(self, data_imputed, data, mask, index = None,):
     data_reconstruced = self.network_reconstruction(data_imputed)
-    loss = self.lambda_reconstruction * nn.functional.mse_loss(data_reconstruced, data_expanded)
+    loss = self.lambda_reconstruction * nn.functional.mse_loss(data_reconstruced, data)
     return loss
 

@@ -74,6 +74,7 @@ def get_imputation_method(args_classification, dataset):
         post_process_regularization = args_classification["post_process_regularization"](
                                         network_post_process = args_classification["network_post_process"],
                                         trainable = args_classification["post_process_trainable"],
+                                        sigma_noise = args_classification["post_process_sigma_noise"],
                                         )       
     else :
         post_process_regularization = None

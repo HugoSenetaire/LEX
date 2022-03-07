@@ -10,7 +10,7 @@ class MaskRegularization(nn.Module):
   def __init__(self):
     super().__init__()
 
-  def __call__(self, data_expanded, sample_b):
+  def __call__(self, data, sample_b):
     raise NotImplementedError
 
 
@@ -19,9 +19,9 @@ class SimpleBRegularization(MaskRegularization):
     super().__init__()
     self.rate = rate
 
-  def __call__(self, data_expanded, sample_b):
+  def __call__(self, data, sample_b):
     if self.rate > np.random.random():
-      sample_b = torch.ones(data_expanded.shape).cuda()
+      sample_b = torch.ones(data.shape).cuda()
     return sample_b
 
 
@@ -31,7 +31,7 @@ class LessDestructionRegularization(MaskRegularization):
     super().__init__()
     self.rate = rate
 
-  def __call__(self, data_expanded, sample_b):
+  def __call__(self, data, sample_b):
     sample_b = torch.where(
       ((sample_b<0.5) * torch.rand(sample_b.shape, device = sample_b.device)>self.rate),
       torch.zeros(sample_b.shape,device = sample_b.device),

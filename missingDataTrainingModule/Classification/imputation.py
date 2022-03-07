@@ -21,7 +21,7 @@ def prepare_process(input_process):
 
 
 
-def expand_for_imputations(data, mask, nb_imputation_iwae, nb_imputation_mc, index = None):
+def expand_for_imputations(data, mask, nb_imputation_iwae, nb_imputation_mc, index = None, collapse = False):
     wanted_reshape = torch.Size((1,)) + torch.Size((data.shape[0],)) + torch.Size((1,)) + data.shape[1:]
     wanted_transform = torch.Size((nb_imputation_mc,)) + torch.Size((data.shape[0],)) + torch.Size((nb_imputation_iwae,)) + data.shape[1:]
     data_expanded = data.reshape(wanted_reshape).expand(wanted_transform)
@@ -32,6 +32,12 @@ def expand_for_imputations(data, mask, nb_imputation_iwae, nb_imputation_mc, ind
       index_expanded = index.reshape(wanted_reshape).expand(wanted_transform_index)
     else:
       index_expanded = None
+
+    if collapse :
+      data_expanded = data_expanded.flatten(0, 2)
+      mask_expanded = mask_expanded.flatten(0, 2)
+      if index is not None :
+        index_expanded = index_expanded.flatten(0, 2)
     return data_expanded, mask_expanded, index_expanded
 
 
@@ -111,11 +117,10 @@ class Imputation(nn.Module):
       nb_imputation_mc = self.nb_imputation_mc_test
       nb_imputation_iwae = self.nb_imputation_iwae_test
 
-    data_expanded, mask_expanded, index_expanded = expand_for_imputations(data, mask, nb_imputation_mc = nb_imputation_mc, nb_imputation_iwae=nb_imputation_iwae, index = index)
+    data_expanded, mask_expanded, index_expanded = expand_for_imputations(data, mask, nb_imputation_mc = nb_imputation_mc, nb_imputation_iwae=nb_imputation_iwae, index = index, collapse = True)
     data_imputed = self.imputation_function(data_expanded, mask_expanded, index_expanded)
     loss_reconstruction = self.reconstruction_regularization(data_imputed, data_expanded, mask_expanded, index = index_expanded)
     data_imputed = self.post_process(data_imputed, data_expanded, mask_expanded, index = index_expanded)
-    data_imputed = data_imputed.flatten(0,2) # Flatten the imputation dimensions into the batch for the classifier to make sense of it
     return data_imputed, loss_reconstruction
 
 
