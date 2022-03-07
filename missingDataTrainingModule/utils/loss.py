@@ -445,22 +445,26 @@ def eval_selection(trainer, loader,):
 
     X_test = loader.dataset.X_test.type(torch.float32)
     Y_test = loader.dataset.Y_test.type(torch.float32)
+
     if not hasattr(loader.dataset, "optimal_S_test") :
         raise AttributeError("This dataset do not have an optimal S defined")
     else :
         optimal_S_test = loader.dataset.optimal_S_test.type(torch.float32)
 
+    if trainer.use_cuda :
+        X_test = X_test.cuda()
+        Y_test = Y_test.cuda()
+        optimal_S_test = optimal_S_test.cuda()
+
     if hasattr(trainer, "selection_module"):
-        selection_module = trainer.selection_module.cpu()
-        distribution_module = trainer.distribution_module.cpu()
+        selection_module = trainer.selection_module
+        distribution_module = trainer.distribution_module
         selection_module.eval()
         distribution_module.eval()
         selection_evaluation = True
     else :
         selection_evaluation = False
-    classification_module = trainer.classification_module.cpu()
-
-
+    classification_module = trainer.classification_module
     classification_module.eval()
 
 
@@ -469,12 +473,12 @@ def eval_selection(trainer, loader,):
         distribution_module(torch.exp(log_pi_list))
         z = distribution_module.sample((1,))
         z = trainer.reshape(z)
-        log_pi_list = log_pi_list.detach().cpu().numpy()
-        pi_list = np.exp(log_pi_list)
-        if selection_module.activation is torch.nn.Softmax():
-            log_pi_list = distribution_module.sample((1000,)).mean(dim = 0)
-            pi_list = np.exp(log_pi_list)
-            # log_pi_list = log_pi_list * np.prod(log_pi_list.shape[1:])
+        if isinstance(selection_module.activation, torch.nn.LogSoftmax):
+            pi_list = distribution_module.sample((100,)).mean(dim = 0).detach().cpu().numpy()
+        else :
+            pi_list = np.exp(log_pi_list.detach().cpu().numpy())
+
+
 
 
     optimal_S_test = optimal_S_test.detach().cpu().numpy()
