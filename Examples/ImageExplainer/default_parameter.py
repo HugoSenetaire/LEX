@@ -1,5 +1,7 @@
 import sys
 
+from missingDataTrainingModule.PytorchDistributionUtils.distribution.relaxed_bernoulli_threshold_STE import RelaxedBernoulli_thresholded_STE
+
 
 sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
 sys.path.append("/home/hhjs/MissingDataTraining")
@@ -28,13 +30,13 @@ def get_default():
     # args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
     args_output["path"] = "/scratch/hhjs" # Path to results
 
-    args_output["experiment_name"] = "REINFORCE"
+    args_output["experiment_name"] = "REBAR"
 
 
 
     args_complete_trainer = {}
     args_complete_trainer["complete_trainer"] = SELECTION_BASED_CLASSIFICATION
-    args_complete_trainer["monte_carlo_gradient_estimator"] = PytorchDistributionUtils.gradientestimator.REINFORCE # Ordinary training, Variational Traininig, No Variational Training, post hoc...
+    args_complete_trainer["monte_carlo_gradient_estimator"] = PytorchDistributionUtils.gradientestimator.REBAR # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args_complete_trainer["save_every_epoch"] = 1
     args_complete_trainer["baseline"] = None
     args_complete_trainer["reshape_mask_function"] = utils_reshape.collapse_in_batch
@@ -45,8 +47,8 @@ def get_default():
     args_dataset["dataset"] = MNIST_and_FASHIONMNIST
     args_dataset["loader"] = LoaderEncapsulation
     args_dataset["root_dir"] = os.path.join(args_output["path"], "datasets")
-    args_dataset["batch_size_train"] = 1000
-    args_dataset["batch_size_test"] = 1000
+    args_dataset["batch_size_train"] = 100
+    args_dataset["batch_size_test"] = 100
     args_dataset["noise_function"] = None
     args_dataset["download"] = True
 
@@ -61,7 +63,10 @@ def get_default():
     args_classification["sigma_noise_imputation"] = 1.0
     args_classification["add_mask"] = False
     args_classification["module_imputation"] = GaussianMixtureImputation(os.path.join(os.path.join(args_dataset["root_dir"], "imputation_weights"), "2_components.pkl")) # Path to the weights of the network to use for post processing)
-    args_classification["nb_imputation"] = 2
+    args_classification["nb_imputation_iwae"] = 1
+    args_classification["nb_imputation_iwae_test"] = None #If none is given, turn to 1
+    args_classification["nb_imputation_mc"] = 1
+    args_classification["nb_imputation_mc_test"] = None #If none is given, turn to 1
 
 
     args_classification["reconstruction_regularization"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
@@ -103,33 +108,54 @@ def get_default():
 
 
     args_distribution_module = {}
-    args_distribution_module["distribution_module"] = PytorchDistributionUtils.wrappers.DistributionWithTemperatureParameter
-    args_distribution_module["distribution"] = PytorchDistributionUtils.distribution.RelaxedSubsetSampling_STE
-    args_distribution_module["distribution_relaxed"] = None
-    args_distribution_module["temperature_init"] = 0.5
+    args_distribution_module["distribution_module"] = PytorchDistributionUtils.wrappers.REBARBernoulli_STE
+    args_distribution_module["distribution"] = Bernoulli
+    args_distribution_module["distribution_relaxed"] = RelaxedBernoulli_thresholded_STE
+    args_distribution_module["temperature_init"] = 1.0
+    args_distribution_module["test_temperature"] = 1e-5
     args_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler
     args_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
     args_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
     args_distribution_module["antitheis_sampling"] = False 
 
 
+    args_classification_distribution_module = {}
+    args_classification_distribution_module["distribution_module"] = PytorchDistributionUtils.wrappers.FixedBernoulli
+    args_classification_distribution_module["distribution"] = Bernoulli
+    args_classification_distribution_module["distribution_relaxed"] = RelaxedBernoulli
+    args_classification_distribution_module["temperature_init"] = 0.1
+    args_classification_distribution_module["test_temperature"] = 1e-5
+    args_classification_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler
+    args_classification_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
+    args_classification_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
+    args_classification_distribution_module["antitheis_sampling"] = False 
+
 
     args_train = {}
-    args_train["nb_epoch"] = 1 # Training the complete model
+    args_train["nb_epoch"] = 500 # Training the complete model
     args_train["nb_epoch_post_hoc"] = 0 # Training the complete model
-    args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training auto encoder
+    args_train["nb_epoch_pretrain_autoencoder"] = 0 # Training auto encoder
     args_train["nb_epoch_pretrain_selector"] = 0 # Pretrain selector
     args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
     args_train["nb_sample_z_train_monte_carlo"] = 1 # Number K in the IWAE-similar loss 
     args_train["nb_sample_z_train_IWAE"] = 1
+    args_train["loss_function"] = "NLL" # NLL, MSE
+
+    args_train["training_type"] = "classic" # Options are ["classic", "alternate_ordinary", "alternate_fixing"]
+    args_train["nb_step_fixed_classifier"] = 1 # Options for alternate fixing (number of step with fixed classifier)
+    args_train["nb_step_fixed_selector"] = 1 # Options for alternate fixing (number of step with fixed selector)
+    args_train["nb_step_all_free"] = 1 # Options for alternate fixing (number of step with all free)
+    args_train["ratio_class_selection"] = 1.0 # Options for alternate ordinary Ratio of training with only classification compared to selection
     args_train["print_every"] = 1
 
     args_train["sampling_subset_size"] = 2 # Sampling size for the subset 
     args_train["use_cuda"] = torch.cuda.is_available()
     args_train["fix_classifier_parameters"] = False
+    args_train["fix_selector_parameters"] = False
     args_train["post_hoc"] = False
     args_train["argmax_post_hoc"] = False
     args_train["post_hoc_guidance"] = None
+
 
     args_compiler = {}
     args_compiler["optim_classification"] = partial(Adam, lr=5e-4, weight_decay=1e-3) #Learning rate for classification module
@@ -149,6 +175,8 @@ def get_default():
     args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6)
     
     args_test = {}
-    args_test["nb_sample_z_test"] = 1
+    args_test["nb_sample_z_mc_test"] = 1
+    args_test["nb_sample_z_iwae_test"] = 1
 
-    return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler
+
+    return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, args_classification_distribution_module

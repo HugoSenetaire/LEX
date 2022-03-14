@@ -53,6 +53,9 @@ def get_default():
     args_dataset["batch_size_train"] = 1000
     args_dataset["batch_size_test"] = 1000
     args_dataset["noise_function"] = None
+    args_dataset["cov"] = torch.tensor(1.0, dtype=torch.float32)
+    args_dataset["covariance_type"] = "spherical" #Choice spherical diagonal full
+    args_dataset["mean"] = torch.tensor(0.0, dtype=torch.float32)
     args_dataset["download"] = True
 
 
