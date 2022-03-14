@@ -443,8 +443,8 @@ def eval_selection(trainer, loader,):
     trainer.classification_module.imputation.nb_imputation_iwae_test = 1     
     trainer.eval()
 
-    X_test = loader.dataset.X_test.type(torch.float32)
-    Y_test = loader.dataset.Y_test.type(torch.float32)
+    X_test = loader.dataset.data_test.type(torch.float32)
+    Y_test = loader.dataset.target_test.type(torch.float32)
 
     if not hasattr(loader.dataset, "optimal_S_test") :
         raise AttributeError("This dataset do not have an optimal S defined")
