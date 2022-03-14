@@ -62,7 +62,7 @@ def get_default():
     args_classification["cste_imputation"] = 0
     args_classification["sigma_noise_imputation"] = 1.0
     args_classification["add_mask"] = False
-    args_classification["module_imputation"] = GaussianMixtureImputation(os.path.join(os.path.join(args_dataset["root_dir"], "imputation_weights"), "2_components.pkl")) # Path to the weights of the network to use for post processing)
+    args_classification["module_imputation"] = None # Path to the weights of the network to use for post processing)
     args_classification["nb_imputation_iwae"] = 1
     args_classification["nb_imputation_iwae_test"] = None #If none is given, turn to 1
     args_classification["nb_imputation_mc"] = 1
