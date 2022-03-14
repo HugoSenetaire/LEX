@@ -8,6 +8,8 @@ from sklearn.mixture import GaussianMixture
 def train_gmm(data, n_components, save_path):
     """ Training a Gaussian Mixture Model on the data using sklearn. """
     print("TRAINING FOR {} COMPONENTS".format(n_components))
+    if not os.path.exists(os.dirname(save_path)):
+      os.makedirs(os.dirname(save_path))
     gm = GaussianMixture(n_components=n_components, covariance_type='diag',)
     gm.fit(data)
     mu = gm.means_
