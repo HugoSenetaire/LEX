@@ -59,11 +59,10 @@ if __name__ == '__main__' :
                         final_path, trainer_var, loader, dic_list = main_launcher.experiment(dataset, loader, args_output, args_classification,
                                                                             args_selection, args_distribution_module, args_complete_trainer,
                                                                             args_train, args_test, args_compiler, args_classification_distribution_module, name_modification = False)
-                        final_path, trainer, loader, dic_list = experiment(dataset, loader, args_output, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, name_modification = True)
 
                         # Interpretation:
-                        imputation_image(trainer, loader, final_path)
-                        interpretation_sampled(trainer, loader, final_path)
-                        accuracy_output(trainer, loader, final_path, batch_size = 100)
-                        image_f1_score(trainer, loader, final_path, nb_samples_image = 20)
+                        imputation_image(trainer_var, loader, final_path)
+                        interpretation_sampled(trainer_var, loader, final_path)
+                        accuracy_output(trainer_var, loader, final_path, batch_size = 100)
+                        image_f1_score(trainer_var, loader, final_path, nb_samples_image = 20)
                         

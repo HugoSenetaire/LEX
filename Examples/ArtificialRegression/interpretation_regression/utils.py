@@ -571,8 +571,8 @@ def calculate_score(trainer, loader,):
   trainer.eval()
   
 
-  X_test = loader.dataset.X_test.type(torch.float32)
-  Y_test = loader.dataset.Y_test.type(torch.float32)
+  data_test = loader.dataset.data_test.type(torch.float32)
+  target_test = loader.dataset.target_test.type(torch.float32)
   optimal_S_test = loader.dataset.optimal_S_test.type(torch.float32)
 
   if hasattr(trainer, "selection_module"):
@@ -591,36 +591,36 @@ def calculate_score(trainer, loader,):
 
   with torch.no_grad():
     if selection_evaluation :
-      log_pi_list, _ = selection_module(X_test)
+      log_pi_list, _ = selection_module(data_test)
       distribution_module(torch.exp(log_pi_list))
       z = distribution_module.sample((1,))
       z = trainer.reshape(z)
-      log_y_hat, _ = classification_module(X_test, z, index=None)
+      log_y_hat, _ = classification_module(data_test, z, index=None)
       pred_classic = torch.exp(log_y_hat).detach().cpu().numpy()
       log_pi_list = log_pi_list.detach().cpu().numpy()
       if selection_module.activation is torch.nn.Softmax():
         log_pi_list = torch.log(distribution_module.sample((1000,)).mean(dim = 0))
         # log_pi_list = log_pi_list * np.prod(log_pi_list.shape[1:])
 
-    log_y_hat_true_selection, _ = classification_module(X_test, optimal_S_test, index = None, )
+    log_y_hat_true_selection, _ = classification_module(data_test, optimal_S_test, index = None, )
     pred_true_selection = torch.exp(log_y_hat_true_selection).detach().cpu().numpy()
 
-    log_y_hat_no_selection, _ = classification_module(X_test, index = None)
+    log_y_hat_no_selection, _ = classification_module(data_test, index = None)
     pred_no_selection = torch.exp(log_y_hat_no_selection).detach().numpy()
 
 
-  Y_test = Y_test.detach().cpu().numpy()
+  target_test = target_test.detach().cpu().numpy()
   optimal_S_test = optimal_S_test.detach().cpu().numpy()
 
   dic = {}
   if selection_evaluation:
-    dic["accuracy"] = 1 - np.mean(np.abs(np.argmax(pred_classic, axis=1) - Y_test))
-    dic["auroc"] = sklearn.metrics.roc_auc_score(Y_test, pred_classic[:,1])
+    dic["accuracy"] = 1 - np.mean(np.abs(np.argmax(pred_classic, axis=1) - target_test))
+    dic["auroc"] = sklearn.metrics.roc_auc_score(target_test, pred_classic[:,1])
 
-  dic["accuracy_true_selection"] = 1 - np.mean(np.abs(np.argmax(pred_true_selection, axis=1) - Y_test))
-  dic["auroc_true_selection"] = sklearn.metrics.roc_auc_score(Y_test, pred_true_selection[:,1])
-  dic["accuracy_no_selection"] = 1 - np.mean(np.abs(np.argmax(pred_no_selection, axis=1) - Y_test))
-  dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(Y_test, pred_no_selection[:,1])
+  dic["accuracy_true_selection"] = 1 - np.mean(np.abs(np.argmax(pred_true_selection, axis=1) - target_test))
+  dic["auroc_true_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_true_selection[:,1])
+  dic["accuracy_no_selection"] = 1 - np.mean(np.abs(np.argmax(pred_no_selection, axis=1) - target_test))
+  dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_no_selection[:,1])
 
 
   if selection_evaluation:
