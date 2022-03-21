@@ -19,7 +19,7 @@ if __name__ == '__main__' :
     dataset, loader = get_dataset(args_dataset)
 
     origin_path = args_output["path"]
-    name_experiment = "ToeplitzRealXDataset"
+    name_experiment = "ImageExperiment"
 
     list_classifier = {"ClassifierREALX" : Classification.classification_network.RealXClassifier, "ClassifierLvl2": Classification.classification_network.ClassifierLVL2}
     list_selector = {"SelectorRealX": RealXSelector,  "SelectorLinear": Selection.selective_network.SelectorLinear, } 
