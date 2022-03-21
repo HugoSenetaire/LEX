@@ -45,7 +45,7 @@ def imputation_image(trainer, loader, final_path, nb_samples_image = 20):
     
     log_pi_list,_ = selection_module(data)
 
-    pz = distribution_module(log_pi_list)
+    pz = distribution_module(torch.exp(log_pi_list,))
     z = distribution_module.sample((1,))
     z = trainer.reshape(z)
     data_imputed = classification_module.get_imputation(data, z)
@@ -90,7 +90,7 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image = 20):
     
     log_pi_list,_ = selection_module(data)
 
-    pz = distribution_module(log_pi_list)
+    pz = distribution_module(torch.exp(log_pi_list))
     z = distribution_module.sample((1,))
     z = trainer.reshape(z)
     pred, _ = classification_module(data, z)
