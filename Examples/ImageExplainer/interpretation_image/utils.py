@@ -42,6 +42,8 @@ def imputation_image(trainer, loader, final_path, nb_samples_image = 20, nb_impu
     selection_module = trainer.selection_module
     distribution_module = trainer.distribution_module
     classification_module.imputation.nb_imputation_mc_test = nb_imputation
+    classification_module.imputation.nb_imputation_iwae_test = 1
+
 
 
     
