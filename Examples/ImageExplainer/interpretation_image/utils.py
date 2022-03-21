@@ -28,7 +28,7 @@ def show_interpretation(sample, data, target, shape = (1,28,28)):
         plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none', vmin=sample_reshaped[k].min().item(), vmax=sample_reshaped[k].max().item())
         plt.show()
 
-def imputation_image(trainer, loader, final_path, nb_samples_image = 20):
+def imputation_image(trainer, loader, final_path, nb_samples_image = 20, nb_imputation = 3,):
     trainer.eval()
     data, target, index= next(iter(loader.test_loader))
     data = data[:nb_samples_image]
@@ -41,6 +41,8 @@ def imputation_image(trainer, loader, final_path, nb_samples_image = 20):
     classification_module = trainer.classification_module
     selection_module = trainer.selection_module
     distribution_module = trainer.distribution_module
+    classification_module.imputation.nb_imputation_mc_test = nb_imputation
+
 
     
     log_pi_list,_ = selection_module(data)
@@ -50,7 +52,7 @@ def imputation_image(trainer, loader, final_path, nb_samples_image = 20):
     z = trainer.reshape(z)
     data_imputed = classification_module.get_imputation(data, z)
 
-    data_imputed = data_imputed.cpu().detach().numpy()
+    data_imputed = data_imputed.cpu().detach().numpy().reshape(nb_imputation, nb_samples_image, -1)
     data = data.cpu().detach().numpy()
     z = z.cpu().detach().numpy()
     target = target.cpu().detach().numpy()
@@ -59,16 +61,18 @@ def imputation_image(trainer, loader, final_path, nb_samples_image = 20):
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    for k in range(len(data_imputed)):
-        x_imputed = data_imputed[k].reshape(wanted_shape)
-        x_original = data[k].reshape(wanted_shape)
-        current_z = z[k].reshape(wanted_shape)
-        fig, axs = plt.subplots(1,3, figsize=(15,5))
-        axs[0].imshow(x_original, cmap='gray', interpolation='none',)
-        axs[1].imshow(current_z, cmap='gray', interpolation='none',)
-        axs[2].imshow(x_imputed, cmap='gray', interpolation='none',)
-        plt.savefig(os.path.join(folder_path, f"{k}_target_{target[k]}.png"))
-        plt.close(fig)
+    
+    for k in range(nb_samples_image):
+        for l in range(nb_imputation):
+            x_imputed = data_imputed[l][k].reshape(wanted_shape)
+            x_original = data[k].reshape(wanted_shape)
+            current_z = z[k].reshape(wanted_shape)
+            fig, axs = plt.subplots(1,3, figsize=(15,5))
+            axs[0].imshow(x_original, cmap='gray', interpolation='none',)
+            axs[1].imshow(current_z, cmap='gray', interpolation='none',)
+            axs[2].imshow(x_imputed, cmap='gray', interpolation='none',)
+            plt.savefig(os.path.join(folder_path, f"{k}_target_{target[k]}_imputation_{l}.png"))
+            plt.close(fig)
 
 
     
