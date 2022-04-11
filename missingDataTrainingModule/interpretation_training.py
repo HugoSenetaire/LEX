@@ -426,6 +426,17 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
             data, target, index = on_cuda(data, target = target, index = index,)
         one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
         target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
+        
+        nb_sample_z_monte_carlo_classification, nb_sample_z_iwae_classification = nb_sample_z_monte_carlo*nb_sample_z_iwae, 1
+        data_expanded_classification, target_expanded_classification, index_expanded_classification, one_hot_target_expanded_classification = sampling_augmentation(data,
+                                                                                                target = target,
+                                                                                                index=index,
+                                                                                                one_hot_target = one_hot_target,
+                                                                                                mc_part = nb_sample_z_monte_carlo_classification,
+                                                                                                iwae_part = nb_sample_z_iwae_classification,
+                                                                                                )
+
+                                                                                                
         data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
                                                                                                 target = target,
                                                                                                 index=index,
@@ -442,23 +453,25 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
 
 
         #### TRAINING CLASSIFICATION :
+
         
         # Train classification module :
         p_z = self.classification_distribution_module(pi_list)
-        z = self.classification_distribution_module.sample(sample_shape = (nb_sample_z_monte_carlo,))
+        z = self.classification_distribution_module.sample(sample_shape = (nb_sample_z_monte_carlo_classification,))
         z = self.reshape(z)
+
         
         loss_classification = calculate_cost(mask_expanded = z,
                         trainer = self,
-                        data_expanded = data_expanded,
-                        target_expanded = target_expanded,
-                        index_expanded = index_expanded,
-                        one_hot_target_expanded = one_hot_target_expanded,
+                        data_expanded = data_expanded_classification,
+                        target_expanded = target_expanded_classification,
+                        index_expanded = index_expanded_classification,
+                        one_hot_target_expanded = one_hot_target_expanded_classification,
                         dim_output = dataset.get_dim_output(),
                         loss_function = loss_function,
                         )
 
-        loss_classification = loss_classification.mean(axis = 0) # Mean on MC SAmples here
+        loss_classification = loss_classification.mean(axis = 0) # Mean on MC Samples here
 
         if not self.fix_classifier_parameters :
             torch.mean(loss_classification, axis=0).backward()

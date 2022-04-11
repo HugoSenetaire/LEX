@@ -188,7 +188,7 @@ class AccuracyLoss():
 
 def calculate_cost(mask_expanded,
                     trainer,
-                    data_expanded, # Shape is (nb_imputation, nb_sample_z_monte_carlo, nb_sample_z_iwae, batch_size, channel, dim...)
+                    data_expanded, # Shape is ( nb_sample_z_monte_carlo, batch_size, nb_sample_z_iwae, channel, dim...)
                     target_expanded,
                     one_hot_target_expanded,
                     dim_output,
