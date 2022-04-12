@@ -349,7 +349,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
                 total_dic_train = fill_dic(total_dic_train, dic_train)
                 test_this_epoch = args_complete_trainer["save_epoch_function"](epoch, nb_epoch)
                 if test_this_epoch :
-                    dic_test = trainer_ordinary.test(epoch, loader, )
+                    dic_test = trainer_ordinary.test(epoch, loader,)
                     total_dic_test = fill_dic(total_dic_test, dic_test)
 
 
@@ -515,7 +515,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
         test_this_epoch = args_complete_trainer["save_epoch_function"](epoch, args_train["nb_epoch"])
         if test_this_epoch :
-            dic_test = trainer.test(epoch, loader, )
+            dic_test = trainer.test(epoch, loader, liste_mc = args_test["liste_mc"])
             total_dic_test = fill_dic(total_dic_test, dic_test)
         
     save_dic(os.path.join(final_path,"train"), total_dic_train)

@@ -236,19 +236,20 @@ class EVAL_X(ordinaryTraining):
             data, target, index = on_cuda(data, target = target, index = index,)
         one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
         target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
+        nb_sample_z_monte_carlo_classification, nb_sample_z_iwae_classification = nb_sample_z_monte_carlo*nb_sample_z_iwae, 1
         data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
                                                                                                         target = target,
                                                                                                         index=index,
                                                                                                         one_hot_target = one_hot_target,
-                                                                                                        mc_part = nb_sample_z_monte_carlo,
-                                                                                                        iwae_part= nb_sample_z_iwae,
+                                                                                                        mc_part = nb_sample_z_monte_carlo_classification,
+                                                                                                        iwae_part= nb_sample_z_iwae_classification,
                                                                                                         )
 
         # Destructive module
         p_z = self.fixed_distribution(data_expanded[0],)
 
         # Train classification module :
-        z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo,))
+        z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo_classification,))
         
         # Classification module :
         loss_classification = calculate_cost(
@@ -279,6 +280,7 @@ class EVAL_X(ordinaryTraining):
         # Destructive module :
         data_expanded = extend_input(data, mc_part=nb_sample_z_monte_carlo, iwae_part=nb_sample_z_iwae)
         p_z = self.fixed_distribution(data_expanded[0],)
+        
         # Train classification module :
         z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo,))
         return z

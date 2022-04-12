@@ -7,7 +7,7 @@ from missingDataTrainingModule.selection_training import selectionTraining
 from missingDataTrainingModule.interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
 from missingDataTrainingModule import PytorchDistributionUtils, utils_reshape, Classification, Selection
 from datasets import *
-
+import os
 
 
 from torch.distributions import *
@@ -47,7 +47,7 @@ def get_default():
 
     args_dataset = {}
     # args_dataset["dataset"] = LinearSeparableDataset
-    args_dataset["dataset"] = LinearDataset
+    args_dataset["dataset"] = DiagDataset
     args_dataset["loader"] = LoaderArtificial
     args_dataset["root_dir"] = os.path.join(args_output["path"], "datasets")
     args_dataset["batch_size_train"] = 1000
@@ -57,6 +57,8 @@ def get_default():
     args_dataset["covariance_type"] = "spherical" #Choice spherical diagonal full
     args_dataset["mean"] = torch.tensor(0.0, dtype=torch.float32)
     args_dataset["download"] = True
+    args_dataset["dim_input"] = 11
+    args_dataset["used_dim"] = 10
 
 
 
@@ -183,5 +185,6 @@ def get_default():
     args_test = {}
     args_test["nb_sample_z_mc_test"] = 1
     args_test["nb_sample_z_iwae_test"] = 1
+    args_test["liste_mc"] = [(1,1,1,1), (100,1,1,1), (1,100,1,1), (1,1,100,1), (1,1,1,100)]
 
     return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, args_classification_distribution_module

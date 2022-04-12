@@ -493,14 +493,19 @@ def eval_selection(trainer, loader,):
     fn = np.sum((sel_pred == 0) & (sel_true == 1))
     tn = np.sum((sel_pred == 0) & (sel_true == 0))
 
-    fpr = fp / (fp + tn)
-    tpr = tp / (tp + fn)
+    fpr = fp / (fp + tn + 1e-8)
+    tpr = tp / (tp + fn + 1e-8)
 
     dic["fpr2"] = fpr
     dic["tpr2"] = tpr
 
-    dic["selection_auroc"] = sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), pi_list.reshape(-1))
-    dic["selection_accuracy"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.round(pi_list.reshape(-1))))
+
+    dic["selection_accuracy_rounded"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.round(pi_list.reshape(-1))))
+    dic["selection_accuracy"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - pi_list.reshape(-1)))
+    try :
+        dic["selection_auroc"] = sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), pi_list.reshape(-1))
+    except :
+        dic["selection_auroc"] = -1.0
 
     print("Selection Test : fpr {:.4f} tpr {:.4f} auroc {:.4f} accuracy {:.4f}".format(fpr, tpr, dic["selection_auroc"], dic["selection_accuracy"]))
 
