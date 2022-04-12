@@ -436,7 +436,7 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
                                                                                                 iwae_part = nb_sample_z_iwae_classification,
                                                                                                 )
 
-                                                                                                
+
         data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
                                                                                                 target = target,
                                                                                                 index=index,
@@ -449,14 +449,16 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         # Destructive module :
         log_pi_list, loss_reg = self.selection_module(data)
         log_pi_list = log_pi_list.unsqueeze(1).expand(batch_size, nb_sample_z_iwae, -1) # IWae is part of the parameters while monte carlo is used in the monte carlo gradient estimator.
+        log_pi_list_classification = log_pi_list.unsqueeze(1).expand(batch_size, nb_sample_z_iwae_classification, -1)
         pi_list = torch.exp(log_pi_list)
+        pi_list_classification = torch.exp(log_pi_list_classification)
 
 
         #### TRAINING CLASSIFICATION :
 
         
         # Train classification module :
-        p_z = self.classification_distribution_module(pi_list)
+        p_z = self.classification_distribution_module(pi_list_classification)
         z = self.classification_distribution_module.sample(sample_shape = (nb_sample_z_monte_carlo_classification,))
         z = self.reshape(z)
 
