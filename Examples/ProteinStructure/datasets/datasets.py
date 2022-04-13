@@ -97,20 +97,19 @@ class cullpdb_6133_8classes_asinpaper():
         self.cnn_width = cnn_width
         self.num_classes = 8
         path=os.path.join(root, "cullpdb+profile_6133.npy.gz")
-        if not os.path.exists(path):
-            if download == True :
-                raise NotImplementedError('The download function is not yet implemented') # TODO
-            else :
-                raise NotImplementedError('The data has not been downloaded, should use download argument') # TODO : Change the exception
+        # if not os.path.exists(path):
+        #     if download == True :
+        #         raise NotImplementedError('The download function is not yet implemented') # TODO
+        #     else :
+        #         raise NotImplementedError('The data has not been downloaded, should use download argument') # TODO : Change the exception
         self.noisy = noisy
         self.noise_function = noise_function
         self.give_index = give_index
         
-        ds = np.load(path)
+        # ds = np.load(path)
 
-
-        # path_aux = "D:\\scratch\\hhjs\\dataset\\cullpdb_reduced.npy"
-        # ds = np.load(path_aux)
+        path_aux = "D:\\scratch\\hhjs\\dataset\\cullpdb_reduced.npy"
+        ds = np.load(path_aux)
 
         ds = np.reshape(ds, (ds.shape[0], sequence_len, total_features))
         ret = np.concatenate([ds[:,:, 35:56], ds[:, :, amino_acid_residues + 1:amino_acid_residues+ 1 + self.num_classes]],axis = -1)
@@ -119,7 +118,7 @@ class cullpdb_6133_8classes_asinpaper():
 
        
 
-        D_train, D_test, D_val = split_from_paper(ret)
+        D_train, D_test, D_val = split_with_shuffle(ret)
 
         self.X_train, self.Y_train = self.get_data_labels(D_train)
         self.X_test, self.Y_test = self.get_data_labels(D_test)
@@ -173,7 +172,57 @@ class cullpdb_6133_8classes_asinpaper():
         return X, Y
 
 
+class stupidHMM():
+   def __init__(self,
+            sequence_len,
+            nb_samples,
+            transition = torch.tensor([[0.,1.],[1.,0.]]).type(torch.float64),
+            init_probability = torch.tensor([0.5, 0.5]).type(torch.float64),
+            emission = torch.tensor([[0.,0.,1.0,1.0],[1.0,1.0,0.,0.]]).type(torch.float64),
+            root = None,
+            noisy=False,
+            noise_function = False,
 
+    ) :
+      nb_hidden_dim = len(init_probability)
+      nb_output_dim = len(emission[0])
+
+      dist_hidden = torch.distributions.Categorical(init_probability)
+      dataset_hidden = [dist_hidden.sample((nb_samples,1))]
+      sample_hidden = torch.nn.functional.one_hot(dataset_hidden[-1].squeeze(), num_classes=nb_hidden_dim).type(torch.float64)
+
+      probs_observation = torch.matmul(sample_hidden, emission)
+      dist_observation = torch.distributions.Categorical(probs_observation)
+      dataset_observation = [dist_observation.sample().unsqueeze(1)]
+
+      for k in range(1,sequence_len):
+        probs_hidden = torch.matmul(sample_hidden, transition)
+        dist_hidden = torch.distributions.Categorical(probs_hidden)
+        dataset_hidden.append(dist_hidden.sample().unsqueeze(1))
+        sample_hidden = torch.nn.functional.one_hot(dataset_hidden[-1].squeeze(), num_classes=nb_hidden_dim).type(torch.float64)
+
+        # print(sample_hidden.shape)
+        probs_observation = torch.matmul(sample_hidden, emission)
+        dist_observation = torch.distributions.Categorical(probs_observation)
+        dataset_observation.append(dist_observation.sample().unsqueeze(1))
+        # print(dataset_observation[-1][0])
+
+      self.dataset = torch.cat(dataset_observation, axis=1)
+      self.dataset_numpy = self.dataset.numpy()
+      self.dataset_pytorch = torch.nn.functional.one_hot(torch.tensor(self.dataset_numpy, dtype= torch.int64), nb_output_dim)
+      self.X_train, self.X_test, self.X_val = split_with_shuffle(self.dataset_pytorch)
+
+      self.X_train = torch.transpose(self.X_train, 1,2)
+      self.X_test = torch.transpose(self.X_test, 1,2)
+      self.X_val = torch.transpose(self.X_val, 1,2)
+
+
+      self.Y_train = torch.zeros(np.shape(self.X_train))
+      self.Y_test = torch.zeros(np.shape(self.X_test))
+      self.Y_val = torch.zeros(np.shape(self.X_val))
+
+      self.dataset_train = TensorDatasetAugmented(self.X_train, self.Y_train)
+      self.dataset_test = TensorDatasetAugmented(self.X_test, self.Y_test)
 
 class cullpdb_6133_8classes_nosides():
     def __init__(self,
@@ -190,21 +239,21 @@ class cullpdb_6133_8classes_nosides():
         self.cnn_width = cnn_width
         self.num_classes = 8
         path=os.path.join(root, "cullpdb+profile_6133.npy.gz")
-        if not os.path.exists(path):
-            if download == True :
-                raise NotImplementedError('The download function is not yet implemented') # TODO
-            else :
-                raise NotImplementedError('The data has not been downloaded, should use download argument') # TODO : Change the exception
+        # if not os.path.exists(path):
+        #     if download == True :
+        #         raise NotImplementedError('The download function is not yet implemented') # TODO
+        #     else :
+        #         raise NotImplementedError('The data has not been downloaded, should use download argument') # TODO : Change the exception
         self.noisy = noisy
         self.noise_function = noise_function
         self.give_index = give_index
         self.sampling_imputation = sampling_imputation
 
                 
-        # path_aux = "D:\\scratch\\hhjs\\dataset\\cullpdb_reduced.npy"
+        path_aux = "D:\\scratch\\hhjs\\dataset\\cullpdb_reduced.npy"
         # path_aux = "D:\\scratch\\hhjs\\dataset\\cullpdb_reduced_shuffle.npy"
-        ds = np.load(path)
-        # ds = np.load(path_aux)
+        # ds = np.load(path)
+        ds = np.load(path_aux)
         ds = np.reshape(ds, (ds.shape[0], sequence_len, total_features))
 
 

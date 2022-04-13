@@ -34,6 +34,8 @@ def imputation_image(trainer, loader, final_path, nb_samples_image = 20, nb_impu
     data = data[:nb_samples_image]
     target = target[:nb_samples_image]
     wanted_shape = data[0].shape
+    if wanted_shape[0] == 1:
+        wanted_shape = (wanted_shape[1], wanted_shape[2])
 
     if trainer.use_cuda:
         data, target = data.cuda(), target.cuda()
@@ -84,6 +86,8 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image = 20):
     data = data[:nb_samples_image]
     target = target[:nb_samples_image]
     wanted_shape = data[0].shape
+    if wanted_shape[0] == 1:
+        wanted_shape = (wanted_shape[1], wanted_shape[2])
 
     
     classification_module = trainer.classification_module
@@ -126,9 +130,13 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image = 20):
     data, target, index= next(iter(loader.test_loader))
     data = data[:nb_samples_image]
     target = target[:nb_samples_image]
-    if loader.dataset.ground_truth_selection : 
-        quadrant = loader.dataset.quadrant_test[index]
+    if not hasattr(loader.dataset, "optimal_S_test"):
+        return None
+
+    quadrant = loader.dataset.quadrant_test[index]
     wanted_shape = data[0].shape
+    if wanted_shape[0] == 1:
+        wanted_shape = (wanted_shape[1], wanted_shape[2])
 
     
     classification_module = trainer.classification_module
@@ -175,7 +183,7 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image = 20):
 
 def accuracy_output(trainer, loader, final_path, batch_size = 100):
     trainer.eval()
-    if not loader.dataset.ground_truth_selection :
+    if not hasattr(loader.dataset, "optimal_S_test"):
         return None
     selection_module = trainer.selection_module
     f1_score_avg = 0
@@ -185,8 +193,7 @@ def accuracy_output(trainer, loader, final_path, batch_size = 100):
     for aux in iter(loader.test_loader):
         data, target, index=aux
         wanted_shape = data[0].shape
-        if loader.dataset.ground_truth_selection : 
-            quadrant_test = loader.dataset.quadrant_test[index]
+        quadrant_test = loader.dataset.quadrant_test[index]
 
         if trainer.use_cuda:
             data, target, = data.cuda(), target.cuda()

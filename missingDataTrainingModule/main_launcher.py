@@ -140,26 +140,41 @@ def get_optim(module, args_optimizer, args_scheduler):
     return optimizer, scheduler
 
 def get_networks(args_classification, args_selection, args_complete_trainer, output_category):
-    input_size_selector = args_selection["input_size_selector"]
-    output_size_selector = args_selection["output_size_selector"]
     input_size_classifier = args_classification["input_size_classification_module"]
     input_size_baseline = args_classification["input_size_classification_module"]
-
     classifier =  args_classification["classifier"](input_size_classifier, output_category)
-    selector = args_selection["selector"](input_size_selector, output_size_selector)
-    
 
-    if args_selection["selector_var"] is not None :
-        selector_var = args_selection["selector_var"](input_size_selector, output_size_selector)
-    else :
-        selector_var = None
-
-    
     if args_complete_trainer["baseline"] is not None :
         baseline = args_complete_trainer["baseline"](input_size_baseline, output_category)
     else :
         baseline = None
- 
+
+    input_size_selector = args_selection["input_size_selector"]
+    output_size_selector = args_selection["output_size_selector"]
+
+    try :
+        kernel_size = args_selection["kernel_size"]
+        kernel_stride = args_selection["kernel_stride"]
+        output_size_selector = calculate_blocks_patch(input_size_selector, kernel_size, kernel_stride)
+        args_selection["output_size_selector"] = output_size_selector
+    except :
+        kernel_size = tuple([1 for k in range(len(input_size_selector)-1)])
+        kernel_stride = tuple([1 for k in range(len(input_size_selector)-1)])
+
+    try : 
+        selector = args_selection["selector"](input_size_selector, output_size_selector, args_selection["kernel_size"], args_selection["stride_size"])
+    except :
+        selector = args_selection["selector"](input_size_selector, output_size_selector)
+    
+
+    if args_selection["selector_var"] is not None :
+        try : 
+            selector_var = args_selection["selector_var"](input_size_selector, args_selection["kernel_size"], args_selection["stride_size"])
+        except :
+            selector_var = args_selection["selector_var"](input_size_selector, output_size_selector)
+    else :
+        selector_var = None
+
     return classifier, selector, baseline, selector_var
 
 def get_regularization_method(args_selection, args_distribution_module):
@@ -308,13 +323,6 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
     trainer_ordinary = None
     if (args_complete_trainer["complete_trainer"] is EVAL_X) or (args_complete_trainer["complete_trainer"] is REALX) :
-
-        # if os.path.exists(os.path.join(args_output["path"], "weightsClassifier.pt")):
-        #     print(classifier)
-
-        #     classifier.load_state_dict(torch.load(os.path.join(args_output["path"], "weightsClassifier.pt")))
-        #     print("LOADED")
-        # else :
 
             classification_module = ClassificationModule(classifier, imputation)
 

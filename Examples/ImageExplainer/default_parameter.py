@@ -45,7 +45,7 @@ def get_default():
 
 
     args_dataset = {}
-    args_dataset["dataset"] = MNIST_and_FASHIONMNIST
+    args_dataset["dataset"] = MnistDataset
     args_dataset["loader"] = LoaderEncapsulation
     args_dataset["root_dir"] = os.path.join(args_output["path"], "datasets")
     args_dataset["batch_size_train"] = 100
@@ -56,10 +56,10 @@ def get_default():
 
 
     args_classification = {}
-    args_classification["input_size_classification_module"] = (1,28,56) # Size before imputation
-    args_classification["classifier"] = ClassifierLVL3
+    args_classification["input_size_classification_module"] = (1,28,28) # Size before imputation
+    args_classification["classifier"] = ConvClassifier
 
-    args_classification["imputation"] = ModuleImputation
+    args_classification["imputation"] = ConstantImputation
     args_classification["cste_imputation"] = 0
     args_classification["sigma_noise_imputation"] = 1.0
     args_classification["add_mask"] = False
@@ -84,8 +84,10 @@ def get_default():
 
     args_selection = {}
 
-    args_selection["input_size_selector"] = (1,28,56)
-    args_selection["output_size_selector"] = (1,28,56)
+    args_selection["input_size_selector"] = (1,28,28)
+    args_selection["output_size_selector"] = (1,28,28)
+    args_selection["kernel_size"] = (1,1)
+    args_selection["kernel_stride"] = (1,1)
     args_selection["selector"] = SelectorLVL3
     args_selection["selector_var"] = None #selectorSimilarVar
     args_selection["activation"] = torch.nn.LogSigmoid()
@@ -133,14 +135,15 @@ def get_default():
 
 
     args_train = {}
-    args_train["nb_epoch"] = 500 # Training the complete model
-    args_train["nb_epoch_post_hoc"] = 0 # Training the complete model
-    args_train["nb_epoch_pretrain_autoencoder"] = 0 # Training auto encoder
+    args_train["nb_epoch"] = 10 # Training the complete model
+    args_train["nb_epoch_post_hoc"] = 0 # Training post_hoc
     args_train["nb_epoch_pretrain_selector"] = 0 # Pretrain selector
+    args_train["use_regularization_pretrain_selector"] = False # Use regularization when pretraining the selector
     args_train["nb_epoch_pretrain"] = 0 # Training the complete model 
-    args_train["nb_sample_z_train_monte_carlo"] = 1 # Number K in the IWAE-similar loss 
-    args_train["nb_sample_z_train_IWAE"] = 1
+    args_train["nb_sample_z_train_monte_carlo"] = 1
+    args_train["nb_sample_z_train_IWAE"] = 1  # Number K in the IWAE-similar loss
     args_train["loss_function"] = "NLL" # NLL, MSE
+
 
     args_train["training_type"] = "classic" # Options are ["classic", "alternate_ordinary", "alternate_fixing"]
     args_train["nb_step_fixed_classifier"] = 1 # Options for alternate fixing (number of step with fixed classifier)
@@ -167,17 +170,19 @@ def get_default():
     args_compiler["optim_autoencoder"] = partial(Adam, lr=5e-4, weight_decay=1e-3)
     args_compiler["optim_post_hoc"] = partial(Adam, lr=5e-4, weight_decay=1e-3)
 
-    args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) #Learning rate for classification module
-    args_compiler["scheduler_selection"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) # Learning rate for selection module
-    args_compiler["scheduler_selection_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) # Learning rate for the variationnal selection module used in Variationnal Training
-    args_compiler["scheduler_distribution_module"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) # Learning rate for the feature extractor if any
-    args_compiler["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6) # Learning rate for the baseline network
-    args_compiler["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6)
-    args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.6)
+    args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) #Learning rate for classification module
+    args_compiler["scheduler_selection"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) # Learning rate for selection module
+    args_compiler["scheduler_selection_var"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) # Learning rate for the variationnal selection module used in Variationnal Training
+    args_compiler["scheduler_distribution_module"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) # Learning rate for the feature extractor if any
+    args_compiler["scheduler_baseline"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) # Learning rate for the baseline network
+    args_compiler["scheduler_autoencoder"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9)
+    args_compiler["scheduler_post_hoc"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9)
     
     args_test = {}
     args_test["nb_sample_z_mc_test"] = 1
     args_test["nb_sample_z_iwae_test"] = 1
+    args_test["liste_mc"] = [(1,1,1,1), (1,10,1,1),]
+
 
 
     return  args_output, args_dataset, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, args_classification_distribution_module

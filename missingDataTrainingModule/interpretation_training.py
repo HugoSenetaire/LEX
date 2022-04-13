@@ -357,7 +357,8 @@ class SELECTION_BASED_CLASSIFICATION():
         print("\nTest epoch {}".format(epoch))
         total_dic = {}
         total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
-        total_dic.update(eval_selection(trainer = self, loader = loader))
+        if hasattr(loader.dataset, "optimal_S_test") :
+            total_dic.update(eval_selection(trainer = self, loader = loader))
         self.cuda() # QUICK FIX BECAUE SELECTION TEST THROW OUT OF CUDA @HHJS TODO LEAVE ON CUDA``
         total_dic.update(test_selection(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
 
@@ -406,8 +407,6 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
                         ordinaryTraining = ordinaryTraining,
                         )
 
-        # if self.post_hoc_guidance is not None :
-            # raise NotImplementedError("REALX does not support post hoc guidance")
         self.classification_distribution_module = classification_distribution_module
 
     def _create_dic(self,loss_total,loss_rec_evalx,loss_rec,loss_reg,loss_selection,pi_list):

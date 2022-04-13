@@ -22,10 +22,11 @@ def get_default():
     args_dataset = {}
     # args_dataset["dataset"] = LinearSeparableDataset
     args_dataset["dataset"] = cullpdb_6133_8classes_nosides
+    # args_dataset["dataset"] = stupidHMM
     args_dataset["loader"] = LoaderProtein
     args_dataset["root_dir"] = "/scratch/hhjs/"
-    args_dataset["batch_size_train"] = 1024
-    args_dataset["batch_size_test"] = 1000
+    args_dataset["batch_size_train"] = 5
+    args_dataset["batch_size_test"] = 5
     args_dataset["give_index"] = False
 
     args_classification = {}
@@ -85,7 +86,7 @@ def get_default():
     args_train["nb_epoch"] = 2 # Training the complete model
     args_train["nb_epoch_pretrain_autoencoder"] = 10 # Training the complete model
     args_train["nb_epoch_pretrain"] = 0 # Training auto encoder
-    args_train["Nexpectation_train"] = 1 # Number K in the IWAE-similar loss 
+    args_train["Nexpectation_train"] = 10 # Number K in the IWAE-similar loss 
     args_train["use_cuda"] = True
 
     args_train["sampling_distribution_train"] = RelaxedBernoulli # If using reparametrization (ie noVariationalTraining), need rsample

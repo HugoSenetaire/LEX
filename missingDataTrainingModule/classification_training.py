@@ -57,7 +57,7 @@ class ordinaryTraining():
     def eval(self):
         self.classification_module.eval()
 
-    def _train_step(self, data, target, dataset, index = None, loss_function = NLLLossAugmented(reduce= 'none'),):
+    def _train_step(self, data, target, dataset, index = None, loss_function = NLLLossAugmented(reduction='none'),):
         self.zero_grad()
         data, target, one_hot_target, index = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
         target, one_hot_target = define_target(data, index, target, one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
@@ -72,7 +72,7 @@ class ordinaryTraining():
         return dic
 
 
-    def train_epoch(self, epoch, loader, loss_function=NLLLossAugmented(reduce= 'none'),save_dic = False, verbose = False,):
+    def train_epoch(self, epoch, loader, loss_function=NLLLossAugmented(reduction='none'),save_dic = False, verbose = False,):
         self.train()
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
         total_dic = {}
@@ -145,7 +145,7 @@ class trueSelectionTraining(ordinaryTraining):
         self.optim_classification.step()
         return dic
 
-    def train_epoch(self, epoch, loader, loss_function = continuous_NLLLoss(reduce= 'none'), save_dic = False, verbose = False,):
+    def train_epoch(self, epoch, loader, loss_function = continuous_NLLLoss(reduction='none'), save_dic = False, verbose = False,):
         self.train()
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
         
@@ -197,7 +197,7 @@ class EVAL_X(ordinaryTraining):
         self.reshape_mask_function = reshape_mask_function
 
 
-    def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 10, nb_sample_z_iwae = 1, loss_function = continuous_NLLLoss(reduce= 'none'), save_dic=False, verbose=False,):
+    def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 10, nb_sample_z_iwae = 1, loss_function = continuous_NLLLoss(reduction='none'), save_dic=False, verbose=False,):
         self.train()
         total_dic = {}
         print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
