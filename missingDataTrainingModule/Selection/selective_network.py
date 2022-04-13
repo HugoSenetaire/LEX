@@ -162,49 +162,22 @@ class SelectorUNET(AbstractSelector):
 
 class SelectorUNET1D(AbstractSelector):
     def __init__(self, input_size = (22, 19), output_size = (1,28,28), bilinear = False):
-      super().__init__(input_size = input_size, output_size = output_size)
-      self.channels = self.input_size[0]
-      self.w = self.input_size[1]
-      self.bilinear = bilinear
+      raise NotImplementedError("This selector is not implemented yet.")
+      # super().__init__(input_size = input_size, output_size = output_size)
+      # self.channels = self.input_size[0]
+      # self.w = self.input_size[1]
+      # self.bilinear = bilinear
       
-      self.nb_block = int(math.log(self.nb_patch_x, 2)//2)
-      self.getconfiguration = nn.Sequential(*[
-        nn.Conv1d(self.channels, 64, kernel_size = kernel_patch, stride = stride_patch),
-        nn.ReLU(inplace = False),
-        nn.Conv1d(64, 64, kernel_size = 3, padding=1),
-        nn.BatchNorm1d(64),
-        nn.ReLU(inplace = False),
-        ])
-
-      # self.UNET = UNet1D(1, bilinear = self.bilinear, nb_block = self.nb_block)
+      # self.nb_block = int(math.log(self.nb_patch_x, 2)//2)
+      # self.getconfiguration = nn.Sequential(*[
+      #   nn.Conv1d(self.channels, 64, kernel_size = kernel_patch, stride = stride_patch),
+      #   nn.ReLU(inplace = False),
+      #   nn.Conv1d(64, 64, kernel_size = 3, padding=1),
+      #   nn.BatchNorm1d(64),
+      #   nn.ReLU(inplace = False),
+      #   ])
 
 
-
-    # def kernel_update(self, kernel_patch = 1, stride_patch = 1):
-
-    #   self.kernel_updated = True
-    
-    #   if self.input_size is int or len(self.input_size)<=1:
-    #     self.kernel_patch = 1
-    #     self.stride_patch = 1
-    #     try :
-    #       self.nb_patch_x, self.nb_patch_y = int(self.input_size), 1
-    #     except :
-    #       self.nb_patch_x, self.nb_patch_y = int(self.input_size[1]), 1
-    #   elif len(self.input_size)==2: # For protein like example (1D CNN) #TODO: really implement that ?
-    #       self.kernel_patch = kernel_patch
-    #       self.stride_patch = stride_patch
-    #       self.nb_patch_x, self.nb_patch_y = int(self.input_size[1]), 1 
-
-    #   else :
-    #     assert(kernel_patch[0]>= stride_patch[0])
-    #     assert(kernel_patch[1]>= stride_patch[1])
-    #     assert(stride_patch[0]>0)
-    #     assert(stride_patch[1]>0)
-    #     self.kernel_patch = kernel_patch
-    #     self.stride_patch = stride_patch
-    #     self.nb_patch_x, self.nb_patch_y = calculate_pi_dimension(self.input_size, self.stride_patch)
-      
     
 
     def __call__(self, x):
