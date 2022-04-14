@@ -366,3 +366,43 @@ class ExpSquaredSumGaussianDataset(GaussianDataset):
         self.optimal_S_test = sel[nb_sample_train:,:]
         self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
+
+
+
+
+class DiagGaussianDataset(GaussianDataset):
+    def __init__(self, mean = torch.tensor(0.0, dtype=torch.float32), 
+                cov = torch.tensor(1.0, dtype=torch.float32),
+                covariance_type = 'spherical',
+                nb_sample_train = 10000,
+                nb_sample_test = 10000,
+                give_index = False,
+                noise_function = None,
+                dim_input = 2,
+                **kwargs):
+        super().__init__(mean = mean,
+                        cov=cov,
+                        covariance_type = covariance_type,
+                        nb_sample_train = nb_sample_train,
+                        nb_sample_test = nb_sample_test,
+                        give_index = give_index,
+                        noise_function = noise_function,
+                        **kwargs) 
+
+        self.nb_sample = self.nb_sample_test + self.nb_sample_train
+
+        self.Y = np.where(self.X[:,0]<self.X[:,1], np.ones((self.nb_sample)), np.zeros((self.nb_sample))).astype(np.int64)
+        self.data_train = torch.tensor(self.X[:nb_sample_train], dtype= torch.float32)
+        self.target_train = torch.tensor(self.Y[:nb_sample_train], dtype = torch.int64)
+        
+        self.data_test = torch.tensor(self.X[nb_sample_train:], dtype=torch.float32)
+        self.target_test = torch.tensor(self.Y[nb_sample_train:], dtype = torch.int64)
+
+        self.optimal_S_train = torch.ones_like(self.data_train)
+        self.optimal_S_test = torch.ones_like(self.data_test)
+        self.nb_classes = 2
+
+        
+        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
+    

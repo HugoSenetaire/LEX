@@ -9,7 +9,7 @@ from .interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
 from .selection_training import selectionTraining
 from .utils import MSELossLastDim, define_target, continuous_NLLLoss, fill_dic, save_dic
 from .PytorchDistributionUtils.distribution import self_regularized_distributions, RelaxedSubsetSampling, RelaxedBernoulli_thresholded_STE, RelaxedSubsetSampling_STE, L2XDistribution_STE, L2XDistribution
-from .Selection.selection_module import SelectionModule
+from .Selection.selection_module import SelectionModule, calculate_blocks_patch
 from .Classification.classification_module import ClassificationModule
 
 from torch.distributions import *
@@ -62,7 +62,6 @@ def comply_size(dataset, args_classification, args_selection, args_complete_trai
     args_selection["output_size_selector"] = dim_shape
     args_selection["input_size_autoencoder"] = dim_shape
     args_complete_trainer["input_size_baseline"] = dim_shape
-    args_complete_trainer["reshape_mask_function"] = partial(args_complete_trainer["reshape_mask_function"], size = dim_shape)
 
 def get_imputation_method(args_classification, dataset):
     if args_classification["mask_reg"] is not None :
@@ -161,6 +160,15 @@ def get_networks(args_classification, args_selection, args_complete_trainer, out
         kernel_size = tuple([1 for k in range(len(input_size_selector)-1)])
         kernel_stride = tuple([1 for k in range(len(input_size_selector)-1)])
 
+
+    try :
+        reshape_mask_function = args_complete_trainer["reshape_mask_function"](input_size_classifier = input_size_classifier,
+                                                                    output_size_selector = output_size_selector,
+                                                                    kernel_size = kernel_size,
+                                                                    kernel_stride = kernel_stride)
+    except :
+        reshape_mask_function = args_complete_trainer["reshape_mask_function"](size = input_size_classifier)
+
     try : 
         selector = args_selection["selector"](input_size_selector, output_size_selector, args_selection["kernel_size"], args_selection["stride_size"])
     except :
@@ -175,7 +183,7 @@ def get_networks(args_classification, args_selection, args_complete_trainer, out
     else :
         selector_var = None
 
-    return classifier, selector, baseline, selector_var
+    return classifier, selector, baseline, selector_var, reshape_mask_function
 
 def get_regularization_method(args_selection, args_distribution_module):
     sampling_distrib = args_distribution_module["distribution"]
@@ -273,7 +281,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
 
     ### Networks :
-    classifier, selector, baseline, selector_var = get_networks(args_classification, args_selection, args_complete_trainer, dataset.get_dim_output())
+    classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(args_classification, args_selection, args_complete_trainer, dataset.get_dim_output())
 
     ### Loss Function :
     loss_function = get_loss_function(args_train)
@@ -335,7 +343,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
 
             trainer_ordinary = EVAL_X(classification_module, 
-                            reshape_mask_function = args_complete_trainer["reshape_mask_function"],
+                            reshape_mask_function = reshape_mask_function,
                             post_hoc_guidance = post_hoc_guidance_eval_x,
                             post_hoc = post_hoc_eval_x,
                             argmax_post_hoc = args_train["argmax_post_hoc"],
@@ -357,7 +365,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
                 total_dic_train = fill_dic(total_dic_train, dic_train)
                 test_this_epoch = args_complete_trainer["save_epoch_function"](epoch, nb_epoch)
                 if test_this_epoch :
-                    dic_test = trainer_ordinary.test(epoch, loader,)
+                    dic_test = trainer_ordinary.test(epoch, loader, liste_mc = args_test["liste_mc"])
                     total_dic_test = fill_dic(total_dic_test, dic_test)
 
 
@@ -474,7 +482,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         baseline = baseline,
         distribution_module = distribution_module,
         classification_distribution_module = classification_distribution_module,
-        reshape_mask_function = args_complete_trainer["reshape_mask_function"],
+        reshape_mask_function = reshape_mask_function,
         fix_classifier_parameters = args_train["fix_classifier_parameters"],
         fix_selector_parameters = args_train["fix_selector_parameters"],
         post_hoc_guidance = post_hoc_guidance,

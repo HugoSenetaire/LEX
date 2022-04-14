@@ -24,10 +24,10 @@ class UniformDataset(ArtificialDataset):
         max_x = np.full((self.dim_input,), max)
         # self.X = scipy.stats.uniform(min_x, max_x).rvs((self.nb_sample, self.dim_input))
         # self.X = torch.tensor(self.X, dtype = torch.float32,)
-        self.X = (torch.rand((self.nb_sample, self.dim_input),)- 0.5) * (min-max) + self.center
+        self.X = (torch.rand((self.nb_sample, self.dim_input),)- 0.5) * (self.min-self.max) + self.center
        
     def impute(self, value,  mask, index = None, dataset_type=None): 
-        sampled = (torch.rand(value.shape, device = mask.device)- 0.5) * (min-max) + self.center
+        sampled = (torch.rand(value.shape, device = mask.device) - 0.5) * (self.min-self.max) + self.center
         return sampled
 
 
@@ -44,10 +44,8 @@ class DiagDataset(UniformDataset):
 
         self.optimal_S_train = torch.ones_like(self.data_train)
         self.optimal_S_test = torch.ones_like(self.data_test)
+        self.nb_classes = 2
 
-        # if self.dim_input == 2 :
-            # self.S_train_dataset_based_unnormalized = self.calculate_true_selection_variation(self.data_train,)
-            # self.S_test_dataset_based_unnormalized = self.calculate_true_selection_variation(self.data_test,)
         
         self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
