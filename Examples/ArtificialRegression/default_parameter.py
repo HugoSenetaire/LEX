@@ -42,7 +42,6 @@ def get_default():
     args_complete_trainer["save_epoch_function"] = lambda epoch, nb_epoch: (epoch % args_complete_trainer["save_every_epoch"] == 0) or (epoch == nb_epoch-1) or (epoch<10)
     args_complete_trainer["baseline"] = None
     args_complete_trainer["reshape_mask_function"] = utils_reshape.CollapseInBatch
-    args_complete_trainer["comply_with_dataset"] = True
 
 
     args_dataset = {}

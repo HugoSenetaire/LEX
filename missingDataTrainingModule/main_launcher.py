@@ -53,15 +53,6 @@ def save_parameters(path, args_classification, args_selection, args_distribution
     with open(os.path.join(complete_path, "classification_distribution_module.txt"), "w") as f:
         f.write(str(args_classification_distribution))
 
-def comply_size(dataset, args_classification, args_selection, args_complete_trainer):
-    dim_shape = dataset.get_dim_input()
-    args_classification["input_size_classification_module"] = dim_shape # Size before imputation
-    args_classification["input_size_classifier"] = dim_shape # Size after imputation
-    args_classification["input_size_baseline"] = dim_shape # Size before imputation (should be size of data)
-    args_selection["input_size_selector"] = dim_shape
-    args_selection["output_size_selector"] = dim_shape
-    args_selection["input_size_autoencoder"] = dim_shape
-    args_complete_trainer["input_size_baseline"] = dim_shape
 
 def get_imputation_method(args_classification, dataset):
     if args_classification["mask_reg"] is not None :
@@ -156,7 +147,7 @@ def get_networks(args_classification, args_selection, args_complete_trainer, out
         kernel_stride = args_selection["kernel_stride"]
         output_size_selector = calculate_blocks_patch(input_size_selector, kernel_size, kernel_stride)
         args_selection["output_size_selector"] = output_size_selector
-    except :
+    except KeyError:
         kernel_size = tuple([1 for k in range(len(input_size_selector)-1)])
         kernel_stride = tuple([1 for k in range(len(input_size_selector)-1)])
 
@@ -170,15 +161,15 @@ def get_networks(args_classification, args_selection, args_complete_trainer, out
         reshape_mask_function = args_complete_trainer["reshape_mask_function"](size = input_size_classifier)
 
     try : 
-        selector = args_selection["selector"](input_size_selector, output_size_selector, args_selection["kernel_size"], args_selection["stride_size"])
-    except :
+        selector = args_selection["selector"](input_size_selector, output_size_selector, args_selection["kernel_size"], args_selection["kernel_stride"])
+    except TypeError:
         selector = args_selection["selector"](input_size_selector, output_size_selector)
     
 
     if args_selection["selector_var"] is not None :
         try : 
-            selector_var = args_selection["selector_var"](input_size_selector, args_selection["kernel_size"], args_selection["stride_size"])
-        except :
+            selector_var = args_selection["selector_var"](input_size_selector, output_size_selector, args_selection["kernel_size"], args_selection["kernel_stride"])
+        except TypeError :
             selector_var = args_selection["selector_var"](input_size_selector, output_size_selector)
     else :
         selector_var = None
@@ -261,10 +252,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
                     )
     
 
-    ### Datasets :
 
-    if args_complete_trainer["comply_with_dataset"] :
-        comply_size(dataset, args_classification, args_selection, args_complete_trainer)
 
     ### Regularization method :
     regularization = get_regularization_method(args_selection, args_distribution_module)

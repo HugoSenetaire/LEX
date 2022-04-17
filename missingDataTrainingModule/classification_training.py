@@ -147,7 +147,7 @@ class trueSelectionTraining(ordinaryTraining):
 
     def train_epoch(self, epoch, loader, loss_function = continuous_NLLLoss(reduction='none'), save_dic = False, verbose = False,):
         self.train()
-        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
+        print_batch_every =  max(len(loader.dataset_train)//loader.train_loader.batch_size//10, 1)
         
         self.last_loss_function = loss_function
         self.last_nb_sample_z_monte_carlo = 1
@@ -200,7 +200,7 @@ class EVAL_X(ordinaryTraining):
     def train_epoch(self, epoch, loader, nb_sample_z_monte_carlo = 10, nb_sample_z_iwae = 1, loss_function = continuous_NLLLoss(reduction='none'), save_dic=False, verbose=False,):
         self.train()
         total_dic = {}
-        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
+        print_batch_every =  max(len(loader.dataset_train)//loader.train_loader.batch_size//10, 1)
 
         self.last_loss_function = loss_function
         self.last_nb_sample_z_monte_carlo = nb_sample_z_monte_carlo

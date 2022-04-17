@@ -126,7 +126,7 @@ class SELECTION_BASED_CLASSIFICATION():
         assert(self.compiled)
         self.train()
         total_dic = {}
-        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
+        print_batch_every =  max(len(loader.dataset_train)//loader.train_loader.batch_size//10, 1)
 
         
         self.last_loss_function = loss_function
@@ -171,7 +171,7 @@ class SELECTION_BASED_CLASSIFICATION():
         assert(self.compiled)
         self.train()
         total_dic = {}
-        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
+        print_batch_every = max(len(loader.dataset_train)//loader.train_loader.batch_size//10, 1)
 
         
         self.last_loss_function = loss_function
@@ -220,7 +220,7 @@ class SELECTION_BASED_CLASSIFICATION():
         assert(self.compiled)
         self.train()
         total_dic = {}
-        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
+        print_batch_every = max(len(loader.dataset_train)//loader.train_loader.batch_size//10, 1)
 
         
         self.last_loss_function = loss_function

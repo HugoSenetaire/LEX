@@ -157,6 +157,7 @@ class SelectorUNET(AbstractSelector):
     def __call__(self, x):
       x = self.getconfiguration(x)
       x = self.UNET(x)
+      x = x.view(-1, np.prod(self.output_size))
 
       return x
 
@@ -180,10 +181,10 @@ class SelectorUNET1D(AbstractSelector):
 
     
 
-    def __call__(self, x):
-      x = self.getconfiguration(x)
-      x = self.UNET(x)
-      return x
+    # def __call__(self, x):
+    #   x = self.getconfiguration(x)
+    #   x = self.UNET(x)
+    #   return x
 
 
 
