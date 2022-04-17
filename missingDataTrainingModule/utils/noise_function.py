@@ -1,17 +1,5 @@
+import numpy as np 
 import torch
-import matplotlib.pyplot as plt
-
-from collections.abc import Iterable
-from functools import partial
-import matplotlib.pyplot as plt
-
-import os
-from datetime import datetime
-from collections.abc import Iterable
-from functools import partial
-import matplotlib.pyplot as plt
-import numpy as np
-
 
 
 class NoiseFunction():
@@ -63,9 +51,3 @@ class DropOutNoise(NoiseFunction):
         return img_noised
     
 
-
-# def noise_gaussian(img, sigma = 1.0):
-#     noise = np.random.normal(0, sigma, np.shape(img))
-#     # noise = np.zeros(np.shape(img))
-#     img_noised = img + noise
-#     return img_noised

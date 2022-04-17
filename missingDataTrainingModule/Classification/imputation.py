@@ -1,266 +1,210 @@
 import sys
 import os
 
-from scipy.sparse import data
-from .post_process_imputation import *
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils_missing import *
 import torch
+import torch.nn as nn
 
 
+## Different Utils :
 def prepare_process(input_process):
   """ Utility function to make sure that the input_process is a list of function or None"""
-  if input_process is not list and input_process is not None :
-    input_process = [input_process]
-  return input_process
+  if input_process is None:
+    return None
+  else :
+    if input_process is not list :
+      input_process = [input_process]
+    input_process = nn.ModuleList(input_process)
 
-class Imputation():
-  def __init__(self, input_size = (1,28,28), isRounded = False,
-               reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None):
-    self.isRounded = isRounded
-    self.input_size = input_size
-    self.kernel_updated = False
+    return input_process
+
+
+
+
+
+def expand_for_imputations(data, mask, nb_imputation_iwae, nb_imputation_mc, index = None, collapse = False):
+    wanted_reshape = torch.Size((1,)) + torch.Size((data.shape[0],)) + torch.Size((1,)) + data.shape[1:]
+    wanted_transform = torch.Size((nb_imputation_mc,)) + torch.Size((data.shape[0],)) + torch.Size((nb_imputation_iwae,)) + data.shape[1:]
+    data_expanded = data.reshape(wanted_reshape).expand(wanted_transform)
+    mask_expanded = mask.reshape(wanted_reshape).expand(wanted_transform)
+    if index is not None :
+      wanted_reshape = torch.Size((1,)) + torch.Size((index.shape[0],)) + torch.Size((1,)) + index.shape[1:]
+      wanted_transform_index = torch.Size((nb_imputation_iwae,)) + index.shape + torch.Size((nb_imputation_mc,))
+      index_expanded = index.reshape(wanted_reshape).expand(wanted_transform_index)
+    else:
+      index_expanded = None
+
+    if collapse :
+      data_expanded = data_expanded.flatten(0, 2)
+      mask_expanded = mask_expanded.flatten(0, 2)
+      if index is not None :
+        index_expanded = index_expanded.flatten(0, 2)
+    return data_expanded, mask_expanded, index_expanded
+
+
+## Abstract imputation class :
+
+class Imputation(nn.Module):
+  def __init__(self, nb_imputation_iwae = 1, nb_imputation_mc = 1, nb_imputation_iwae_test = None, nb_imputation_mc_test = None, reconstruction_reg = None, mask_reg = None, add_mask = False, post_process_regularization = None, **kwargs):
+    super().__init__()
     self.add_mask = add_mask
-   
     self.reconstruction_reg = prepare_process(reconstruction_reg)
     self.post_process_regularization = prepare_process(post_process_regularization)
-    self.sample_b_reg = prepare_process(sample_b_reg)
+    self.mask_reg = prepare_process(mask_reg)
 
-    
-    self.nb_imputation = 1
-    if self.post_process_regularization is not None :
-      for element in self.post_process_regularization :
-        if element.multiple_imputation :
-          self.nb_imputation *= element.nb_imputation
-          
-
-    if self.add_mask :
-      self.add_channels = True
-
-
-  def is_learnable(self):
-    """ Check if any process for the imputation needs training """
-    
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        if process.to_train :
-          return True
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        if process.to_train :
-          return True
-
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        if process.to_train:
-          return True
-
-    return False
-
-  def get_learnable_parameter(self):
-    """ Check every element in the imputation method and add it to the parameters_list if it needs training"""
-
-    parameter =[]
-    network_list = []
-
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        if process.to_train :
-          network_list.append(process.network)
-          parameter.append({"params":process.parameters()})
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        if process.to_train :
-          parameter.append({"params":process.parameters()})
-    
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        if process.to_train:
-            if process.network not in network_list :
-              network_list.append(process.network)
-              parameter.append({"params":process.parameters()})
-
-    return parameter
-
-
-  def cuda(self):
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        if process.to_train :
-          process.cuda()
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        if process.to_train :
-          process.cuda()
-
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        if process.to_train:
-          process.cuda()
-
-
-    
-
-  def round_sample(self, sample_b):
-    """ Round sample so that we only have a discrete mask. Unadvised as the training becomes very unstable"""
-    if self.isRounded :
-      sample_b_rounded = torch.round(sample_b)
-      return sample_b_rounded #N_expectation, batch_size, channels, size:...
+    self.nb_imputation_iwae = nb_imputation_iwae
+    if nb_imputation_iwae_test is None :
+      self.nb_imputation_iwae_test = 1
     else :
-      return sample_b
+      self.nb_imputation_iwae_test = nb_imputation_iwae_test
 
+    self.nb_imputation_mc = nb_imputation_mc
+    if nb_imputation_mc_test is None :
+      self.nb_imputation_mc_test = 1
+    else :
+      self.nb_imputation_mc_test = nb_imputation_mc_test
   
-            
-  def __str__(self):
-    """ Make sure of what is printed when everything is in it """
-    string = str(type(self)).split(".")[-1].replace("'","").strip(">")
-    if self.has_constant():
-      string +="_"+ str(self.cste)
-    if self.has_rate():
-      string +=f"_rate_{self.rate}"
-    return string
-
-  def imputation_reconstruction(self, data_expanded, data_imputed, sample_b):
-    loss_reconstruction = torch.zeros((1)).cuda()
-    if self.reconstruction_reg is not None :
-      data_imputed = self.imputation_function(data_expanded, sample_b)
-      for process in self.reconstruction_reg :
-          loss_reconstruction += process(data_expanded, data_imputed, sample_b)
-    return loss_reconstruction
-
-  
-  def add_mask_method(self, data_imputed, sample_b):
-    if len(sample_b.shape)>2:
-      sample_b_aux = sample_b[:,0].unsqueeze(1)
-    else :
-      sample_b_aux = sample_b
-    return torch.cat([data_imputed, sample_b_aux], axis =1)
-
-
-  def post_process(self, data_expanded, data_imputed, sample_b):
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        data_imputed, data_expanded, sample_b = process(data_expanded, data_imputed, sample_b)
-    if self.add_mask:
-      data_imputed = self.add_mask_method(data_imputed, sample_b)
-    return data_imputed
-
-  def sample_b_regularization(self, data_expanded, sample_b):
-    if self.sample_b_reg is None :
-      return sample_b
-    else :
-      for process in self.sample_b_reg :
-        sample_b = process(data_expanded, sample_b)
-      
-
-      return sample_b
-
-
-
-
-  def imputation_function(self, data_expanded, sample_b):
-    raise NotImplementedError
-
-  def impute(self,data_expanded, sample_b):
-
-    sample_b = self.round_sample(sample_b)
-    loss_reconstruction = self.imputation_reconstruction(data_expanded, None, sample_b)
-    sample_b = self.sample_b_regularization(data_expanded, sample_b)
-    data_imputed = self.imputation_function(data_expanded, sample_b)
-
-    data_imputed = self.post_process(data_expanded, data_imputed, sample_b)
-
-    return data_imputed, loss_reconstruction
-
-  def eval(self):
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        process.eval()
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        process.eval()
-
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        process.eval()
-
-  def train(self):
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        process.train()
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        process.train()
-
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        process.train()
-
-  def zero_grad(self):
-    if self.reconstruction_reg is not None :
-      for process in self.reconstruction_reg:
-        if process.to_train :
-          process.zero_grad()
-
-    if self.sample_b_reg is not None :
-      for process in self.sample_b_reg:
-        if process.to_train :
-          process.zero_grad()
-
-    if self.post_process_regularization is not None :
-      for process in self.post_process_regularization:
-        if process.to_train:
-          process.zero_grad()
-
-    
-    
-
   def has_constant(self):
     return False
-
+ 
   def has_rate(self):
     return False
 
 
 
+  def reconstruction_regularization(self, data_imputed, data, mask, index = None):
+    loss_reconstruction = torch.tensor(0., device = data.device)
+    if self.reconstruction_reg is not None :
+      for process in self.reconstruction_reg :
+          loss_reconstruction += process(data_imputed, data, mask, index = index)
+    return loss_reconstruction
+
+  
+  def add_mask_method(self, data_imputed, mask):
+    if len(mask.shape)>2:
+      mask_aux = mask[:,0].unsqueeze(1)
+    else :
+      mask_aux = mask
+    return torch.cat([data_imputed, mask_aux], axis =1)
+
+
+  def post_process(self, data_imputed, data, mask, index = None):
+    if self.post_process_regularization is not None :
+      for process in self.post_process_regularization:
+        data_imputed, mask = process(data_imputed, data, mask, index = index)
+    if self.add_mask:
+      data_imputed = self.add_mask_method(data_imputed, mask)
+    return data_imputed
+
+  def mask_regularization(self, data, mask):
+    if self.mask_reg is None :
+      return mask
+    else :
+      for process in self.mask_reg :
+        mask = process(data, mask)
+      return mask
+
+
+  def imputation_function(self, data, mask, index=None):
+    raise NotImplementedError
+
+  def forward(self, data, mask, index = None):
+    mask = self.mask_regularization(data, mask)
+
+    if self.training :
+      nb_imputation_mc = self.nb_imputation_mc
+      nb_imputation_iwae = self.nb_imputation_iwae
+    else :
+      nb_imputation_mc = self.nb_imputation_mc_test
+      nb_imputation_iwae = self.nb_imputation_iwae_test
+
+    data_expanded, mask_expanded, index_expanded = expand_for_imputations(data, mask, nb_imputation_mc = nb_imputation_mc, nb_imputation_iwae=nb_imputation_iwae, index = index, collapse = True)
+    data_imputed = self.imputation_function(data_expanded, mask_expanded, index_expanded)
+    loss_reconstruction = self.reconstruction_regularization(data_imputed, data_expanded, mask_expanded, index = index_expanded)
+    data_imputed = self.post_process(data_imputed, data_expanded, mask_expanded, index = index_expanded)
+    return data_imputed, loss_reconstruction
+
+
+
 # Example of simple imputation : 
 
+class NoDestructionImputation(Imputation):  
+  def __init__(self, 
+              nb_imputation_iwae = 1,
+              nb_imputation_mc = 1,
+              nb_imputation_iwae_test = None,
+              nb_imputation_mc_test = None,
+              reconstruction_reg = None,
+              mask_reg = None,
+              add_mask = False,
+              post_process_regularization = None,
+              **kwargs,
+               ):
+    super().__init__(nb_imputation_iwae = nb_imputation_iwae,
+                    nb_imputation_mc = nb_imputation_mc,
+                    nb_imputation_iwae_test = nb_imputation_iwae_test,
+                    nb_imputation_mc_test = nb_imputation_mc_test,
+                    reconstruction_reg=reconstruction_reg,
+                    mask_reg=mask_reg,
+                    add_mask= add_mask,
+                    post_process_regularization=post_process_regularization,
+                    **kwargs,
+                  )
+
+  def imputation_function(self, data, mask, index = None):
+    return data
+
+
+
+class MaskAsInput(Imputation):
+  def __init__(self,
+              nb_imputation_iwae = 1,
+              nb_imputation_mc = 1,
+              nb_imputation_iwae_test = None,
+              nb_imputation_mc_test = None,
+              reconstruction_reg = None,
+              mask_reg = None,
+              add_mask = False,
+              post_process_regularization = None,
+              **kwargs,
+             ):
+    super().__init__(nb_imputation_iwae = nb_imputation_iwae,
+                    nb_imputation_mc = nb_imputation_mc,
+                    nb_imputation_iwae_test = nb_imputation_iwae_test,
+                    nb_imputation_mc_test = nb_imputation_mc_test,
+                  reconstruction_reg=reconstruction_reg,
+                  mask_reg=mask_reg,
+                  add_mask= add_mask,
+                  post_process_regularization=post_process_regularization,
+                  )
+    
+  def imputation_function(self, data, mask, index = None):
+    return mask
+
 class ConstantImputation(Imputation):
+  def __init__(self,
+              cste = 0,
+              nb_imputation_iwae = 1,
+              nb_imputation_mc = 1,
+              nb_imputation_iwae_test = None,
+              nb_imputation_mc_test = None,
+              reconstruction_reg = None,
+              mask_reg = None,
+              add_mask = False,
+              post_process_regularization = None,
+              **kwargs,
+              ):
 
- 
-  def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
-               reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None):
-    # self.cste = torch.tensor(cste).cuda()
-    self.cste = torch.tensor(cste) #TODO
-    super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization)
+    super().__init__(nb_imputation_iwae = nb_imputation_iwae,
+                    nb_imputation_mc = nb_imputation_mc,
+                    nb_imputation_iwae_test = nb_imputation_iwae_test,
+                    nb_imputation_mc_test = nb_imputation_mc_test,
+                    reconstruction_reg=reconstruction_reg,
+                    mask_reg=mask_reg,
+                    add_mask= add_mask,
+                    post_process_regularization=post_process_regularization,
+                    )
 
-  def has_constant(self):
-    return True
-
-  def get_constant(self):
-    return self.cste
-
-  def imputation_function(self, data_expanded, sample_b):
-    return data_expanded *  sample_b + (1-sample_b) * self.cste 
-
-
-class ConstantImputation_ContinuousAddMask(Imputation):
-
- 
-  def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
-               reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None):
-    self.cste = torch.tensor(cste).cuda()
-    super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization)
+    self.cste = nn.parameter.Parameter(torch.tensor(cste), requires_grad=False)
 
   def has_constant(self):
     return True
@@ -268,126 +212,198 @@ class ConstantImputation_ContinuousAddMask(Imputation):
   def get_constant(self):
     return self.cste
 
-  def imputation_function(self, data_expanded, sample_b):
-    return data_expanded *  sample_b + (1-sample_b) * self.cste 
+  def imputation_function(self, data, mask, index = None):
+    data_imputed = data *  mask + (1-mask) * self.cste 
+    return data_imputed
 
-  def add_mask_method(self, data_imputed, sample_b):
-    zero_sample_b = torch.rand(sample_b.shape).cuda() * 0.5
-    one_sample_b = torch.rand(sample_b.shape).cuda()*0.5 +0.5
-    sample_b = torch.where(sample_b<0.5, zero_sample_b, one_sample_b)
+class MultipleConstantImputation(Imputation):
+  def __init__(self, 
+              cste_list_dim = [-2, 2],
+              nb_imputation_iwae = 1,
+              nb_imputation_mc = 1,
+              nb_imputation_iwae_test = None,
+              nb_imputation_mc_test = None,
+              reconstruction_reg = None,
+              mask_reg = None,
+              add_mask = False,
+              post_process_regularization = None,
+              **kwargs,
+            ):
 
-    if len(sample_b.shape)>2:
-      sample_b_aux = sample_b[:,0].unsqueeze(1)
-    else :
-      sample_b_aux = sample_b
-    return torch.cat([data_imputed, sample_b_aux], axis =1)
+    super().__init__(nb_imputation_iwae = nb_imputation_iwae,
+                    nb_imputation_mc = nb_imputation_mc,
+                    nb_imputation_iwae_test = nb_imputation_iwae_test,
+                    nb_imputation_mc_test = nb_imputation_mc_test,
+                    reconstruction_reg=reconstruction_reg,
+                    mask_reg=mask_reg,
+                    add_mask= add_mask,
+                    post_process_regularization=post_process_regularization,
+                    )
 
-class ConstantImputation_ContinuousAddMaskV2(Imputation):
-  def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
-               reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None):
-    self.cste = torch.tensor(cste).cuda()
-    super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization)
+    self.cste_list_dim = nn.parameter.Parameter(torch.tensor(cste_list_dim), requires_grad=False)
 
   def has_constant(self):
-    return True
+    return False
 
-  def get_constant(self):
-    return self.cste
 
-  def imputation_function(self, data_expanded, sample_b):
-    return data_expanded *  sample_b + (1-sample_b) * self.cste 
+  def imputation_function(self, data, mask, index = None):
+    data_imputed = data *  mask + (1-mask) * self.cste_list_dim
+    return data_imputed
 
-  def add_mask_method(self, data_imputed, sample_b):
-    zero_sample_b = torch.rand(sample_b.shape).cuda() * -1
-    one_sample_b = torch.rand(sample_b.shape).cuda()
-    sample_b = torch.where(sample_b<0.5, zero_sample_b, one_sample_b)
-
-    if len(sample_b.shape)>2:
-      sample_b_aux = sample_b[:,0].unsqueeze(1)
-    else :
-      sample_b_aux = sample_b
-    return torch.cat([data_imputed, sample_b_aux], axis =1)
 
 class NoiseImputation(Imputation):
-  def __init__(self, cste = 0, input_size = (1,28,28), isRounded = False,
-               reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None):
-    self.cste = torch.tensor(cste).cuda()
-    super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization)
+  def __init__(self,
+              sigma = 1.0,
+              nb_imputation_iwae = 1,
+              nb_imputation_mc = 1,
+              nb_imputation_iwae_test = None,
+              nb_imputation_mc_test = None,
+              reconstruction_reg = None,
+              mask_reg = None,
+              add_mask = False,
+              post_process_regularization = None,
+              **kwargs,
+              ):
+    super().__init__(nb_imputation_iwae = nb_imputation_iwae,
+                    nb_imputation_mc = nb_imputation_mc,
+                    nb_imputation_iwae_test = nb_imputation_iwae_test,
+                    nb_imputation_mc_test = nb_imputation_mc_test,
+                  reconstruction_reg=reconstruction_reg,
+                  mask_reg=mask_reg,
+                  add_mask= add_mask,
+                  post_process_regularization=post_process_regularization,
+                  )
+    self.sigma = sigma
+    assert self.sigma > 0
 
-  def has_constant(self):
-    return True
-
-  def get_constant(self):
-    return self.cste
-
-  def imputation_function(self, data_expanded, sample_b):
-    normal = torch.distributions.normal.Normal(torch.zeros(sample_b.shape), torch.ones(sample_b.shape))
-    noise = normal.sample().cuda()
-    return data_expanded * sample_b + (1-sample_b) *  noise 
+  def imputation_function(self, data, mask, index = None):
+    normal = torch.distributions.normal.Normal(torch.zeros_like(mask), torch.full_like(mask, fill_value= self.sigma))
+    noise = normal.sample()
+    return data * mask + (1-mask) *  noise 
 
 
 
 class LearnConstantImputation(Imputation):
-  def __init__(self, input_size = (1,28,28), isRounded = False,
-               reconstruction_reg = None, sample_b_reg = None,
-               add_mask = False, post_process_regularization = None):
-    self.cste = torch.rand(1, requires_grad=True)
-    super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                    sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization)
+  def __init__(self, 
+              cste=None,
+              nb_imputation_iwae = 1,
+              nb_imputation_mc = 1,
+              nb_imputation_iwae_test = None,
+              nb_imputation_mc_test = None,
+              reconstruction_reg = None,
+              mask_reg = None,
+              add_mask = False,
+              post_process_regularization = None,
+              **kwargs,
+              ):
 
-  def imputation_function(self, data_expanded, sample_b):
-    return data_expanded * sample_b + (1-sample_b) * self.cste 
+    super().__init__(nb_imputation_iwae = nb_imputation_iwae,
+                    nb_imputation_mc = nb_imputation_mc,
+                    nb_imputation_iwae_test = nb_imputation_iwae_test,
+                    nb_imputation_mc_test = nb_imputation_mc_test,
+                    reconstruction_reg=reconstruction_reg,
+                    mask_reg=mask_reg,
+                    add_mask= add_mask,
+                    post_process_regularization=post_process_regularization,
+                    **kwargs,
+                    )
+
+    if cste is None :
+      cste = torch.rand(1,).type(torch.float32)
+    self.cste = nn.Parameter(cste, requires_grad = True)
+
+  def imputation_function(self, data, mask, index = None):
+    return data * mask + (1-mask) * self.cste 
    
 
-  def has_constant(self):
-    return True
-  
-  def get_constant(self):
-    return self.cste
-    
-
-  def get_learnable_parameter(self):
-    parameters = super().get_learnable_parameter()
-    parameters.append({"params":self.cste})
-    return parameters
-
-  def train(self):
-    super().train()
-    self.cste.requires_grad_(True)
-  
-  def eval(self):
-    super().eval()
-    self.cste.requires_grad_(False)
-
-  def cuda(self):
-    super().cuda()
-    self.cste = torch.rand(1, requires_grad=True, device = "cuda")
-
-  def zero_grad(self):
-    super().zero_grad()
-    if self.cste.grad is not None :
-      self.cste.grad.zero_()
-
-
-  def is_learnable(self):
-    return True
 
 class SumImpute(Imputation):
-  def __init__(self, input_size = (1,28,28), isRounded = False,
-               reconstruction_reg = None, sample_b_reg = None,
-               add_mask = True, post_process_regularization = None):
-      self.cste = torch.tensor(cste).cuda()
-      add_mask = True
-      super().__init__(input_size =input_size, isRounded = isRounded, reconstruction_reg=reconstruction_reg,
-                      sample_b_reg=sample_b_reg, add_mask= add_mask, post_process_regularization=post_process_regularization)
+  def __init__(self,
+              nb_imputation_iwae = 1,
+              nb_imputation_mc = 1,
+              nb_imputation_iwae_test = None,
+              nb_imputation_mc_test = None,
+              reconstruction_reg = None,
+              mask_reg = None,
+              add_mask = True,
+              post_process_regularization = None,
+              **kwargs):
+      super().__init__(nb_imputation_iwae = nb_imputation_iwae,
+                      nb_imputation_mc = nb_imputation_mc,
+                      nb_imputation_iwae_test = nb_imputation_iwae_test,
+                      nb_imputation_mc_test = nb_imputation_mc_test, 
+                      reconstruction_reg=reconstruction_reg, 
+                      mask_reg=mask_reg,
+                      add_mask= add_mask,
+                      post_process_regularization=post_process_regularization,)
       
-  def imputation_function(self, data_expanded, sample_b):
-      data_expanded_flatten = data_expanded.flatten(1)
-      sample_b_flatten = sample_b.flatten(1)
-      return torch.sum(data_expanded_flatten * sample_b_flatten, axis=1)
+  def imputation_function(self, data, mask, index = None):
+      return torch.sum(data * mask, axis=-1)
    
 
+class ModuleImputation(Imputation):
+  def __init__(self, 
+              module,
+              nb_imputation_iwae = 1,
+              nb_imputation_mc = 1,
+              nb_imputation_iwae_test = None,
+              nb_imputation_mc_test = None,
+              reconstruction_reg = None,
+              mask_reg = None, 
+              add_mask = True,
+              post_process_regularization = None,
+              **kwargs):
+      super().__init__(nb_imputation_iwae = nb_imputation_iwae,
+                      nb_imputation_mc = nb_imputation_mc,
+                      nb_imputation_iwae_test = nb_imputation_iwae_test,
+                      nb_imputation_mc_test = nb_imputation_mc_test,
+                      reconstruction_reg=reconstruction_reg, 
+                      mask_reg=mask_reg,
+                      add_mask= add_mask,
+                      post_process_regularization=post_process_regularization,)
+      self.module = module
+      
+  def imputation_function(self, data, mask, index = None):
+      imputation = self.module(data, mask, index = index)
+      data_imputed = data * mask + (1-mask) * imputation
+      return data_imputed
+
+
+class DatasetBasedImputation(Imputation):
+    def __init__(self, 
+                dataset,
+                nb_imputation_iwae = 1,
+                nb_imputation_mc = 1,
+                nb_imputation_iwae_test = None,
+                nb_imputation_mc_test = None,
+                reconstruction_reg = None,
+                mask_reg = None, 
+                add_mask = True,
+                post_process_regularization = None,
+                **kwargs):
+        super().__init__(nb_imputation_iwae = nb_imputation_iwae,
+                        nb_imputation_mc = nb_imputation_mc,
+                        nb_imputation_iwae_test = nb_imputation_iwae_test,
+                        nb_imputation_mc_test = nb_imputation_mc_test,
+                        reconstruction_reg=reconstruction_reg, 
+                        mask_reg=mask_reg,
+                        add_mask= add_mask,
+                        post_process_regularization=post_process_regularization,)
+        self.dataset = dataset
+        self.exist = hasattr(dataset, "impute") 
+        if not self.exist :
+          self.nb_imputation = 1
+          print(f"There is no theoretical method for multiple imputation with {dataset}. DatasetBasedImputation is bypassed from now on.")
+        
+
+    def imputation_function(self, data, mask, index = None):
+        if self.exist :
+          if self.training :
+            dataset_type = "Train"
+          else :
+            dataset_type = "Test"
+          imputed_output = self.dataset.impute(value = data.detach(), mask = mask.detach(), index = index, dataset_type = dataset_type)
+          data_imputed = mask * data + (1-mask) * imputed_output
+          return data_imputed
+        else :
+          return data
