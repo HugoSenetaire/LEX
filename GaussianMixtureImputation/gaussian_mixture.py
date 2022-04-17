@@ -11,7 +11,8 @@ def train_gmm(data, n_components, save_path):
     if not os.path.exists(os.path.dirname(save_path)):
       os.makedirs(os.path.dirname(save_path))
     gm = GaussianMixture(n_components=n_components, covariance_type='diag',)
-    data_flatten = data.reshape(-1, np.prod(data.shape[-1:]))
+    batch_size = data.shape[0]
+    data_flatten = data.reshape(batch_size, -1)
     gm.fit(data_flatten)
     mu = gm.means_
     covariances = gm.covariances_
@@ -54,6 +55,7 @@ class GaussianMixtureImputation(nn.Module):
         """
     batch_size = data.shape[0]
     other_dim = data.shape[1:] 
+
 
     wanted_shape = torch.Size((batch_size, self.nb_centers, *other_dim))
     wanted_shape_flatten = torch.Size((batch_size, self.nb_centers,np.prod(other_dim),))
