@@ -11,7 +11,7 @@ def train_gmm(data, n_components, save_path):
     if not os.path.exists(os.path.dirname(save_path)):
       os.makedirs(os.path.dirname(save_path))
     gm = GaussianMixture(n_components=n_components, covariance_type='diag',)
-    gm.fit(data)
+    gm.fit(data.flatten(1))
     mu = gm.means_
     covariances = gm.covariances_
     weights = gm.weights_
