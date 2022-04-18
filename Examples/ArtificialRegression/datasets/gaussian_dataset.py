@@ -387,6 +387,7 @@ class DiagGaussianDataset(GaussianDataset):
                         nb_sample_test = nb_sample_test,
                         give_index = give_index,
                         noise_function = noise_function,
+                        dim_input= dim_input,
                         **kwargs) 
 
         self.nb_sample = self.nb_sample_test + self.nb_sample_train
