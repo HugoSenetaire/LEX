@@ -40,11 +40,18 @@ parameters_to_save["classification_distribution_module.txt"] = ["distribution_mo
 
 
 def get_all_paths(input_dirs, dataset_name):
-    list_all_paths = []
+    list_all_paths = {}
     for input_dir in input_dirs :
-        first_step = os.path.join(os.path.join(input_dir, dataset_name), "*")
-        path_finder = os.path.join(os.path.join(first_step, "*"),"interpretation.txt")
-        list_all_paths.extend(glob.glob(path_finder, recursive=True))
+        if dataset_name == "none" :
+            possible_dataset = glob.glob(os.path.join(input_dir, "*"))
+        else :
+            possible_dataset = [dataset_name]
+        for dataset in possible_dataset :
+            if dataset not in list_all_paths :
+                list_all_paths[dataset] = []
+            first_step = os.path.join(os.path.join(input_dir, dataset_name), "*")
+            path_finder = os.path.join(os.path.join(first_step, "*"),"interpretation.txt")
+            list_all_paths[dataset].extend(glob.glob(path_finder, recursive=True))
 
     print("Found {} paths".format(len(list_all_paths)))
     return list_all_paths
@@ -175,26 +182,31 @@ def create_data_frame(input_dirs, dataset_name, get_output = False):
     list_all_paths = get_all_paths(input_dirs, dataset_name)
     dataframe = None
     dic = {}
-    for k, path in tqdm.tqdm(enumerate(list_all_paths)) :
-        # Parameter
-        dic = get_parameters(path)
-        # Interpretation
-        interpretation = read_interpretation(path)
-        dic.update(interpretation)
-        dic["path"] = path
-        # Output
-        if get_output :
-            try :
-                output = get_train_log(path)
-            except(ValueError):
-                print("Error at {}, file not found".format(path))
-                continue
-            dic.update(output)
-        if k == 0 :
-            # dataframe = pd.DataFrame(columns=[list(dic.keys())])
-            dataframe = pd.DataFrame(dic, index=[k])
-        else :
-            dataframe = dataframe.append(dic, ignore_index=True)
+    k=0
+    for dataset_name in list_all_paths :
+        for path in tqdm.tqdm(enumerate(list_all_paths[dataset_name])) :
+            # Parameter
+            dic = get_parameters(path)
+            # Interpretation
+            interpretation = read_interpretation(path)
+            dic.update(interpretation)
+            dic["path"] = path
+            dic["dataset_name"] = dataset_name
+            # Output
+            if get_output :
+                try :
+                    output = get_train_log(path)
+                except(ValueError):
+                    print("Error at {}, file not found".format(path))
+                    continue
+                dic.update(output)
+            if k == 0 :
+                # dataframe = pd.DataFrame(columns=[list(dic.keys())])
+                dataframe = pd.DataFrame(dic, index=[k])
+            else :
+                dataframe = dataframe.append(dic, ignore_index=True)
+            k+=1
+
 
 
                 
@@ -208,7 +220,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir', type=str, default='exps',
                         help='directory name for results')
     parser.add_argument('--input_dirs', type=str, nargs='+',)
-    parser.add_argument('--dataset_name', type = str, default = 'S1')
+    parser.add_argument('--dataset_name', type = str, default = 'none')
     parser.add_argument('--get_output',action = 'store_true', )
     
     args = parser.parse_args()
