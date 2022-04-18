@@ -43,16 +43,15 @@ def get_all_paths(input_dirs, dataset_name):
     list_all_paths = {}
     for input_dir in input_dirs :
         if dataset_name == "none" :
-            possible_dataset = glob.glob(os.path.join(input_dir, "*"))
+            possible_dataset = os.listdir(input_dir)
         else :
             possible_dataset = [dataset_name]
         for dataset in possible_dataset :
-            if dataset not in list_all_paths :
+            if dataset not in list(list_all_paths.keys()) :
                 list_all_paths[dataset] = []
-            first_step = os.path.join(os.path.join(input_dir, dataset_name), "*")
+            first_step = os.path.join(os.path.join(input_dir, dataset), "*")
             path_finder = os.path.join(os.path.join(first_step, "*"),"interpretation.txt")
             list_all_paths[dataset].extend(glob.glob(path_finder, recursive=True))
-
     print("Found {} paths".format(len(list_all_paths)))
     return list_all_paths
 
@@ -184,7 +183,7 @@ def create_data_frame(input_dirs, dataset_name, get_output = False):
     dic = {}
     k=0
     for dataset_name in list_all_paths :
-        for path in tqdm.tqdm(enumerate(list_all_paths[dataset_name])) :
+        for i,path in tqdm.tqdm(enumerate(list_all_paths[dataset_name])) :
             # Parameter
             dic = get_parameters(path)
             # Interpretation
