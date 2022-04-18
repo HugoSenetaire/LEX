@@ -144,20 +144,17 @@ def get_networks(args_classification, args_selection, args_complete_trainer, out
         baseline = None
 
     input_size_selector = args_selection["input_size_selector"]
-    # output_size_selector = args_selection["output_size_selector"]
+    output_size_selector = args_selection["output_size_selector"]
 
     try :
         kernel_size = args_selection["kernel_size"]
         kernel_stride = args_selection["kernel_stride"]
-
+        output_size_selector = calculate_blocks_patch(input_size_selector, kernel_size, kernel_stride)
+        args_selection["output_size_selector"] = output_size_selector
     except KeyError:
-        kernel_size = tuple([1 for k in range(len(input_size_selector)-1)])
-        kernel_stride = tuple([1 for k in range(len(input_size_selector)-1)])
-
-    output_size_selector = calculate_blocks_patch(input_size_selector, kernel_size, kernel_stride)
-    assert args_selection["output_size_selector"] == output_size_selector
-
-
+        kernel_size = None
+        kernel_stride = None
+    
     try :
         reshape_mask_function = args_complete_trainer["reshape_mask_function"](input_size_classifier = input_size_classifier,
                                                                     output_size_selector = output_size_selector,
@@ -167,14 +164,14 @@ def get_networks(args_classification, args_selection, args_complete_trainer, out
         reshape_mask_function = args_complete_trainer["reshape_mask_function"](size = input_size_classifier)
 
     try : 
-        selector = args_selection["selector"](input_size_selector, output_size_selector, args_selection["kernel_size"], args_selection["kernel_stride"])
+        selector = args_selection["selector"](input_size_selector, output_size_selector, kernel_size, kernel_stride)
     except TypeError:
         selector = args_selection["selector"](input_size_selector, output_size_selector)
     
 
     if args_selection["selector_var"] is not None :
         try : 
-            selector_var = args_selection["selector_var"](input_size_selector, output_size_selector, args_selection["kernel_size"], args_selection["kernel_stride"])
+            selector_var = args_selection["selector_var"](input_size_selector, output_size_selector, kernel_size, kernel_stride)
         except TypeError :
             selector_var = args_selection["selector_var"](input_size_selector, output_size_selector)
     else :
@@ -239,25 +236,12 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
     check_parameters_compatibility(args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_output)
 
-    if not os.path.exists(final_path):
-        os.makedirs(final_path)
 
     print("====================================================================================================================================================")
     print(f"Save at {final_path}")
     print("====================================================================================================================================================")
 
-    save_parameters(final_path, args_classification = args_classification,
-                    args_selection = args_selection,
-                    args_distribution= args_distribution_module,
-                    args_complete_trainer= args_complete_trainer,
-                    args_train = args_train,
-                    args_test = args_test,
-                    args_output=args_output,
-                    args_compiler=args_compiler,
-                    args_classification_distribution=args_classification_distribution_module,
-                    args_dataset=args_dataset,
-                    )
-    
+
 
 
 
@@ -281,7 +265,22 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     ### Loss Function :
     loss_function = get_loss_function(args_train)
 
+    
+    if not os.path.exists(final_path):
+        os.makedirs(final_path)
 
+    save_parameters(final_path, args_classification = args_classification,
+                    args_selection = args_selection,
+                    args_distribution= args_distribution_module,
+                    args_complete_trainer= args_complete_trainer,
+                    args_train = args_train,
+                    args_test = args_test,
+                    args_output=args_output,
+                    args_compiler=args_compiler,
+                    args_classification_distribution=args_classification_distribution_module,
+                    args_dataset=args_dataset,
+                    )
+    
 
     ##### ============ Training POST-HOC ============= ####
 

@@ -18,13 +18,18 @@ class KernelReshape2D():
         self.output_size_selector = output_size_selector
         self.kernel_size = kernel_size
         self.kernel_stride = kernel_stride
-        self.fold = torch.nn.Fold( output_size=(self.input_size_classifier[1], self.input_size_classifier[2]), kernel_size = self.kernel_size, stride = self.kernel_stride)
-        if np.all(self.kernel_size == 1) :
-            self.collapse = CollapseInBatch(self.input_size_classifier)
+        self.just_collapse = False
+        if kernel_size is None or kernel_stride is None :
+            self.just_collapse = True
+            self.collapse = CollapseInBatch
+        else :
+            self.fold = torch.nn.Fold( output_size=(self.input_size_classifier[1], self.input_size_classifier[2]), kernel_size = self.kernel_size, stride = self.kernel_stride)
+            if np.all(self.kernel_size == 1) :
+                self.collapse = CollapseInBatch(self.input_size_classifier)
 
 
     def __call__(self, z):
-        if np.all(self.kernel_size == 1) :
+        if self.just_collapse :
             return self.collapse(z)
         else :
             z = z.reshape(-1, self.output_size_selector[0], self.output_size_selector[1]*self.output_size_selector[2]) # Collapse the mc dim in batch, flatten the number of blocks in one dim
