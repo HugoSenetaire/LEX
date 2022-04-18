@@ -107,7 +107,7 @@ def get_parameters(path):
                 else :
                     complete_dic[k] = dic[k]
         else :
-            print("NOT FOUND AT {}, {}, {}".format(key, value))
+            print("NOT FOUND AT {}, {}, {}".format(key, value, path))
     return complete_dic
 
 def output_to_dic(file):
