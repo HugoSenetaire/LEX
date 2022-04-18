@@ -24,33 +24,26 @@ class MNIST_and_FASHIONMNIST():
         self.fashion_mnist_train = torchvision.datasets.FashionMNIST(root_dir, train=True, download=download, transform = transforms_mnist)
         self.fashion_mnist_test = torchvision.datasets.FashionMNIST(root_dir, train=False, download=download, transform = transforms_mnist)
 
+        self.data_train_mnist = self.mnist_train.data /255.
+        self.data_train_mnist += np.random.normal(0, 0.1, size = self.data_train_mnist.shape) #Handled the way it's handled in REAL X
 
-        self.data_train_mnist = torch.zeros((len(self.mnist_train), 28, 28))
-        for k in range(len(self.data_train_mnist)):
-          self.data_train_mnist[k],_ = self.mnist_train.__getitem__(k) 
-        # self.data_train_mnist = self.data_train_mnist/torch.tensor(255.)
+        self.data_test_mnist = self.mnist_test.data /255.
+        self.data_test_mnist += np.random.normal(0, 0.1, size = self.data_test_mnist.shape) #Handled the way it's handled in REAL X
 
-        self.data_test_mnist = torch.zeros((len(self.mnist_test), 28, 28))
-        for k in range(len(self.data_test_mnist)):
-          self.data_test_mnist[k], _ = self.mnist_test.__getitem__(k)
-        # self.data_test_mnist = self.data_test_mnist/torch.tensor(255.)
+        self.data_train_fashion = self.fashion_mnist_train.data /255.
+        self.data_train_fashion += np.random.normal(0, 0.1, size = self.data_train_fashion.shape) #Handled the way it's handled in REAL X
 
-  
-        self.data_train_fashion = torch.zeros((len(self.fashion_mnist_train), 28, 28))
-        for k in range(len(self.data_train_fashion)):
-          self.data_train_fashion[k],_ = self.fashion_mnist_train.__getitem__(k) 
-        # self.data_train_fashion = self.data_train_fashion/torch.tensor(255.)
-
-        self.data_test_fashion = torch.zeros((len(self.fashion_mnist_test), 28, 28))
-        for k in range(len(self.data_test_fashion)):
-          self.data_test_fashion[k], _ = self.fashion_mnist_test.__getitem__(k)
-        # self.data_test_fashion = self.data_test_fashion/torch.tensor(255.)
-
+        self.data_test_fashion = self.fashion_mnist_test.data /255.
+        self.data_test_fashion += np.random.normal(0, 0.1, size = self.data_test_fashion.shape) #Handled the way it's handled in REAL X
 
 
         self.target_train = self.mnist_train.targets
         self.target_test = self.mnist_test.targets
 
+
+
+
+        
         self.quadrant_filling = torch.ones_like(self.data_train_mnist[0, :, :])
         self.quadrant_filling = torch.where(torch.std(self.data_train_mnist, dim = 0) == 0, torch.zeros_like(self.quadrant_filling), self.quadrant_filling)        
 
@@ -83,14 +76,16 @@ class MNIST_and_FASHIONMNIST():
             self.data_test[k, :, j*28:(j+1)*28] = self.data_test_fashion[k]
 
         
-
+        self.data_train = self.data_train.reshape(-1,1,28,56)
+        self.data_test = self.data_test.reshape(-1,1,28,56)
+        self.quadrant_train = self.quadrant_train.reshape(-1,1,28,56)
+        self.quadrant_test = self.quadrant_test.reshape(-1,1,28,56)
         # TODO : DELETE THE ADDING OF NOISE
-        # self.data_train += torch.normal(0, 0.2, size = self.data_train.shape)
-        # self.data_test += torch.normal(0, 0.2, size = self.data_test.shape)
-        # self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
-        # self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
-        # self.optimal_S_train = self.quadrant_train
-        # self.optimal_S_test = self.quadrant_test
+        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+        self.optimal_S_train = self.quadrant_train
+        self.optimal_S_test = self.quadrant_test
+
 
 
     def get_dim_input(self,):
@@ -117,33 +112,27 @@ class FASHIONMNIST_and_MNIST():
             noise_function = None,
             **kwargs,):
 
-        self.ground_truth_selection = True
+
         self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, transform = transforms_mnist)
         self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, transform = transforms_mnist)
         self.fashion_mnist_train = torchvision.datasets.FashionMNIST(root_dir, train=True, download=download, transform = transforms_mnist)
         self.fashion_mnist_test = torchvision.datasets.FashionMNIST(root_dir, train=False, download=download, transform = transforms_mnist)
 
+        self.data_train_mnist = self.mnist_train.data /255.
+        self.data_train_mnist += np.random.normal(0, 0.1, size = self.data_train_mnist.shape) #Handled the way it's handled in REAL X
 
-        self.data_train_mnist = torch.zeros((len(self.mnist_train), 28, 28))
-        for k in range(len(self.data_train_mnist)):
-          self.data_train_mnist[k],_ = self.mnist_train.__getitem__(k) 
-        # self.data_train_mnist = self.data_train_mnist/torch.tensor(255.)
+        self.data_test_mnist = self.mnist_test.data /255.
+        self.data_test_mnist += np.random.normal(0, 0.1, size = self.data_test_mnist.shape) #Handled the way it's handled in REAL X
 
-        self.data_test_mnist = torch.zeros((len(self.mnist_test), 28, 28))
-        for k in range(len(self.data_test_mnist)):
-          self.data_test_mnist[k], _ = self.mnist_test.__getitem__(k)
-        # self.data_test_mnist = self.data_test_mnist/torch.tensor(255.)
+        self.data_train_fashion = self.fashion_mnist_train.data /255.
+        self.data_train_fashion += np.random.normal(0, 0.1, size = self.data_train_fashion.shape) #Handled the way it's handled in REAL X
 
-  
-        self.data_train_fashion = torch.zeros((len(self.fashion_mnist_train), 28, 28))
-        for k in range(len(self.data_train_fashion)):
-          self.data_train_fashion[k],_ = self.fashion_mnist_train.__getitem__(k) 
-        # self.data_train_fashion = self.data_train_fashion/torch.tensor(255.)
+        self.data_test_fashion = self.fashion_mnist_test.data /255.
+        self.data_test_fashion += np.random.normal(0, 0.1, size = self.data_test_fashion.shape) #Handled the way it's handled in REAL X
 
-        self.data_test_fashion = torch.zeros((len(self.fashion_mnist_test), 28, 28))
-        for k in range(len(self.data_test_fashion)):
-          self.data_test_fashion[k], _ = self.fashion_mnist_test.__getitem__(k)
-        # self.data_test_fashion = self.data_test_fashion/torch.tensor(255.)
+
+        self.target_train = self.mnist_train.targets
+        self.target_test = self.mnist_test.targets
 
 
 
@@ -181,11 +170,16 @@ class FASHIONMNIST_and_MNIST():
             self.data_test[k, :, j*28:(j+1)*28] = self.data_test_fashion[k]
 
         
-
+        self.data_train = self.data_train.reshape(-1,1,28,56)
+        self.data_test = self.data_test.reshape(-1,1,28,56)
+        self.quadrant_train = self.quadrant_train.reshape(-1,1,28,56)
+        self.quadrant_test = self.quadrant_test.reshape(-1,1,28,56)
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
         self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
         self.optimal_S_train = self.quadrant_train
         self.optimal_S_test = self.quadrant_test
+
+
 
     def get_dim_input(self,):
         return (1,28,56)
