@@ -21,7 +21,7 @@ from functools import partial
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-def save_parameters(path, args_classification, args_selection, args_distribution, args_complete_trainer, args_train, args_test, args_output, args_compiler, args_classification_distribution):
+def save_parameters(path, args_classification, args_selection, args_distribution, args_complete_trainer, args_train, args_test, args_output, args_compiler, args_classification_distribution, args_dataset = None):
     complete_path = os.path.join(path, "parameters")
     if not os.path.exists(complete_path):
         os.makedirs(complete_path)
@@ -52,6 +52,10 @@ def save_parameters(path, args_classification, args_selection, args_distribution
 
     with open(os.path.join(complete_path, "classification_distribution_module.txt"), "w") as f:
         f.write(str(args_classification_distribution))
+
+    if args_dataset is not None :
+        with open(os.path.join(complete_path, "dataset.txt"), "w") as f:
+            f.write(str(args_dataset))
 
 
 def get_imputation_method(args_classification, dataset):
@@ -140,16 +144,18 @@ def get_networks(args_classification, args_selection, args_complete_trainer, out
         baseline = None
 
     input_size_selector = args_selection["input_size_selector"]
-    output_size_selector = args_selection["output_size_selector"]
+    # output_size_selector = args_selection["output_size_selector"]
 
     try :
         kernel_size = args_selection["kernel_size"]
         kernel_stride = args_selection["kernel_stride"]
-        output_size_selector = calculate_blocks_patch(input_size_selector, kernel_size, kernel_stride)
-        args_selection["output_size_selector"] = output_size_selector
+
     except KeyError:
         kernel_size = tuple([1 for k in range(len(input_size_selector)-1)])
         kernel_stride = tuple([1 for k in range(len(input_size_selector)-1)])
+
+    output_size_selector = calculate_blocks_patch(input_size_selector, kernel_size, kernel_stride)
+    assert args_selection["output_size_selector"] == output_size_selector
 
 
     try :
@@ -212,7 +218,7 @@ def get_training_method(trainer, args_train, ordinaryTraining ):
     
 
 
-def experiment(dataset, loader, args_output, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, args_classification_distribution_module, name_modification = False):
+def experiment(dataset, loader, args_output, args_classification, args_selection, args_distribution_module, args_complete_trainer, args_train, args_test, args_compiler, args_classification_distribution_module, name_modification = False, args_dataset = None):
     torch.random.manual_seed(0)
     dic_list = {}
 
@@ -249,6 +255,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
                     args_output=args_output,
                     args_compiler=args_compiler,
                     args_classification_distribution=args_classification_distribution_module,
+                    args_dataset=args_dataset,
                     )
     
 
