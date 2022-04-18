@@ -35,7 +35,7 @@ parameters_to_save["distribution_module.txt"] = ["distribution_module", "distrib
 parameters_to_save["classification_distribution_module.txt"] = ["distribution_module", "distribution", "distribution_relaxed"]
 
 # Dataset module :
-parameters_to_save["dataset.txt"] = ["covariance_type", "dim_input", "used_dim"]
+# parameters_to_save["dataset.txt"] = ["covariance_type", "dim_input", "used_dim"]
 
 
 
