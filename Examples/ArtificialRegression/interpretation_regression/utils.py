@@ -616,12 +616,19 @@ def calculate_score(trainer, loader, CFindex = None):
   dic = {}
   if selection_evaluation:
     dic["accuracy"] = 1 - np.mean(np.abs(np.argmax(pred_classic, axis=1) - target_test))
-    dic["auroc"] = sklearn.metrics.roc_auc_score(target_test, pred_classic[:,1])
+    try :
+      dic["auroc"] = sklearn.metrics.roc_auc_score(target_test, pred_classic[:,1])
+      dic["auroc_true_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_true_selection[:,1])
+      dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_no_selection[:,1])
+
+
+    except :
+      dic["auroc"] = -1.
+      dic["auroc_true_selection"] = -1.
+      dic["auroc_no_selection"] = -1.
 
   dic["accuracy_true_selection"] = 1 - np.mean(np.abs(np.argmax(pred_true_selection, axis=1) - target_test))
-  dic["auroc_true_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_true_selection[:,1])
   dic["accuracy_no_selection"] = 1 - np.mean(np.abs(np.argmax(pred_no_selection, axis=1) - target_test))
-  dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_no_selection[:,1])
 
 
   if selection_evaluation:
