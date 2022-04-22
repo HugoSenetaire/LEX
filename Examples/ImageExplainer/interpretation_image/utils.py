@@ -235,7 +235,8 @@ def complete_analysis_image(trainer, loader, final_path, batch_size = 100, nb_sa
     if not os.path.exists(aux_final_path):
         os.makedirs(aux_final_path)
 
-    trainer.load_best_iter_dict(final_path)
+    if os.path.exists(os.path.join(final_path, "classification_module.pt")):
+        trainer.load_best_iter_dict(final_path)
 
     imputation_image(trainer, loader, aux_final_path)
     interpretation_sampled(trainer, loader, aux_final_path)

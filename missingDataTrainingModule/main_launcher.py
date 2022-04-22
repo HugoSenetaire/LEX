@@ -527,10 +527,11 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         test_this_epoch = args_complete_trainer["save_epoch_function"](epoch, args_train["nb_epoch"])
         if test_this_epoch :
             dic_test = trainer.test(epoch, loader, liste_mc = args_test["liste_mc"])
-            last_train_loss_in_test = dic_test["train_loss_in_test"]
-            if last_train_loss_in_test < best_train_loss_in_test :
-                best_train_loss_in_test = last_train_loss_in_test
-                save_model(final_path, classification_module, selection_module, distribution_module, baseline,)
+            if args_output["save_weights"] :
+                last_train_loss_in_test = dic_test["train_loss_in_test"]
+                if last_train_loss_in_test < best_train_loss_in_test :
+                    best_train_loss_in_test = last_train_loss_in_test
+                    save_model(final_path, classification_module, selection_module, distribution_module, baseline,)
             total_dic_test = fill_dic(total_dic_test, dic_test)
         
     save_dic(os.path.join(final_path,"train"), total_dic_train)
