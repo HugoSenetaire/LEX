@@ -7,7 +7,7 @@ from missingDataTrainingModule.utils.loss import NLLLossAugmented
 from .classification_training import ordinaryTraining, EVAL_X, trueSelectionTraining
 from .interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
 from .selection_training import selectionTraining
-from .utils import MSELossLastDim, define_target, continuous_NLLLoss, fill_dic, save_dic
+from .utils import MSELossLastDim, define_target, continuous_NLLLoss, fill_dic, save_dic, save_model
 from .PytorchDistributionUtils.distribution import self_regularized_distributions, RelaxedSubsetSampling, RelaxedBernoulli_thresholded_STE, RelaxedSubsetSampling_STE, L2XDistribution_STE, L2XDistribution
 from .Selection.selection_module import SelectionModule, calculate_blocks_patch
 from .Classification.classification_module import ClassificationModule
@@ -25,6 +25,7 @@ def save_parameters(path, args_classification, args_selection, args_distribution
     complete_path = os.path.join(path, "parameters")
     if not os.path.exists(complete_path):
         os.makedirs(complete_path)
+
 
     with open(os.path.join(complete_path,"classification.txt"), "w") as f:
         f.write(str(args_classification))
@@ -508,7 +509,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
 ###### Main module training :
 
-
+    best_train_loss_in_test = float("inf")
     total_dic_train = {}
     total_dic_test = {}
     for epoch in range(args_train["nb_epoch"]):
@@ -526,6 +527,10 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         test_this_epoch = args_complete_trainer["save_epoch_function"](epoch, args_train["nb_epoch"])
         if test_this_epoch :
             dic_test = trainer.test(epoch, loader, liste_mc = args_test["liste_mc"])
+            last_train_loss_in_test = dic_test["train_loss_in_test"]
+            if last_train_loss_in_test < best_train_loss_in_test :
+                best_train_loss_in_test = last_train_loss_in_test
+                save_model(final_path, classification_module, selection_module, distribution_module, baseline,)
             total_dic_test = fill_dic(total_dic_test, dic_test)
         
     save_dic(os.path.join(final_path,"train"), total_dic_train)

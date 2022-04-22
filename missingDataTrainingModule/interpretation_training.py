@@ -1,5 +1,5 @@
 from missingDataTrainingModule import PytorchDistributionUtils
-from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, test_selection, test_train_loss, eval_selection
+from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, multiple_test, test_train_loss, eval_selection
 from .utils.utils import *
 from functools import partial, total_ordering
 
@@ -74,6 +74,15 @@ class SELECTION_BASED_CLASSIFICATION():
         self.scheduler_distribution_module = scheduler_distribution_module
 
         self.compiled = True
+
+    def load_best_iter_dict(self, final_path):
+        self.classification_module.load_state_dict(torch.load(os.path.join(final_path, "classification_module.pt")))
+        self.selection_module.load_state_dict(torch.load(os.path.join(final_path, "selection_module.pt")))
+        self.distribution_module.load_state_dict(torch.load(os.path.join(final_path, "distribution_module.pt")))
+        if hasattr(self, "baseline") and self.baseline is not None :
+            self.baseline.load_state_dict(torch.load(os.path.join(final_path, "baseline.pt")))
+
+
 
     def zero_grad(self):
         self.classification_module.zero_grad()
@@ -356,11 +365,12 @@ class SELECTION_BASED_CLASSIFICATION():
         """
         print("\nTest epoch {}".format(epoch))
         total_dic = {}
+        total_dic["epoch"] = epoch
         total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
         if hasattr(loader.dataset, "optimal_S_test") :
             total_dic.update(eval_selection(trainer = self, loader = loader))
         self.cuda() # QUICK FIX BECAUE SELECTION TEST THROW OUT OF CUDA @HHJS TODO LEAVE ON CUDA``
-        total_dic.update(test_selection(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
+        total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
 
         for mc_config in liste_mc :
             nb_sample_z_monte_carlo = mc_config[0]
@@ -369,7 +379,7 @@ class SELECTION_BASED_CLASSIFICATION():
             nb_imputation_iwae = mc_config[3]
             self.classification_module.imputation.nb_imputation_mc_test = nb_imputation_mc
             self.classification_module.imputation.nb_imputation_iwae_test = nb_imputation_iwae
-            total_dic.update(test_selection(trainer = self, loader = loader, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, mask_sampling = self.sample_z))
+            total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, mask_sampling = self.sample_z))
         total_dic.update(self.get_pi_list(loader = loader,))
 
         return total_dic

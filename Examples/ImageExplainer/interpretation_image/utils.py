@@ -1,17 +1,9 @@
-import torch
-import matplotlib.pyplot as plt
-
-from collections.abc import Iterable
-from functools import partial
-import matplotlib.pyplot as plt
-
 import os
-from datetime import datetime
-from collections.abc import Iterable
-from functools import partial
+import torch
 import matplotlib.pyplot as plt
 import numpy as np
 import sklearn.metrics as metrics
+import copy
 
 def show_interpretation(sample, data, target, shape = (1,28,28)):
   channels = shape[0]
@@ -28,11 +20,14 @@ def show_interpretation(sample, data, target, shape = (1,28,28)):
         plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none', vmin=sample_reshaped[k].min().item(), vmax=sample_reshaped[k].max().item())
         plt.show()
 
-def imputation_image(trainer, loader, final_path, nb_samples_image = 20, nb_imputation = 3,):
+def imputation_image(trainer, loader, final_path, nb_samples_image_per_category = 3, nb_imputation = 3,):
     trainer.eval()
     data, target, index= next(iter(loader.test_loader))
-    data = data[:nb_samples_image]
-    target = target[:nb_samples_image]
+    output_category = loader.dataset.get_dim_output()
+    indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
+    data = data[indexes]
+    target = target[indexes]
+    total_image = len(data)
     wanted_shape = data[0].shape
     if wanted_shape[0] == 1:
         wanted_shape = (wanted_shape[1], wanted_shape[2])
@@ -56,7 +51,8 @@ def imputation_image(trainer, loader, final_path, nb_samples_image = 20, nb_impu
     z = trainer.reshape(z)
     data_imputed = classification_module.get_imputation(data, z)
 
-    data_imputed = data_imputed.cpu().detach().numpy().reshape(nb_imputation, nb_samples_image, -1)
+
+    data_imputed = data_imputed.cpu().detach().numpy().reshape(nb_imputation, total_image, *wanted_shape)
     data = data.cpu().detach().numpy()
     z = z.cpu().detach().numpy()
     target = target.cpu().detach().numpy()
@@ -66,7 +62,7 @@ def imputation_image(trainer, loader, final_path, nb_samples_image = 20, nb_impu
         os.makedirs(folder_path)
 
     
-    for k in range(nb_samples_image):
+    for k in range(total_image):
         for l in range(nb_imputation):
             x_imputed = data_imputed[l][k].reshape(wanted_shape)
             x_original = data[k].reshape(wanted_shape)
@@ -80,11 +76,14 @@ def imputation_image(trainer, loader, final_path, nb_samples_image = 20, nb_impu
 
 
     
-def interpretation_sampled(trainer, loader, final_path, nb_samples_image = 20):
+def interpretation_sampled(trainer, loader, final_path, nb_samples_image_per_category = 3):
     trainer.eval()
     data, target, index= next(iter(loader.test_loader))
-    data = data[:nb_samples_image]
-    target = target[:nb_samples_image]
+
+    output_category = loader.dataset.get_dim_output()
+    indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
+    data = data[indexes]
+    target = target[indexes]
     wanted_shape = data[0].shape
     if wanted_shape[0] == 1:
         wanted_shape = (wanted_shape[1], wanted_shape[2])
@@ -125,11 +124,13 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image = 20):
         plt.close(fig)
 
     
-def image_f1_score(trainer, loader, final_path, nb_samples_image = 20):
+def image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = 3):
     trainer.eval()
     data, target, index= next(iter(loader.test_loader))
-    data = data[:nb_samples_image]
-    target = target[:nb_samples_image]
+    output_category = loader.dataset.get_dim_output()
+    indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
+    data = data[indexes]
+    target = target[indexes]
     if not hasattr(loader.dataset, "optimal_S_test"):
         return None
 
@@ -222,5 +223,22 @@ def accuracy_output(trainer, loader, final_path, batch_size = 100):
         f.write(f"f1 score: {f1_score_avg}")
         
        
+def complete_analysis_image(trainer, loader, final_path, batch_size = 100, nb_samples_image_per_category = 3):
+    # Interpretation:
+    imputation_image(trainer, loader, final_path)
+    interpretation_sampled(trainer, loader, final_path)
+    accuracy_output(trainer, loader, final_path, batch_size = batch_size,)
+    image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = nb_samples_image_per_category)
+
     
+    aux_final_path = os.path.join(final_path, "at_best_iter")
+    if not os.path.exists(aux_final_path):
+        os.makedirs(aux_final_path)
+
+    trainer.load_best_iter_dict(final_path)
+
+    imputation_image(trainer, loader, aux_final_path)
+    interpretation_sampled(trainer, loader, aux_final_path)
+    accuracy_output(trainer, loader, aux_final_path, batch_size = batch_size)
+    image_f1_score(trainer, loader, aux_final_path, nb_samples_image_per_category = nb_samples_image_per_category)
 

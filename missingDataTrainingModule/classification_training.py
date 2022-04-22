@@ -1,6 +1,6 @@
 from missingDataTrainingModule import PytorchDistributionUtils
 from missingDataTrainingModule.utils.loss import continuous_NLLLoss
-from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, test_selection, test_train_loss
+from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, multiple_test, test_train_loss
 from .utils.utils import *
 import torch.nn.functional as F
 import torch.nn as nn
@@ -99,7 +99,8 @@ class ordinaryTraining():
         """
         print("\nTest epoch {}".format(epoch))
         total_dic = {}
-        total_dic.update(test_selection(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
+        total_dic["epoch"] = epoch
+        total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
         return total_dic
 
 
@@ -185,7 +186,7 @@ class trueSelectionTraining(ordinaryTraining):
             nb_imputation_iwae = mc_config[3]
             self.classification_module.imputation.nb_imputation_mc_test = nb_imputation_mc
             self.classification_module.imputation.nb_imputation_iwae_test = nb_imputation_iwae
-            total_dic.update(test_selection(trainer = self, loader = loader, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, mask_sampling = self.sample_z))
+            total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, mask_sampling = self.sample_z))
         return total_dic
 
 
@@ -295,5 +296,5 @@ class EVAL_X(ordinaryTraining):
             nb_imputation_iwae = mc_config[3]
             self.classification_module.imputation.nb_imputation_mc_test = nb_imputation_mc
             self.classification_module.imputation.nb_imputation_iwae_test = nb_imputation_iwae
-            total_dic.update(test_selection(trainer = self, loader = loader, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, mask_sampling = self.sample_z))
+            total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, mask_sampling = self.sample_z))
         return total_dic

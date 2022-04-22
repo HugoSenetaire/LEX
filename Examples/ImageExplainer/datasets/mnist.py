@@ -20,8 +20,8 @@ class MnistDataset():
             noise_function = None,
             **kwargs,):
 
-        self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, )
-        self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, )
+        self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, transform=default_MNIST_transform)
+        self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, transform=default_MNIST_transform)
 
         self.data_train = self.mnist_train.data / 255.
         self.data_train += np.random.normal(0, 0.1, size = self.data_train.shape) #Handled the way it's handled in REAL X
@@ -32,6 +32,8 @@ class MnistDataset():
         self.target_train = self.mnist_train.targets
         self.target_test = self.mnist_test.targets
 
+        self.data_train = self.data_train.reshape(-1,1,28,28)
+        self.data_test = self.data_test.reshape(-1,1,28,28)
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, transform, target_transform, noise_function = noise_function)
         self.dataset_test = DatasetFromData(self.data_test, self.target_test, transform, target_transform, noise_function = noise_function)
 

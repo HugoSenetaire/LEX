@@ -153,7 +153,7 @@ class FASHIONMNIST_and_MNIST():
             i = bernoulli_sample[k]
             j = 1-i
             self.data_train[k, :, i*28:(i+1)*28] = self.data_train_mnist[k]
-            self.quadrant_train[k, :, i*28:(i+1)*28] = torch.ones((28,28))
+            self.quadrant_train[k, :, j*28:(j+1)*28] = torch.ones((28,28))
             self.data_train[k, :, j*28:(j+1)*28] = self.data_train_fashion[k]
         
         
@@ -166,7 +166,7 @@ class FASHIONMNIST_and_MNIST():
             i = bernoulli_sample[k]
             j = 1-i
             self.data_test[k, :, i*28:(i+1)*28] = self.data_test_mnist[k]
-            self.quadrant_test[k, :, i*28:(i+1)*28] = torch.ones((28,28))
+            self.quadrant_test[k, :, j*28:(j+1)*28] = torch.ones((28,28))
             self.data_test[k, :, j*28:(j+1)*28] = self.data_test_fashion[k]
 
         

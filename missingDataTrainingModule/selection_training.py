@@ -116,5 +116,6 @@ class selectionTraining():
         test_loss, correct, len(loader.test_loader.dataset) * np.prod(loader.dataset.get_dim_input()),
         100. * correct / len(loader.test_loader.dataset) / np.prod(loader.dataset.get_dim_input())))
         total_dic = self._create_dic_test(correct/len(loader.test_loader.dataset), test_loss)
+        total_dic["epoch"] = epoch
         return total_dic
 

@@ -241,6 +241,9 @@ def calculate_cost(mask_expanded,
 
 
 def test_train_loss(trainer, loader, loss_function = None, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, mask_sampling = None,):
+    """
+    Evaluate trainer on the test set from loader using the given loss function.
+    """
     trainer.train()
     if hasattr(trainer, "distribution_module") :
         trainer.distribution_module.eval()
@@ -301,7 +304,18 @@ def test_train_loss(trainer, loader, loss_function = None, nb_sample_z_monte_car
     return dic
 
 
-def test_selection(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, mask_sampling = None, set_manual_seed = None,):
+def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, mask_sampling = None, set_manual_seed = None,):
+        """
+        Evaluate accuracy, likelihood and mse of trainer on the test set from loader.
+
+        Args:
+            trainer (Trainer): The trainer to evaluate.
+            loader (DataLoader): The data loader to use.
+            nb_sample_z_monte_carlo (int): The number of Monte Carlo samples for the mask sampling if mask_sampling = True
+            nb_sample_z_iwae (int): The number of IWAE samples for the mask sampling if mask_sampling = True
+            mask_sampling (function): The function to use to sample the mask.
+            set_manual_seed (int): Manual seed to use, useful for the evaluation of trainer when the mask can change a lot.
+        """
         trainer.eval()
         mse_loss_selection = 0
         mse_loss_selection_prod = 0
@@ -477,7 +491,6 @@ def eval_selection(trainer, loader,):
             pi_list = distribution_module.sample((100,)).mean(dim = 0).detach().cpu().numpy()
         else :
             pi_list = np.exp(log_pi_list.detach().cpu().numpy())
-
 
 
 

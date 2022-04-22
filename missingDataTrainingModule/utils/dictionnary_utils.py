@@ -4,7 +4,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle as pkl
-
+import torch
 
 
 def fill_dic(total_dic, dic):
@@ -34,10 +34,19 @@ def save_dic(path, dic):
     with open(os.path.join(path,"results_dic.txt"), "w") as f:
         f.write(str(dic))
 
+
     for key in dic.keys():
+        if key == "epoch":
+            continue
         table = dic[key]
         plt.figure(0)
-        plt.plot(np.linspace(0,len(table)-1,len(table)),table)
+        try : 
+            epoch_indexes = dic["epoch"]
+            plt.plot(epoch_indexes,table)
+        except KeyError:
+            plt.plot(np.linspace(0,len(table)-1,len(table)),table)
+
         plt.savefig(os.path.join(path,str(key)+".jpg"))
         plt.clf()
+
 

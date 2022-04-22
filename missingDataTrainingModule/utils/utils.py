@@ -1,6 +1,7 @@
 import numpy as np
 from itertools import combinations
 import torch
+import os
 
 def calculate_pi_dimension(input_size, stride):
     nb_patch_x = int(np.ceil(input_size[1]/stride[0]))
@@ -149,3 +150,19 @@ def dic_evaluation(accuracy, mse, neg_likelihood, suffix = "", mse_loss_prod = N
     return dic
 
 
+def save_model(final_path, classification_module, selection_module, distribution_module, baseline,):
+    if not os.path.exists(final_path):
+        os.makedirs(final_path)
+
+    path = os.path.join(final_path, "classification_module.pt")
+    torch.save(classification_module.state_dict(), path)
+
+    path = os.path.join(final_path, "selection_module.pt")
+    torch.save(selection_module.state_dict(), path)
+
+    path = os.path.join(final_path, "distribution_module.pt")
+    torch.save(distribution_module.state_dict(), path)
+
+    if baseline is not None:
+        path = os.path.join(final_path, "baseline.pt")
+        torch.save(baseline.state_dict(), path)
