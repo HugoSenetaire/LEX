@@ -463,7 +463,7 @@ def eval_selection(trainer, loader,):
     if not hasattr(loader.dataset, "optimal_S_test") :
         raise AttributeError("This dataset do not have an optimal S defined")
     else :
-        optimal_S_test = loader.dataset.optimal_S_test.type(torch.float32)
+        optimal_S_test = loader.dataset.optimal_S_test
 
     if trainer.use_cuda :
         X_test = X_test.cuda()

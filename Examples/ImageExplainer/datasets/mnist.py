@@ -34,8 +34,8 @@ class MnistDataset():
 
         self.data_train = self.data_train.reshape(-1,1,28,28)
         self.data_test = self.data_test.reshape(-1,1,28,28)
-        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transform, target_transform, noise_function = noise_function)
-        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transform, target_transform, noise_function = noise_function)
+        self.dataset_train = DatasetFromData(self.data_train, self.target_train, None, target_transform, noise_function = noise_function)
+        self.dataset_test = DatasetFromData(self.data_test, self.target_test, None, target_transform, noise_function = noise_function)
 
     def get_dim_input(self,):
         return (1,28,28)

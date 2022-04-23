@@ -202,13 +202,13 @@ class VGGSimilar(nn.Module):
 
 
 class ConvClassifier(nn.Module):
-    def __init__(self, input_size = (1,28,28),output_size = 10):
+    def __init__(self, input_size = (1,28,28), output_size = 10):
         super().__init__()
         self.conv1 = nn.Conv2d(input_size[0], 10, 3, stride=1, padding=1)
         self.maxpool1 = nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
         self.conv2 = nn.Conv2d(10, 1, 3, stride=1, padding=1)
         self.maxpool2 = nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
-        self.fc = nn.Linear(int(np.prod(input_size)/16),output_size)
+        self.fc = nn.Linear(int(np.prod(input_size[1:])/16),output_size)
         self.logsoftmax = nn.LogSoftmax(-1)
         self.elu = nn.ELU()
     
