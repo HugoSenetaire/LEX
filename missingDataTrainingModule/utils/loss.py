@@ -457,69 +457,91 @@ def eval_selection(trainer, loader,):
     trainer.classification_module.imputation.nb_imputation_iwae_test = 1     
     trainer.eval()
 
-    X_test = loader.dataset.data_test.type(torch.float32)
-    Y_test = loader.dataset.target_test.type(torch.float32)
 
-    if not hasattr(loader.dataset, "optimal_S_test") :
-        raise AttributeError("This dataset do not have an optimal S defined")
-    else :
-        optimal_S_test = loader.dataset.optimal_S_test
-
-    if trainer.use_cuda :
-        X_test = X_test.cuda()
-        Y_test = Y_test.cuda()
-        optimal_S_test = optimal_S_test.cuda()
-
-    if hasattr(trainer, "selection_module"):
-        selection_module = trainer.selection_module
-        distribution_module = trainer.distribution_module
-        selection_module.eval()
-        distribution_module.eval()
-        selection_evaluation = True
-    else :
-        selection_evaluation = False
-    classification_module = trainer.classification_module
-    classification_module.eval()
-
-
-    with torch.no_grad():
-        log_pi_list, _ = selection_module(X_test)
-        distribution_module(torch.exp(log_pi_list))
-        z = distribution_module.sample((1,))
-        z = trainer.reshape(z)
-        if isinstance(selection_module.activation, torch.nn.LogSoftmax):
-            pi_list = distribution_module.sample((100,)).mean(dim = 0).detach().cpu().numpy()
-        else :
-            pi_list = np.exp(log_pi_list.detach().cpu().numpy())
-
-
-
-    optimal_S_test = optimal_S_test.detach().cpu().numpy()
+    
 
     dic = {}
 
-    sel_pred = (pi_list >0.5).astype(int).reshape(-1)
-    sel_true = optimal_S_test.reshape(-1)
-    fp = np.sum((sel_pred == 1) & (sel_true == 0))
-    tp = np.sum((sel_pred == 1) & (sel_true == 1))
+    
+    dic["fp"] = 0
+    dic["tp"] = 0
+    dic["fn"] = 0
+    dic["tn"] = 0
+    dic["selection_auroc"] = 0
+    sum_error_round = 0
+    sum_error = 0
 
-    fn = np.sum((sel_pred == 0) & (sel_true == 1))
-    tn = np.sum((sel_pred == 0) & (sel_true == 0))
+    for data, target, index in loader.test_loader :
+        if not hasattr(loader.dataset, "optimal_S_test") :
+            raise AttributeError("This dataset do not have an optimal S defined")
+        else :
+            optimal_S_test = loader.dataset.optimal_S_test[index]
 
-    fpr = fp / (fp + tn + 1e-8)
-    tpr = tp / (tp + fn + 1e-8)
+        X_test = data.type(torch.float32)
+        Y_test = target.type(torch.float32)
+        if trainer.use_cuda :
+            X_test = X_test.cuda()
+            Y_test = Y_test.cuda()
+            optimal_S_test = optimal_S_test.cuda()
 
-    dic["fpr2"] = fpr
-    dic["tpr2"] = tpr
+        if hasattr(trainer, "selection_module"):
+            selection_module = trainer.selection_module
+            distribution_module = trainer.distribution_module
+            selection_module.eval()
+            distribution_module.eval()
+            selection_evaluation = True
+        else :
+            selection_evaluation = False
+        classification_module = trainer.classification_module
+        classification_module.eval()
 
 
-    dic["selection_accuracy_rounded"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.round(pi_list.reshape(-1))))
-    dic["selection_accuracy"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - pi_list.reshape(-1)))
-    try :
-        dic["selection_auroc"] = sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), pi_list.reshape(-1))
-    except :
-        dic["selection_auroc"] = -1.0
+        with torch.no_grad():
+            log_pi_list, _ = selection_module(X_test)
+            distribution_module(torch.exp(log_pi_list))
+            z = distribution_module.sample((1,))
+            z = trainer.reshape(z)
+            if isinstance(selection_module.activation, torch.nn.LogSoftmax):
+                pi_list = distribution_module.sample((100,)).mean(dim = 0).detach().cpu().numpy()
+            else :
+                pi_list = np.exp(log_pi_list.detach().cpu().numpy())
 
-    print("Selection Test : fpr {:.4f} tpr {:.4f} auroc {:.4f} accuracy {:.4f}".format(fpr, tpr, dic["selection_auroc"], dic["selection_accuracy"]))
 
+
+        optimal_S_test = optimal_S_test.detach().cpu().numpy()
+
+
+        sel_pred = (pi_list >0.5).astype(int).reshape(-1)
+        sel_true = optimal_S_test.reshape(-1)
+        fp = np.sum((sel_pred == 1) & (sel_true == 0))
+        tp = np.sum((sel_pred == 1) & (sel_true == 1))
+
+        fn = np.sum((sel_pred == 0) & (sel_true == 1))
+        tn = np.sum((sel_pred == 0) & (sel_true == 0))
+
+       
+        dic["fp"] += fp
+        dic["tp"] += tp
+        dic["fn"] += fn
+        dic["tn"] += tn
+
+
+
+        sum_error_round += np.sum(np.abs(optimal_S_test.reshape(-1) - np.round(pi_list.reshape(-1))))
+        sum_error += np.sum(np.abs(optimal_S_test.reshape(-1) - pi_list.reshape(-1)))
+        try :
+            dic["selection_auroc"] += sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), pi_list.reshape(-1))
+        except :
+            dic["selection_auroc"] +=0. 
+
+    total = dic["tp"] + dic["tn"] + dic["fp"] + dic["fn"]
+    dic["fpr"] = dic["fp"] / (dic["fp"] + dic["tn"] + 1e-8)
+    dic["tpr"] = dic["tp"] / (dic["tp"] + dic["fn"] + 1e-8)
+    dic["selection_accuracy_rounded"] = sum_error_round / total
+    dic["selection_accuracy"] = sum_error / total
+    dic["selection_auroc"] /= len(loader.test_loader)
+
+
+    print("Selection Test : fpr {:.4f} tpr {:.4f} auroc {:.4f} accuracy {:.4f}".format( dic["fpr"], dic["tpr"], dic["selection_auroc"], dic["selection_accuracy"]))
+    
     return dic
