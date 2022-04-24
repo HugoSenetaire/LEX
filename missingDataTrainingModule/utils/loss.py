@@ -205,8 +205,6 @@ def calculate_cost(mask_expanded,
                 index_expanded_flatten = index_expanded.flatten(0,2)
             else :
                 index_expanded_flatten = None
-            print("MASK EXPANDED", mask_expanded.shape)
-            print("DATA", data_expanded.shape)
             log_y_hat, _ = trainer.classification_module(data = data_expanded.flatten(0,2), mask = mask_expanded, index = index_expanded_flatten)
 
         
