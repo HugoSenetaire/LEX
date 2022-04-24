@@ -198,14 +198,16 @@ def calculate_cost(mask_expanded,
                     no_imputation = False,
                     ):
 
+
         if log_y_hat is None :
             mask_expanded = trainer.reshape(mask_expanded)
             if index_expanded is not None :
                 index_expanded_flatten = index_expanded.flatten(0,2)
             else :
                 index_expanded_flatten = None
-
-            log_y_hat, _ = trainer.classification_module(data_expanded.flatten(0,2), mask_expanded, index = index_expanded_flatten)
+            print("MASK EXPANDED", mask_expanded.shape)
+            print("DATA", data_expanded.shape)
+            log_y_hat, _ = trainer.classification_module(data = data_expanded.flatten(0,2), mask = mask_expanded, index = index_expanded_flatten)
 
         
 

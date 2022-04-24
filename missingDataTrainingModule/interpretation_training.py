@@ -470,9 +470,6 @@ class REALX(SELECTION_BASED_CLASSIFICATION):
         # Train classification module :
         p_z = self.classification_distribution_module(pi_list_classification)
         z = self.classification_distribution_module.sample(sample_shape = (nb_sample_z_monte_carlo_classification,))
-        z = self.reshape(z)
-
-        
         loss_classification = calculate_cost(mask_expanded = z,
                         trainer = self,
                         data_expanded = data_expanded_classification,
