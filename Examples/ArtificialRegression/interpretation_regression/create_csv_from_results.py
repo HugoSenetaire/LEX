@@ -183,6 +183,7 @@ def create_data_frame(input_dirs, dataset_name, get_output = False):
     dic = {}
     k=0
     for dataset_name in list_all_paths :
+        print("Treating {}".format(dataset_name))
         for i,path in tqdm.tqdm(enumerate(list_all_paths[dataset_name])) :
             # Parameter
             dic = get_parameters(path)

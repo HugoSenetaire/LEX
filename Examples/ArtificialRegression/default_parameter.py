@@ -59,6 +59,7 @@ def get_default():
     args_dataset["download"] = True
     args_dataset["dim_input"] = 11
     args_dataset["used_dim"] = 10
+    args_dataset["give_index"] = True
 
 
 

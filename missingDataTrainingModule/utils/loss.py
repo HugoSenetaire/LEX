@@ -471,7 +471,12 @@ def eval_selection(trainer, loader,):
     sum_error_round = 0
     sum_error = 0
 
-    for data, target, index in loader.test_loader :
+    for batch in loader.test_loader :
+        try :
+            data, target, index = batch
+        except :
+            print("Should give index to get the eval selection")
+            return {}
         if not hasattr(loader.dataset, "optimal_S_test") :
             raise AttributeError("This dataset do not have an optimal S defined")
         else :
