@@ -539,9 +539,9 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
           axs[category_index, k,].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = colors[target_train.detach().cpu()], alpha = 0.3)
 
   else :
-    fig, axs = plt.subplots(nrows =1, ncols = 1, figsize = (5,nb_classes*5))
+    fig, axs = plt.subplots(nrows =nb_classes, ncols = 1, figsize = (5,nb_classes*5))
     for category_index in range(nb_classes):
-      axs[nb_classes].contourf(grid_x, grid_y, pred_classic[:,category_index].reshape(grid_x.shape),  vmin=0, vmax=1.0)
+      axs[category_index].contourf(grid_x, grid_y, pred_classic[:,category_index].reshape(grid_x.shape),  vmin=0, vmax=1.0)
 
       if centroids is not None:
           axs[category_index].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
@@ -620,8 +620,6 @@ def calculate_score(trainer, loader, CFindex = None):
       dic["auroc"] = sklearn.metrics.roc_auc_score(target_test, pred_classic[:,1])
       dic["auroc_true_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_true_selection[:,1])
       dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_no_selection[:,1])
-
-
     except :
       dic["auroc"] = -1.
       dic["auroc_true_selection"] = -1.
