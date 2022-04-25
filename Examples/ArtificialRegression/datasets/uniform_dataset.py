@@ -116,7 +116,7 @@ class ExpSquaredSumUniformDataset(UniformDataset):
         super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, min = min, max = max, dim_input = dim_input, give_index = give_index, noise_function = noise_function, **kwargs)
         self.used_dim = used_dim
         self.nb_classes = 2
-        fa = torch.exp(torch.sum(self.X[:,:used_dim]**2 - used_dim, axis = 1))
+        fa = torch.exp(torch.sum(self.X[:,:used_dim]**2 , axis = 1) - used_dim)
         b_fa = 1/(1+fa)
         sel = torch.zeros_like(self.X)
         sel[:,:used_dim] = 1

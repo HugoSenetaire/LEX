@@ -349,8 +349,9 @@ class ExpSquaredSumGaussianDataset(GaussianDataset):
         self.used_dim = used_dim
         self.nb_classes = 2
         assert self.used_dim <= self.dim_input
-orch.sum(self.X[:,:used_dim]**2 - used_dim,
-        fa = torch.exp(torch.sum(self.X[:,:used_dim]**2 - used_dim, axis = 1))
+
+        fa = torch.exp(torch.sum(self.X[:,:used_dim]**2, axis = 1) - used_dim)
+        
         b_fa = 1/(1+fa)
         sel = torch.zeros_like(self.X)
         sel[:,:used_dim] = 1
