@@ -45,7 +45,7 @@ class MNIST_and_FASHIONMNIST():
 
         
         self.quadrant_filling = torch.ones_like(self.data_train_mnist[0, :, :])
-        self.quadrant_filling = torch.where(torch.std(self.data_train_mnist, dim = 0) == 0, torch.zeros_like(self.quadrant_filling), self.quadrant_filling)        
+        # self.quadrant_filling = torch.where(torch.std(self.data_train_mnist, dim = 0) == 0, torch.zeros_like(self.quadrant_filling), self.quadrant_filling)        
 
         #TODO : DELETE THIS
         # self.data_train_mnist = self.data_train_mnist[:10]
@@ -80,6 +80,15 @@ class MNIST_and_FASHIONMNIST():
         self.data_test = self.data_test.reshape(-1,1,28,56)
         self.quadrant_train = self.quadrant_train.reshape(-1,1,28,56)
         self.quadrant_test = self.quadrant_test.reshape(-1,1,28,56)
+
+        self.data_train = self.data_train[:100]
+        self.data_test = self.data_test[:100]
+        self.target_train = self.target_train[:100]
+        self.target_test = self.target_test[:100]
+        self.quadrant_train = self.quadrant_train[:100]
+        self.quadrant_test = self.quadrant_test[:100]
+
+
         # TODO : DELETE THE ADDING OF NOISE
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
         self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
