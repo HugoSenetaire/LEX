@@ -132,4 +132,27 @@ class ExpSquaredSumUniformDataset(UniformDataset):
         self.optimal_S_test = sel[nb_sample_train:,:]
         self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
+
+
+class ExpSquaredSumUniformDatasetV2(UniformDataset):
+    def __init__(self, nb_sample_train = 10000, nb_sample_test = 10000, min = -2.0, max = 2.0, dim_input = 2, used_dim = 2, give_index = False, noise_function = None,  **kwargs):
+        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, min = min, max = max, dim_input = dim_input, give_index = give_index, noise_function = noise_function, **kwargs)
+        self.used_dim = used_dim
+        self.nb_classes = 2
+        fa = torch.exp(torch.sum(self.X[:,:used_dim]**2 , axis = 1) - used_dim)
+        b_fa = 1/(1+fa)
+        sel = torch.zeros_like(self.X)
+        sel[:,:used_dim] = 1
+
+        self.Y = torch.rand(size = b_fa.shape,)
+        self.Y = torch.where(self.Y<b_fa, torch.ones_like(b_fa, dtype = torch.int64), torch.zeros_like(b_fa, dtype = torch.int64))
+
+        self.data_train = self.X[:self.nb_sample_train,:]
+        self.data_test = self.X[self.nb_sample_train:,:]
+        self.target_train = self.Y[:self.nb_sample_train,]
+        self.target_test = self.Y[self.nb_sample_train:,]
+        self.optimal_S_train = sel[:nb_sample_train,:]
+        self.optimal_S_test = sel[nb_sample_train:,:]
+        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
     
