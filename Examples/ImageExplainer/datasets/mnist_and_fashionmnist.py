@@ -81,12 +81,12 @@ class MNIST_and_FASHIONMNIST():
         self.quadrant_train = self.quadrant_train.reshape(-1,1,28,56)
         self.quadrant_test = self.quadrant_test.reshape(-1,1,28,56)
 
-        self.data_train = self.data_train[:100]
-        self.data_test = self.data_test[:100]
-        self.target_train = self.target_train[:100]
-        self.target_test = self.target_test[:100]
-        self.quadrant_train = self.quadrant_train[:100]
-        self.quadrant_test = self.quadrant_test[:100]
+        # self.data_train = self.data_train[:100]
+        # self.data_test = self.data_test[:100]
+        # self.target_train = self.target_train[:100]
+        # self.target_test = self.target_test[:100]
+        # self.quadrant_train = self.quadrant_train[:100]
+        # self.quadrant_test = self.quadrant_test[:100]
 
 
         # TODO : DELETE THE ADDING OF NOISE
