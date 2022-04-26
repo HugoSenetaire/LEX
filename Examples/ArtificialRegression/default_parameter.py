@@ -121,8 +121,6 @@ def get_default():
     args_distribution_module["temperature_init"] = 1.0
     args_distribution_module["test_temperature"] = 1e-5
     args_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler
-    args_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
-    args_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
     args_distribution_module["antitheis_sampling"] = False 
 
 
@@ -134,8 +132,6 @@ def get_default():
     args_classification_distribution_module["temperature_init"] = 0.1
     args_classification_distribution_module["test_temperature"] = 1e-5
     args_classification_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler
-    args_classification_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
-    args_classification_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
     args_classification_distribution_module["antitheis_sampling"] = False 
 
 

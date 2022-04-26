@@ -100,6 +100,7 @@ def get_default():
     args_selection["rate"] = 0.0
     args_selection["loss_regularization"] = "L1" # L1, L2 
     args_selection["batched"] = False
+    args_selection["continuous"] = False
 
 
     args_selection["regularization_var"] = LossRegularization
@@ -107,6 +108,8 @@ def get_default():
     args_selection["rate_var"] = 0.1
     args_selection["loss_regularization_var"] = "L1"
     args_selection["batched_var"] = False
+    args_selection["continuous"] = False
+
 
 
 
@@ -114,11 +117,9 @@ def get_default():
     args_distribution_module["distribution_module"] = PytorchDistributionUtils.wrappers.REBARBernoulli_STE
     args_distribution_module["distribution"] = Bernoulli
     args_distribution_module["distribution_relaxed"] = RelaxedBernoulli_thresholded_STE
-    args_distribution_module["temperature_init"] = 1.0
-    args_distribution_module["test_temperature"] = 1e-5
+    args_distribution_module["temperature_init"] = 0.5
+    args_distribution_module["test_temperature"] = 0.1
     args_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler
-    args_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
-    args_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
     args_distribution_module["antitheis_sampling"] = False 
 
 
@@ -126,11 +127,9 @@ def get_default():
     args_classification_distribution_module["distribution_module"] = PytorchDistributionUtils.wrappers.FixedBernoulli
     args_classification_distribution_module["distribution"] = Bernoulli
     args_classification_distribution_module["distribution_relaxed"] = RelaxedBernoulli
-    args_classification_distribution_module["temperature_init"] = 0.1
-    args_classification_distribution_module["test_temperature"] = 1e-5
+    args_classification_distribution_module["temperature_init"] = 0.5
+    args_classification_distribution_module["test_temperature"] = 0.1
     args_classification_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler
-    args_classification_distribution_module["sampling_subset_size"] = 2 # Sampling size for the subset 
-    args_classification_distribution_module["sampling_threshold"] = 0.5 # threshold for the selection
     args_classification_distribution_module["antitheis_sampling"] = False 
 
 

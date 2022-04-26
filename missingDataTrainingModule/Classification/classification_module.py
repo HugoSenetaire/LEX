@@ -43,7 +43,6 @@ class ClassificationModule(nn.Module):
             Some regularization term that can be added to the loss (for instance in the case of version Autoencoder regularisation)
 
         """
-        
         if mask is not None :
             mask = mask.reshape(data.shape)
         if self.imputation is not None and mask is not None :

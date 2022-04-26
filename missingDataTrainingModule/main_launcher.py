@@ -181,6 +181,13 @@ def get_networks(args_classification, args_selection, args_complete_trainer, out
     return classifier, selector, baseline, selector_var, reshape_mask_function
 
 def get_regularization_method(args_selection, args_distribution_module):
+    """
+    Get the regularization method for the selection module. 
+    Note that if you used a self regularized distribution, 
+    (ie distribution that already limits the number of element selected),
+    no regularization method is explicitely used.
+    
+    """
     sampling_distrib = args_distribution_module["distribution"]
     if sampling_distrib in self_regularized_distributions :
         

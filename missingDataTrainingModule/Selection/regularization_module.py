@@ -2,6 +2,7 @@ from math import log
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from missingDataTrainingModule import PytorchDistributionUtils
 import torch
 
 
@@ -72,4 +73,51 @@ class SoftmaxRegularization():
 
     return log_pi_list, loss_reg
 
+
+class TopKRegularization():
+  def __init__(self, rate = 0.5, batched = False, continuous=False, temperature = 0.5, **kwargs):
+    self.rate =rate
+    self.batched = batched
+    self.continuous = continuous
+    self.temperature = 0.5
+    if self.rate>1.0 or self.rate<0.0:
+      raise ValueError("Need a missing rate between 0 and 1.")
+   
+  
+  def __call__(self, log_pi_list):
+      
+    batch_size = log_pi_list.shape[0]
+    nb_dim = log_pi_list.shape[1]
+
+
+
+    if self.batched:
+      select_among = batch_size*nb_dim
+    else :
+      select_among = nb_dim
+      
+    k_selected = torch.tensor(min(max(select_among*self.rate,1),select_among))
+    if log_pi_list.is_cuda:
+      k_selected = k_selected.cuda()
+    
+    if self.continuous :
+      if self.batched :
+        log_pi_list = PytorchDistributionUtils.distribution.utils.continuous_topk(log_pi_list.reshape(1,-1), k_selected, temperature = self.temperature).reshape(batch_size,-1)
+      else :
+        log_pi_list = PytorchDistributionUtils.distribution.utils.continuous_topk(log_pi_list, k_selected, temperature = self.temperature)
+    else :
+      if self.batched :
+        log_pi_list = PytorchDistributionUtils.distribution.utils.topK_STE.apply(log_pi_list.reshape(1,-1), k_selected).reshape(batch_size,-1)
+      else :
+        log_pi_list = PytorchDistributionUtils.distribution.utils.topK_STEpply(log_pi_list, k_selected)
+    
+   
+    
+    log_pi_list = torch.clamp(log_pi_list, max = 0.0)
+
+    loss_reg = torch.tensor(0.)
+    if log_pi_list.is_cuda:
+      loss_reg = loss_reg.cuda()
+
+    return log_pi_list, loss_reg
 
