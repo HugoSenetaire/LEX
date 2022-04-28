@@ -3,7 +3,7 @@ import sys
 from missingDataTrainingModule.PytorchDistributionUtils.distribution.relaxed_bernoulli_threshold_STE import RelaxedBernoulli_thresholded_STE
 
 
-sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
+sys.path.append("C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\")
 sys.path.append("/home/hhjs/MissingDataTraining")
 from GaussianMixtureImputation import *
 from missingDataTrainingModule import *
@@ -27,9 +27,9 @@ def get_default():
 
 
     args_output = {}
-    # args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
-    args_output["path"] = "/scratch/hhjs" # Path to results
-
+    args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
+    # args_output["path"] = "/scratch/hhjs" # Path to results
+    
     args_output["save_weights"] = True
     args_output["experiment_name"] = "REBAR"
 

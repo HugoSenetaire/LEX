@@ -1,5 +1,5 @@
 import sys
-sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
+sys.path.append("C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\")
 sys.path.append("/home/hhjs/MissingDataTraining/")
 
 

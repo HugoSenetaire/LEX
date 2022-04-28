@@ -37,10 +37,11 @@ class GaussianMixtureImputation(nn.Module):
 
   def __call__(self, data, mask, index = None,):
     """ Using the data and the mask, do the imputation and classification 
+        Note : This is just doing a single sample multiple imputation.
         
         Parameters:
         -----------
-        data : torch.Tensor of shape (nb_imputation, batch_size, channels, size_lists...)
+        data : torch.Tensor of shape (batch_size, channels, size_lists...)
             The data used for sampling, might have already been treated
         mask : torch.Tensor of shape (batch_size, size_lists...)
             The mask to be used for the classification, shoudl be in the same shape as the data
@@ -49,43 +50,44 @@ class GaussianMixtureImputation(nn.Module):
 
         Returns:
         --------
-        sampled : torch.Tensor of shape (nb_imputation, batch_size, nb_category)
+        sampled : torch.Tensor of shape (batch_size, nb_category)
             Sampled tensor from the Gaussian Mixture
 
         """
-    batch_size = data.shape[0]
-    other_dim = data.shape[1:] 
+
+    with torch.no_grad() :
+      batch_size = data.shape[0]
+      other_dim = data.shape[1:] 
 
 
-    wanted_shape = torch.Size((batch_size, self.nb_centers, *other_dim))
-    wanted_shape_flatten = torch.Size((batch_size, self.nb_centers,np.prod(other_dim),))
+      wanted_shape = torch.Size((batch_size, self.nb_centers, *other_dim))
+      wanted_shape_flatten = torch.Size((batch_size, self.nb_centers,np.prod(other_dim),))
 
 
-    data_expanded = data.detach().unsqueeze(1).expand(wanted_shape).reshape(wanted_shape_flatten)
-    mask_expanded = mask.detach().unsqueeze(1).expand(wanted_shape).reshape(wanted_shape_flatten)
-    
-    centers = self.means.unsqueeze(0).expand(wanted_shape_flatten)
-    variance = self.covariances.unsqueeze(0).expand(wanted_shape_flatten)
-    weights = self.weights.unsqueeze(0).expand(torch.Size((batch_size, self.nb_centers,)))
+      data_expanded = data.detach().unsqueeze(1).expand(wanted_shape).reshape(wanted_shape_flatten)
+      mask_expanded = mask.detach().unsqueeze(1).expand(wanted_shape).reshape(wanted_shape_flatten)
+      
+      centers = self.means.unsqueeze(0).expand(wanted_shape_flatten)
+      variance = self.covariances.unsqueeze(0).expand(wanted_shape_flatten)
+      weights = self.weights.unsqueeze(0).expand(torch.Size((batch_size, self.nb_centers,)))
 
 
-    dependency = -(data_expanded - centers)**2/2/variance - torch.log(variance)/2
-    dependency = torch.sum(dependency* mask_expanded,axis=-1) + torch.log(weights)
-    dependency[torch.where(torch.isnan(dependency))] = torch.zeros_like(dependency[torch.where(torch.isnan(dependency))]) #TODO : AWFUL WAY OF CLEANING THE ERROR, to change
-    dependency_max, _ = torch.max(dependency, axis = -1, keepdim = True)
-    dependency -= torch.log(torch.sum(torch.exp(dependency - dependency_max) + 1e-8, axis = -1, keepdim=True)) + dependency_max
-    dependency = torch.exp(dependency)
+      dependency = -(data_expanded - centers)**2/2/variance - torch.log(variance)/2
+      dependency = torch.sum(dependency* mask_expanded,axis=-1) + torch.log(weights)
+      dependency[torch.where(torch.isnan(dependency))] = torch.zeros_like(dependency[torch.where(torch.isnan(dependency))]) #TODO : AWFUL WAY OF CLEANING THE ERROR, to change
+      dependency_max, _ = torch.max(dependency, axis = -1, keepdim = True)
+      dependency -= torch.log(torch.sum(torch.exp(dependency - dependency_max) + 1e-8, axis = -1, keepdim=True)) + dependency_max
+      dependency = torch.exp(dependency)
 
 
-    index_resampling = torch.distributions.Multinomial(probs = dependency).sample().type(torch.int64)
-    index_resampling = torch.argmax(index_resampling,axis=-1)
-    wanted_centroids = self.means[index_resampling]
-    wanted_covariances = self.covariances[index_resampling]
+      index_resampling = torch.distributions.Multinomial(probs = dependency).sample().type(torch.int64)
+      index_resampling = torch.argmax(index_resampling,axis=-1)
+      wanted_centroids = self.means[index_resampling]
+      wanted_covariances = self.covariances[index_resampling]
 
-
-    wanted_shape = data.shape
-    if self.mean_imputation :
-        sampled = wanted_centroids.reshape(wanted_shape)
-    else :
-        sampled = torch.normal(wanted_centroids, torch.sqrt(wanted_covariances)).type(torch.float32).reshape(wanted_shape)
+      wanted_shape = data.shape
+      if self.mean_imputation :
+          sampled = wanted_centroids.reshape(wanted_shape)
+      else :
+          sampled = torch.normal(wanted_centroids, torch.sqrt(wanted_covariances)).type(torch.float32).reshape(wanted_shape)
     return sampled

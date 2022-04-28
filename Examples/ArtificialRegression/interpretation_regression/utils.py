@@ -3,22 +3,11 @@ import sys
 from numpy.core.function_base import linspace
 
 from missingDataTrainingModule.Classification.classification_network import ClassifierLVL3, ClassifierLinear
-sys.path.append("D:\\DTU\\firstProject\\MissingDataTraining")
+sys.path.append("C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\")
 sys.path.append("/home/hhjs/MissingDataTraining")
 
 import torch
-import matplotlib.pyplot as plt
-
-from collections.abc import Iterable
-from functools import partial
-import matplotlib.pyplot as plt
-from itertools import cycle, islice
-import sklearn
-
 import os
-from datetime import datetime
-from collections.abc import Iterable
-from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import ScalarMappable
