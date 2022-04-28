@@ -161,10 +161,16 @@ def get_train_log(path,):
     if os.path.exists(test_path) :
         with open(test_path, "rb") as f :
             dic_test = pkl.load(f)
-        best_train_loss_in_test_index = np.argmin(dic_test["train_loss_in_test"]) 
-        for key, value in dic_test.items():
-            complete_dic[key + "test"] = "{:.5f}".format(value[-1]).replace(".", ",")
-            complete_dic[key + "test_at_best_index"] = "{:.5f}".format(value[best_train_loss_in_test_index]).replace(".", ",")
+        try :
+            best_train_loss_in_test_index = np.argmin(dic_test["train_loss_in_test"]) 
+            for key, value in dic_test.items():
+                complete_dic[key + "test"] = "{:.5f}".format(value[-1]).replace(".", ",")
+                complete_dic[key + "test_at_best_index"] = "{:.5f}".format(value[best_train_loss_in_test_index]).replace(".", ",")
+        except(KeyError):
+            print("KeyError, train_loss_in_test not found for {}".format(path))
+            for key, value in dic_test.items():
+                complete_dic[key + "test"] = "{:.5f}".format(value[-1]).replace(".", ",")
+                
     else :
         test_path = os.path.join(os.path.join(folder, "test"),"results_dic.txt")
         dic_test = output_to_dic(test_path)
