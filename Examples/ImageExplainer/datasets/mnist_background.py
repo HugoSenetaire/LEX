@@ -17,7 +17,6 @@ class MNISTImageBackground():
         self.optimal_S_train = None
         self.optimal_S_test = None
         
-        self.ground_truth = False
 
         path_train = os.path.join(root_dir, "mnist_background_images_train.pkl")
         path_test = os.path.join(root_dir, "mnist_background_images_test.pkl")

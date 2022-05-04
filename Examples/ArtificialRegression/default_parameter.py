@@ -1,5 +1,5 @@
 import sys
-sys.path.append("C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\MissingDataTraining\\")
+sys.path.append("C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\")
 sys.path.append("/home/hhjs/MissingDataTraining/")
 
 from missingDataTrainingModule.classification_training import ordinaryTraining, EVAL_X
