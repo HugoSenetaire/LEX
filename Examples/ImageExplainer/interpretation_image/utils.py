@@ -152,7 +152,7 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image_per_cat
     
 def image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = 3):
     trainer.eval()
-    data, target, index= next(iter(loader.test_loader))
+    data, target, _ = next(iter(loader.test_loader))
     output_category = loader.dataset.get_dim_output()
     indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
     data = data[indexes]
@@ -160,7 +160,7 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = 
     if not hasattr(loader.dataset, "optimal_S_test"):
         return None
 
-    quadrant = loader.dataset.optimal_S_test[index]
+    quadrant = loader.dataset.optimal_S_test[indexes]
     wanted_shape = loader.dataset.get_dim_input()
     if wanted_shape[0] == 1 :
         transpose_set = None
