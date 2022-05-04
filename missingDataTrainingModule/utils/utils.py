@@ -140,13 +140,15 @@ def get_all_z(dim):
     return output
 
 
-def dic_evaluation(accuracy, mse, neg_likelihood, suffix = "", mse_loss_prod = None):
+def dic_evaluation(accuracy, mse, neg_likelihood, suffix = "", mse_loss_prod = None, confusion_matrix = None,):
     dic = {}
     dic["accuracy" + suffix] = accuracy
     dic["mse" + suffix] = mse
     dic["neg_likelihood" + suffix] = neg_likelihood
     if mse_loss_prod is not None :
         dic["mse_loss_prod" + suffix] = mse_loss_prod
+    if confusion_matrix is not None :
+        dic["confusion_matrix" + suffix] = confusion_matrix
     return dic
 
 

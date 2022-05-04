@@ -74,7 +74,7 @@ class ordinaryTraining():
 
     def train_epoch(self, epoch, loader, loss_function=NLLLossAugmented(reduction='none'),save_dic = False, verbose = False,):
         self.train()
-        print_batch_every = len(loader.dataset_train)//loader.train_loader.batch_size//10
+        print_batch_every =  max(len(loader.dataset_train)//loader.train_loader.batch_size//10, 1)
         total_dic = {}
         for batch_idx, data in enumerate(loader.train_loader):
             data, target, index = parse_batch(data)

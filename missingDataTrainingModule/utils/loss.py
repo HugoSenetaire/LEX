@@ -321,6 +321,9 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
         mse_loss_selection_prod = 0
         neg_likelihood_selection = 0
         correct_selection = 0
+        dim_output = loader.dataset.get_dim_output()
+        y_true = []
+        y_pred = []
         
         if set_manual_seed is not None :
             torch.manual_seed(set_manual_seed)
@@ -330,7 +333,7 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
                 batch_size = data.shape[0]
                 if trainer.use_cuda :
                     data, target, index = on_cuda(data, target = target, index = index,)
-                one_hot_target = get_one_hot(target, num_classes = loader.dataset.get_dim_output())
+                one_hot_target = get_one_hot(target, num_classes = dim_output)
                 target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = trainer.post_hoc, post_hoc_guidance = trainer.post_hoc_guidance, argmax_post_hoc = trainer.argmax_post_hoc)
                 
                 data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
@@ -354,7 +357,16 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
                     no_imputation = False
 
                 log_y_hat, _ = trainer.classification_module(data_expanded.flatten(0,2), z, index = index_expanded_flatten)
-                log_y_hat = log_y_hat.reshape(-1, loader.dataset.get_dim_output())
+                log_y_hat = log_y_hat.reshape(-1, dim_output)
+
+                nb_imputation_mc = trainer.classification_module.imputation.nb_imputation_mc_test
+                nb_imputation_iwae = trainer.classification_module.imputation.nb_imputation_iwae_test
+                target_expanded_multiple = target_expanded.reshape(nb_sample_z_monte_carlo * batch_size, nb_sample_z_iwae)[:,0].unsqueeze(0).expand(nb_imputation_mc, -1).flatten()
+                current_pred = log_y_hat.reshape(nb_imputation_mc * nb_sample_z_monte_carlo* batch_size, nb_sample_z_iwae * nb_imputation_iwae, dim_output).mean(-2).argmax(-1) 
+                y_true = y_true + target_expanded_multiple.cpu().tolist()
+                y_pred = y_pred + current_pred.cpu().tolist()
+
+
                 if torch.any(torch.isnan(log_y_hat)) :
                     print(torch.any(torch.isnan(z)))
                     assert 1==0
@@ -372,7 +384,7 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
                     target_expanded = target_expanded,
                     index_expanded = index_expanded,
                     one_hot_target_expanded = one_hot_target_expanded,
-                    dim_output = loader.dataset.get_dim_output(),
+                    dim_output = dim_output,
                     loss_function=nll_loss,
                     log_y_hat = log_y_hat,
                     no_imputation = no_imputation,
@@ -386,7 +398,7 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
                     target_expanded = target_expanded,
                     index_expanded = index_expanded,
                     one_hot_target_expanded = one_hot_target_expanded,
-                    dim_output = loader.dataset.get_dim_output(),
+                    dim_output = dim_output,
                     loss_function=MSELossLastDim(reduction = 'none'),
                     log_y_hat = log_y_hat,
                     no_imputation = no_imputation,
@@ -401,7 +413,7 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
                     target_expanded = target_expanded,
                     index_expanded = index_expanded,
                     one_hot_target_expanded = one_hot_target_expanded,
-                    dim_output = loader.dataset.get_dim_output(),
+                    dim_output = dim_output,
                     loss_function=MSELossLastDim(reduction = 'none', iwae_reg='prod'),
                     log_y_hat = log_y_hat,
                     no_imputation = no_imputation,
@@ -416,7 +428,7 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
                     target_expanded = target_expanded,
                     index_expanded = index_expanded,
                     one_hot_target_expanded = one_hot_target_expanded,
-                    dim_output = loader.dataset.get_dim_output(),
+                    dim_output = dim_output,
                     loss_function=AccuracyLoss(reduction = 'none'),
                     log_y_hat = log_y_hat,
                     no_imputation = no_imputation,
@@ -434,10 +446,15 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
             suffix = "selection_mc_{}_iwae_{}_imputemc_{}_imputeiwae_{}".format(nb_sample_z_monte_carlo, nb_sample_z_iwae,
                                                                 trainer.classification_module.imputation.nb_imputation_mc_test,
                                                                 trainer.classification_module.imputation.nb_imputation_iwae_test)
+        confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
+        print(confusion_matrix)
+
+
         dic = dic_evaluation(accuracy = accuracy_selection.item(),
                             neg_likelihood = neg_likelihood_selection.item(),
                             mse = mse_loss_selection.item(),
-                            suffix = suffix,)
+                            suffix = suffix,
+                            confusion_matrix=confusion_matrix,)
 
 
         print('\nTest {} set: MSE: {:.4f}, MSE_PROD: {:.4f}, Likelihood {:.4f}, Accuracy : {}/{} ({:.0f}%)'.format(

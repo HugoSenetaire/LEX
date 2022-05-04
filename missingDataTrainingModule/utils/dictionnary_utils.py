@@ -10,13 +10,13 @@ import torch
 def fill_dic(total_dic, dic):
     if len(total_dic.keys())==0:
         for key in dic.keys():
-            if isinstance(dic[key], Iterable):
+            if isinstance(dic[key], list):
                 total_dic[key]=dic[key]
             else :
                 total_dic[key] = [dic[key]]
     else :
         for key in dic.keys():
-            if isinstance(dic[key], Iterable):
+            if isinstance(dic[key], list):
                 total_dic[key].extend(dic[key])
             else :
                 total_dic[key].append(dic[key])
@@ -36,7 +36,7 @@ def save_dic(path, dic):
 
 
     for key in dic.keys():
-        if key == "epoch":
+        if key == "epoch" or key.startswith("confusion_matrix"):
             continue
         table = dic[key]
         plt.figure(0)
