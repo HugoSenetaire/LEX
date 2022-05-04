@@ -32,11 +32,11 @@ def imputation_image(trainer, loader, final_path, nb_samples_image_per_category 
     wanted_shape = loader.dataset.get_dim_input()
     if wanted_shape[0] == 1 :
         transpose_set = None
-        wanted_shape = (wanted_shape[1], wanted_shape[2])
+        wanted_shape_transpose = (wanted_shape[1], wanted_shape[2])
         cmap = 'gray'
     elif wanted_shape[0] >1 :
-        transpose_set = (1, 2, 0)
-        wanted_shape = (wanted_shape[1], wanted_shape[2], wanted_shape[0])
+        transpose_set = (1,2,0)
+        wanted_shape_transpose = (wanted_shape[1], wanted_shape[2], wanted_shape[0])
         cmap = 'viridis'
 
     if trainer.use_cuda:
@@ -57,8 +57,6 @@ def imputation_image(trainer, loader, final_path, nb_samples_image_per_category 
     z = distribution_module.sample((1,))
     z = trainer.reshape(z)
     data_imputed = classification_module.get_imputation(data, z)
-
-
     data_imputed = data_imputed.cpu().detach().numpy().reshape(nb_imputation, total_image, *wanted_shape)
     data = data.cpu().detach().numpy()
     z = z.cpu().detach().numpy()
@@ -71,16 +69,15 @@ def imputation_image(trainer, loader, final_path, nb_samples_image_per_category 
     
     for k in range(total_image):
         for l in range(nb_imputation):
-
             x_imputed = data_imputed[l][k]
             x_original = data[k]
             if transpose_set is not None :
                 x_imputed = x_imputed.transpose(transpose_set)
                 x_original = x_original.transpose(transpose_set)
-            x_imputed = x_imputed.reshape(wanted_shape)
-            x_original = x_original.reshape(wanted_shape)
+            x_imputed = x_imputed.reshape(wanted_shape_transpose)
+            x_original = x_original.reshape(wanted_shape_transpose)
 
-            current_z = z[k,0].reshape(wanted_shape[:2])
+            current_z = z[k,0].reshape(wanted_shape_transpose[:2])
             fig, axs = plt.subplots(1,3, figsize=(15,5))
             axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
             axs[1].imshow(current_z, cmap='gray', interpolation='none',)
@@ -101,11 +98,11 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image_per_cat
     wanted_shape = loader.dataset.get_dim_input()
     if wanted_shape[0] == 1 :
         transpose_set = None
-        wanted_shape = (wanted_shape[1], wanted_shape[2])
+        wanted_shape_transpose = (wanted_shape[1], wanted_shape[2])
         cmap = 'gray'
     elif wanted_shape[0] >1 :
         transpose_set = (1, 2, 0)
-        wanted_shape = (wanted_shape[1], wanted_shape[2], wanted_shape[0])
+        wanted_shape_transpose = (wanted_shape[1], wanted_shape[2], wanted_shape[0])
         cmap = 'viridis'
 
     
@@ -140,10 +137,10 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image_per_cat
         x_original = data[k]
         if transpose_set is not None :
             x_original = x_original.transpose(transpose_set)
-        x_original = x_original.reshape(wanted_shape)
+        x_original = x_original.reshape(wanted_shape_transpose)
 
-        current_z = z[k, 0].reshape(wanted_shape[:2])
-        current_pi_list = pi_list[k, 0].reshape(wanted_shape[:2])
+        current_z = z[k, 0].reshape(wanted_shape_transpose[:2])
+        current_pi_list = pi_list[k, 0].reshape(wanted_shape_transpose[:2])
         fig, axs = plt.subplots(1,4, figsize=(20,5))
         axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
         axs[1].imshow(current_z, cmap='gray', interpolation='none',)
@@ -167,11 +164,11 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = 
     wanted_shape = loader.dataset.get_dim_input()
     if wanted_shape[0] == 1 :
         transpose_set = None
-        wanted_shape = (wanted_shape[1], wanted_shape[2])
+        wanted_shape_transpose = (wanted_shape[1], wanted_shape[2])
         cmap = 'gray'
     elif wanted_shape[0] >1 :
         transpose_set = (1, 2, 0)
-        wanted_shape = (wanted_shape[1], wanted_shape[2], wanted_shape[0])
+        wanted_shape_transpose = (wanted_shape[1], wanted_shape[2], wanted_shape[0])
         cmap = 'viridis'
 
     
@@ -202,10 +199,10 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = 
         x_original = data[k]
         if transpose_set is not None :
             x_original = x_original.transpose(transpose_set)
-        x_original = x_original.reshape(wanted_shape)
+        x_original = x_original.reshape(wanted_shape_transpose)
         
-        current_quadrant = quadrant[k].reshape(wanted_shape[:2])
-        current_pi_list = round_pi_list[k].reshape(wanted_shape[:2]) 
+        current_quadrant = quadrant[k].reshape(wanted_shape_transpose[:2])
+        current_pi_list = round_pi_list[k].reshape(wanted_shape_transpose[:2]) 
         fig, axs = plt.subplots(1,3, figsize=(15,5))
         axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
         axs[1].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
