@@ -14,7 +14,8 @@ def fit_auxiliary_kmeans(data, n_components,):
     kmeans = KMeans(n_clusters=n_components,)
     batch_size = data.shape[0]
     data_flatten = data.reshape(batch_size, -1)
-    random = np.random.rand(n_components, data_flatten.shape[1])
+    random = np.random.rand(n_components, data_flatten.shape[1],)
+    random = random.astype(np.float32)
     kmeans.fit(random)
     return kmeans
 
@@ -53,11 +54,10 @@ class KmeansDatasetImputation(nn.Module):
     if not os.path.exists(imputation_network_weights_path):
       raise ValueError("Centers path does not exist for the Kmeans at {}".format(imputation_network_weights_path))
     with open(imputation_network_weights_path, "rb") as f:
-      centers = pkl.load(f)
+      centers = pkl.load(f).astype(np.float32)
 
     size_data_impute = data_to_impute.shape[0]
     self.nb_centers = centers.shape[0]
-
     self.kmeans = fit_auxiliary_kmeans(data_to_impute, self.nb_centers)  
     self.centers = nn.Parameter(torch.from_numpy(centers,), requires_grad=False)
     self.kmeans.cluster_centers_ = centers
