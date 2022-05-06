@@ -137,6 +137,7 @@ class GaussianMixtureDatasetImputation(GaussianMixtureBasedImputation):
 
     self.dependency_data_to_impute, _ = self.get_dependency(data_to_impute, mask = torch.ones_like(data_to_impute), index = None ) #Transformer en sparse ? 
     self.dependency_data_to_impute = self.dependency_data_to_impute / (torch.sum(self.dependency_data_to_impute, axis = 0, keepdim = True) + 1e-8)
+    self.use_cuda = False
     
     
 
@@ -159,7 +160,9 @@ class GaussianMixtureDatasetImputation(GaussianMixtureBasedImputation):
             Sampled tensor from the dataset using the Gaussian Mixture dataset imputation
 
         """
-
+    if not self.use_cuda and self.data.is_cuda :
+        self.use_cuda = True
+        self.data_to_impute = self.data_to_impute.cuda()
     batch_size = len(data)
     with torch.no_grad() :
       dependency, wanted_shape = self.get_dependency(data, mask, index)
@@ -169,6 +172,10 @@ class GaussianMixtureDatasetImputation(GaussianMixtureBasedImputation):
       # reverse_dependency /= torch.sum(reverse_dependency, dim=1, keepdim=True) + 1e-8
       index_resampling_data = torch.argmax(torch.distributions.Multinomial(probs=reverse_dependency).sample().type(torch.int64), axis=-1)
       wanted_shape = data.shape
-      sampled = self.data_to_impute[index_resampling_data].reshape(wanted_shape)
+      sampled = self.data_to_impute[index_resampling_data.cpu()].reshape(wanted_shape)
+      sampled = sampled.reshape(wanted_shape)
+      if self.use_cuda :
+        sampled = sampled.cuda()
+
 
     return sampled

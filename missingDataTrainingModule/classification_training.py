@@ -247,8 +247,7 @@ class EVAL_X(ordinaryTraining):
                                                                                                         )
 
         # Destructive module
-        p_z = self.fixed_distribution(data_expanded[0],)
-
+        p_z = self.fixed_distribution(data[:,0,None,:,:],)
         # Train classification module :
         z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo_classification,))
         # Classification module :
@@ -280,8 +279,7 @@ class EVAL_X(ordinaryTraining):
     def sample_z(self, data, target, index, dataset, nb_sample_z_monte_carlo, nb_sample_z_iwae):
         # Destructive module :
         data_expanded = extend_input(data, mc_part=nb_sample_z_monte_carlo, iwae_part=nb_sample_z_iwae)
-        p_z = self.fixed_distribution(data_expanded[0],)
-        
+        p_z = self.fixed_distribution(data[:,0,None,:,:],)
         # Train classification module :
         z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo,))
         return z

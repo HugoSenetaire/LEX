@@ -66,6 +66,7 @@ class KmeansDatasetImputation(nn.Module):
     self.index_per_cluster = torch.unique(self.dependency_data_to_impute, return_inverse=True)[1]
     self.data_to_impute = torch.from_numpy(data_to_impute, )
     self.len_data_to_impute = len(self.data_to_impute)
+    self.use_cuda = False
 
 
   def __call__(self, data, mask, index = None,):
@@ -86,7 +87,9 @@ class KmeansDatasetImputation(nn.Module):
         sampled : torch.Tensor of shape (batch_size, nb_category)
             Sampled tensor from the Gaussian Mixture
         """
-
+    
+    if not self.use_cuda and self.data.is_cuda :
+      self.use_cuda = True
     with torch.no_grad() :
       batch_size = data.shape[0]
       other_dim = data.shape[1:] 
@@ -109,9 +112,11 @@ class KmeansDatasetImputation(nn.Module):
       probs = probs / (torch.sum(probs, dim=1, keepdim=True) + 1e-8)
       index_resampling = torch.distributions.Multinomial(probs = probs).sample().type(torch.int64) 
       index_resampling = torch.argmax(index_resampling, dim=1)
-      sampled = self.data_to_impute[index_resampling]
+      sampled = self.data_to_impute[index_resampling.cpu()]
       wanted_shape = data.shape
       sampled = sampled.reshape(wanted_shape)
+      if self.use_cuda :
+        sampled = sampled.cuda()
 
   
     return sampled
