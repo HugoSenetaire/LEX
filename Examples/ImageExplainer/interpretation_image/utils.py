@@ -80,7 +80,7 @@ def imputation_image(trainer, loader, final_path, nb_samples_image_per_category 
             current_z = z[k,0].reshape(wanted_shape_transpose[:2])
             fig, axs = plt.subplots(1,3, figsize=(15,5))
             axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
-            axs[1].imshow(current_z, cmap='gray', interpolation='none',)
+            axs[1].imshow(current_z, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
             axs[2].imshow(x_imputed, cmap=cmap, interpolation='none',)
             plt.savefig(os.path.join(folder_path, f"{k}_target_{target[k]}_imputation_{l}.png"))
             plt.close(fig)
@@ -143,8 +143,8 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image_per_cat
         current_pi_list = pi_list[k, 0].reshape(wanted_shape_transpose[:2])
         fig, axs = plt.subplots(1,4, figsize=(20,5))
         axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
-        axs[1].imshow(current_z, cmap='gray', interpolation='none',)
-        axs[2].imshow(current_pi_list, cmap='gray', interpolation='none',)
+        axs[1].imshow(current_z, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
+        axs[2].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
         axs[3].bar(np.arange(len(pred[k])), pred[k])
         plt.savefig(os.path.join(target_path, f"{k}.png"))
         plt.close(fig)
@@ -256,20 +256,22 @@ def accuracy_output(trainer, loader, final_path, batch_size = 100):
        
 def complete_analysis_image(trainer, loader, final_path, batch_size = 100, nb_samples_image_per_category = 3):
     # Interpretation:
-    imputation_image(trainer, loader, final_path)
-    interpretation_sampled(trainer, loader, final_path)
-    accuracy_output(trainer, loader, final_path, batch_size = batch_size,)
-    image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = nb_samples_image_per_category)
 
-    aux_final_path = os.path.join(final_path, "at_best_iter")
-    if not os.path.exists(aux_final_path):
-        os.makedirs(aux_final_path)
+    if hasattr(trainer, "selection_module") and hasattr(trainer, "distribution_module"):
+        imputation_image(trainer, loader, final_path)
+        interpretation_sampled(trainer, loader, final_path)
+        image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = nb_samples_image_per_category)
+        accuracy_output(trainer, loader, final_path, batch_size = batch_size,)
 
-    if os.path.exists(os.path.join(final_path, "classification_module.pt")):
-        trainer.load_best_iter_dict(final_path)
+        aux_final_path = os.path.join(final_path, "at_best_iter")
+        if not os.path.exists(aux_final_path):
+            os.makedirs(aux_final_path)
 
-    imputation_image(trainer, loader, aux_final_path)
-    interpretation_sampled(trainer, loader, aux_final_path)
-    accuracy_output(trainer, loader, aux_final_path, batch_size = batch_size)
-    image_f1_score(trainer, loader, aux_final_path, nb_samples_image_per_category = nb_samples_image_per_category)
+        if os.path.exists(os.path.join(final_path, "classification_module.pt")):
+            trainer.load_best_iter_dict(final_path)
+            
+        imputation_image(trainer, loader, aux_final_path)
+        interpretation_sampled(trainer, loader, aux_final_path)
+        image_f1_score(trainer, loader, aux_final_path, nb_samples_image_per_category = nb_samples_image_per_category)
+        accuracy_output(trainer, loader, aux_final_path, batch_size = batch_size)
 
