@@ -1,6 +1,6 @@
-import PytorchDistributionUtils
 from .utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, multiple_test, test_train_loss
 from .utils.utils import *
+from .PytorchDistributionUtils import *
 import torch.nn.functional as F
 import torch.nn as nn
 
@@ -190,7 +190,7 @@ class trueSelectionTraining(ordinaryTraining):
 
 
 class EVAL_X(ordinaryTraining):
-    def __init__(self, classification_module, fixed_distribution = PytorchDistributionUtils.wrappers.FixedBernoulli(),
+    def __init__(self, classification_module, fixed_distribution = wrappers.FixedBernoulli(),
                 reshape_mask_function = None, post_hoc = False, post_hoc_guidance = None, argmax_post_hoc = False,):
         super().__init__(classification_module, post_hoc_guidance = post_hoc_guidance, post_hoc = post_hoc, argmax_post_hoc = argmax_post_hoc)
         self.fixed_distribution = fixed_distribution

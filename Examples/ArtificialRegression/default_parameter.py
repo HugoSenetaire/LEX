@@ -5,24 +5,75 @@ while(not current_file_path.endswith("MissingDataTraining")):
     current_file_path = os.path.dirname(current_file_path)
 sys.path.append(current_file_path)
 
-
-from missingDataTrainingModule.classification_training import ordinaryTraining, EVAL_X
-from missingDataTrainingModule.selection_training import selectionTraining
-from missingDataTrainingModule.interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
-from missingDataTrainingModule import PytorchDistributionUtils, utils_reshape, Classification, Selection
+from missingDataTrainingModule.interpretation_training import SELECTION_BASED_CLASSIFICATION
+from missingDataTrainingModule import PytorchDistributionUtils, utils_reshape, Classification, Selection, main_launcher
 from datasets import *
+from interpretation_regression import calculate_score, plot_complete_model_output, plot_selector_output
 
-
+import matplotlib.pyplot as plt
 from torch.distributions import *
 from torch.optim import *
 import torch
 from functools import partial
+
+
+
 
 def get_dataset(args_dataset):
     dataset = args_dataset["dataset"](**args_dataset)
     loader = args_dataset["loader"](dataset, batch_size_train=args_dataset["batch_size_train"], batch_size_test=args_dataset["batch_size_test"],)
     return dataset, loader
 
+def multiple_experiment(
+            count,
+            dataset,
+            loader,
+            args_output,
+            args_classification,
+            args_selection, 
+            args_distribution_module,
+            args_complete_trainer,
+            args_train,
+            args_test,
+            args_compiler,
+            args_classification_distribution_module,
+            args_dataset=None,
+            name_modification = False ):
+    try :
+        final_path, trainer, loader, dic_list = main_launcher.experiment(dataset, loader, args_output, args_classification,
+                                                                            args_selection, args_distribution_module, args_complete_trainer,
+                                                                            args_train, args_test, args_compiler, args_classification_distribution_module, args_dataset=args_dataset, name_modification = name_modification)
+        ## Interpretation                
+        dic_interpretation = calculate_score(trainer, loader)
+        current_path = os.path.join(final_path, "interpretation.txt")
+        with open(current_path, "w") as f:
+            for key in dic_interpretation:
+                f.write(f"{key} : {dic_interpretation[key]}\n")
+
+        if loader.dataset.dim_input ==2:
+            if hasattr(trainer, "selection_module"):
+                plot_selector_output(trainer.selection_module, loader.dataset, args_output["path"])
+                plot_selector_output(trainer.selection_module, loader.dataset, args_output["path"], train_data=True)
+                plot_selector_output(trainer.selection_module, loader.dataset, args_output["path"], interpretation= True)
+                plot_selector_output(trainer.selection_module, loader.dataset, args_output["path"], interpretation= True, train_data=True)
+                
+            plot_complete_model_output(trainer, loader.dataset, Bernoulli, args_output["path"])
+            plot_complete_model_output(trainer, loader.dataset, Bernoulli, args_output["path"], train_data=True)  
+
+            out_path = os.path.join(args_output["path"], "output_dataset.png")
+            Y = loader.dataset.target_train[:10000].cpu().detach().numpy()
+            plt.scatter(loader.dataset.X[:10000,0], loader.dataset.X[:10000,1], c =Y, alpha = 0.15, cmap = 'gray', vmin = np.min(Y), vmax = np.max(Y))
+            plt.savefig(out_path)
+            plt.close()
+    except Exception as e :
+        print(e)
+        if os.path.exists(args_output["path"]):
+            os.rename(args_output["path"], args_output["path"]+"_error")
+        else :
+            if not os.path.exists(args_output["path"]+"_error"):
+                os.makedirs(args_output["path"]+"_error")
+        with open(args_output["path"]+"_error/error.txt", "w") as f:
+            f.write(str(e))
 
 
 def get_default():

@@ -132,3 +132,4 @@ dmypy.json
 *.tar
 **/test*.py
 **/experiment*.py
+**/Experiments

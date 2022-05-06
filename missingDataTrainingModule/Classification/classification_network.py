@@ -128,7 +128,7 @@ class StupidClassifier(PredictorAbstract):
 
 
 class PretrainedVGGPytorch(PredictorAbstract):
-    def __init__(self, input_size = (3, 224, 224), output_size = 2, model_type = "vgg11", pretrained= True, retrain = False):
+    def __init__(self, input_size = (3, 224, 224), output = 2, model_type = "vgg11", pretrained= True, retrain = False):
         super().__init__(input_size=input_size, output=output)
         assert(model_type.startswith("vgg"))
         self.model = torch.hub.load('pytorch/vision:v0.9.0', model_type, pretrained=True)
@@ -141,7 +141,7 @@ class PretrainedVGGPytorch(PredictorAbstract):
                                 nn.Linear(4096,4096),
                                 nn.ReLU(True),
                                 nn.Dropout(),
-                                nn.Linear(4096, output_size),
+                                nn.Linear(4096, output),
                             )
         self.elu = nn.ELU()
 
@@ -155,11 +155,10 @@ class PretrainedVGGPytorch(PredictorAbstract):
 
 
 class VGGSimilar(PredictorAbstract):
-    def __init__(self, input_size = (3,224, 224), output_size = 2):
+    def __init__(self, input_size = (3,224, 224), output = 2):
         super().__init__(input_size=input_size, output=output)
         self.input_size = input_size
         assert(len(input_size)==3)
-        self.output_size = output_size
         w = input_size[1]
         self.nb_block = min(int(math.log(w/7., 2)),5)
         if self.nb_block<1 :
@@ -187,7 +186,7 @@ class VGGSimilar(PredictorAbstract):
                                 nn.Linear(4096,4096),
                                 nn.ReLU(True),
                                 nn.Dropout(),
-                                nn.Linear(4096, output_size)
+                                nn.Linear(4096, output)
                             )
         self.elu = nn.ELU()
 
@@ -202,13 +201,13 @@ class VGGSimilar(PredictorAbstract):
 
 
 class ConvClassifier(PredictorAbstract):
-    def __init__(self, input_size = (1,28,28), output_size = 10):
+    def __init__(self, input_size = (1,28,28), output = 10):
         super().__init__(input_size=input_size, output=output)
         self.conv1 = nn.Conv2d(input_size[0], 10, 3, stride=1, padding=1)
         self.maxpool1 = nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
         self.conv2 = nn.Conv2d(10, 1, 3, stride=1, padding=1)
         self.maxpool2 = nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
-        self.fc = nn.Linear(int(np.prod(input_size[1:])/16),output_size)
+        self.fc = nn.Linear(int(np.prod(input_size[1:])/16),output)
         self.elu = nn.ELU()
     
     def __call__(self, x):
@@ -222,13 +221,13 @@ class ConvClassifier(PredictorAbstract):
 
 
 class ConvClassifier2(PredictorAbstract):
-    def __init__(self, input_size = (1,28,28), output_size = 10):
+    def __init__(self, input_size = (1,28,28), output = 10):
         super().__init__(input_size=input_size, output=output)
         self.conv1 = nn.Conv2d(input_size[0], 6, 5, stride=1, padding=0)
         self.maxpool1 = nn.AvgPool2d(kernel_size=(2,2),stride=1,padding = 0) # 23 23
         self.conv2 = nn.Conv2d(6, 16, 5, stride=1, padding=0) # 23 23
         self.maxpool2 = nn.AvgPool2d(kernel_size=(2,2),stride=1,padding = 0) # 18 18
-        self.fc = nn.Linear(18*18*16,output_size) # 18 18
+        self.fc = nn.Linear(18*18*16,output) # 18 18
         self.elu = nn.ELU()
     
     def __call__(self, x):
@@ -243,10 +242,10 @@ class ConvClassifier2(PredictorAbstract):
 
 
 class ProteinCNN(PredictorAbstract):
-    def __init__(self, input_size = (21,19), output_size = 8):
+    def __init__(self, input_size = (21,19), output = 8):
         super().__init__(input_size=input_size, output=output)
         self.input_size = input_size
-        self.output_size = output_size
+        self.output = output
         self.dropout_rate = 0.38 # In the original implementation https://github.com/LucaAngioloni/ProteinSecondaryStructure-CNN/
 
         self.cnns = nn.Sequential(
@@ -271,7 +270,7 @@ class ProteinCNN(PredictorAbstract):
             nn.ReLU(), 
             nn.Linear(128, 32),
             nn.ReLU(),
-            nn.Linear(32, output_size),
+            nn.Linear(32, output),
             nn.LogSoftmax(-1),
         )
     def __call__(self, x):
