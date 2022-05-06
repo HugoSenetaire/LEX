@@ -538,10 +538,11 @@ def eval_selection(trainer, loader,):
     trainer.classification_module.imputation.nb_imputation_iwae_test = 1     
     trainer.eval()
     dic = eval_selection_local(trainer, loader,)
-    if "rate" in trainer.distribution_module.distribution.keywords :
-        rate = trainer.distribution_module.distribution.keywords["rate"]
-    elif "k" in trainer.distribution_module.distribution.keywords :
-        rate = trainer.distribution_module.distribution.keywords["k"] / np.prod(loader.dataset.get_dim_input(), dtype=np.float32)
+    if hasattr(trainer.distribution_module.distribution, "keywords") :
+        if "rate" in trainer.distribution_module.distribution.keywords :
+            rate = trainer.distribution_module.distribution.keywords["rate"]
+        elif "k" in trainer.distribution_module.distribution.keywords :
+            rate = trainer.distribution_module.distribution.keywords["k"] / np.prod(loader.dataset.get_dim_input(), dtype=np.float32)
     elif hasattr(trainer.selection_module, "regularization") and hasattr(trainer.selection_module.regularization, "rate"):
         rate = trainer.selection_module.regularization.rate
     else :
