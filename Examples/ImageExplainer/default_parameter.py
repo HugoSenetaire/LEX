@@ -1,6 +1,11 @@
+import os
 import sys
-sys.path.append("C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\")
-sys.path.append("/home/hhjs/MissingDataTraining")
+current_file_path = os.path.abspath(__file__)
+while(not current_file_path.endswith("MissingDataTraining")):
+    current_file_path = os.path.dirname(current_file_path)
+sys.path.append(current_file_path)
+
+
 from missingDataTrainingModule import *
 from datasets import *
 

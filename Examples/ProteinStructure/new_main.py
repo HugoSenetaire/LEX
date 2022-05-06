@@ -1,6 +1,5 @@
-import sys
-sys.path.append("C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\")
-sys.path.append("/home/hhjs/MissingDataTraining/")
+from default_parameter import *
+
 from missingDataTrainingModule import *
 from datasets import *
 from interpretation_protein import *

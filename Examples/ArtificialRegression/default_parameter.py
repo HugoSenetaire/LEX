@@ -1,13 +1,16 @@
+import os
 import sys
-sys.path.append("C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\")
-sys.path.append("/home/hhjs/MissingDataTraining/")
+current_file_path = os.path.abspath(__file__)
+while(not current_file_path.endswith("MissingDataTraining")):
+    current_file_path = os.path.dirname(current_file_path)
+sys.path.append(current_file_path)
+
 
 from missingDataTrainingModule.classification_training import ordinaryTraining, EVAL_X
 from missingDataTrainingModule.selection_training import selectionTraining
 from missingDataTrainingModule.interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
 from missingDataTrainingModule import PytorchDistributionUtils, utils_reshape, Classification, Selection
 from datasets import *
-import os
 
 
 from torch.distributions import *
