@@ -4,7 +4,7 @@ import scipy
 
 from .artificial_dataset import ArtificialDataset
 from .tensor_dataset_augmented import TensorDatasetAugmented
-
+from .utils import f_prod, f_squaredsum, f_squaredsum2
 
 
 
@@ -86,73 +86,151 @@ class DiagDataset(UniformDataset):
 
 
 
+class SimpleUniformDataset(UniformDataset):
+    def __init__(self,
+                min = -2.0,
+                max = 2.0,
+                dim_input = 2,
+                nb_sample_train = 10000,
+                nb_sample_test = 10000,
+                classification = True,
+                used_dim = 2,
+                epsilon_sigma = 0.3,
+                scale_regression = True,
+                give_index = False,
+                noise_function = None,
+                **kwargs):
 
-class ExpProdUniformDataset(UniformDataset):
-    def __init__(self, nb_sample_train = 10000, nb_sample_test = 10000, min = -2.0, max = 2.0, dim_input = 2, used_dim = 2, give_index = False, noise_function = None,  **kwargs):
-        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, min = min, max = max, dim_input = dim_input, give_index = give_index, noise_function = noise_function, **kwargs)
+        super().__init__(min = min,
+                        max=max,
+                        dim_input = dim_input,
+                        nb_sample_train = nb_sample_train,
+                        nb_sample_test = nb_sample_test,
+                        give_index = give_index,
+                        noise_function = noise_function,
+                        **kwargs)
 
         self.used_dim = used_dim
-        self.nb_classes = 2
-        fa = torch.exp(torch.prod(self.X[:,:used_dim], axis = 1))
-        b_fa = 1/(1+fa)
-        sel = torch.zeros_like(self.X)
-        sel[:,:used_dim] = 1
-        print(b_fa.mean())
-        Y = torch.rand(size = b_fa.shape)
-        Y = torch.where(Y<b_fa, torch.ones_like(b_fa, dtype = torch.int64), torch.zeros_like(b_fa, dtype = torch.int64))
+        
+        self.classification = classification
+        if self.classification :
+            self.nb_class = 2
+        else :
+            self.nb_classes = 1
+        
+        self.epsilon_sigma = epsilon_sigma
+        assert self.used_dim <= self.dim_input
+
+        fa, b_fa, sel = self.function(self.X, self.used_dim)
+        
+        if self.classification :
+            Y = torch.rand(size = b_fa.shape)
+            Y = torch.where(Y<b_fa, torch.ones_like(b_fa, dtype = torch.int64), torch.zeros_like(b_fa, dtype = torch.int64))
+        else :
+            if scale_regression :
+                Y = torch.distributions.Normal(b_fa,epsilon_sigma).sample()
+            else :
+                Y = torch.distributions.Normal(fa,epsilon_sigma).sample()
+        import matplotlib.pyplot as plt
 
         self.data_train = self.X[:self.nb_sample_train,:]
         self.data_test = self.X[self.nb_sample_train:,:]
         self.target_train = Y[:self.nb_sample_train,]
-        self.target_test = Y[self.nb_sample_train:,]
+        self.target_test = Y[nb_sample_train:,]
         self.optimal_S_train = sel[:nb_sample_train,:]
         self.optimal_S_test = sel[nb_sample_train:,:]
         self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
     
 
-class ExpSquaredSumUniformDataset(UniformDataset):
-    def __init__(self, nb_sample_train = 10000, nb_sample_test = 10000, min = -2.0, max = 2.0, dim_input = 2, used_dim = 2, give_index = False, noise_function = None,  **kwargs):
-        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, min = min, max = max, dim_input = dim_input, give_index = give_index, noise_function = noise_function, **kwargs)
-        self.used_dim = used_dim
-        self.nb_classes = 2
-        fa = torch.exp(torch.sum(self.X[:,:used_dim]**2 , axis = 1) - 4)
-        b_fa = 1/(1+fa)
-        sel = torch.zeros_like(self.X)
-        sel[:,:used_dim] = 1
-
-        self.Y = torch.rand(size = b_fa.shape,)
-        self.Y = torch.where(self.Y<b_fa, torch.ones_like(b_fa, dtype = torch.int64), torch.zeros_like(b_fa, dtype = torch.int64))
-
-        self.data_train = self.X[:self.nb_sample_train,:]
-        self.data_test = self.X[self.nb_sample_train:,:]
-        self.target_train = self.Y[:self.nb_sample_train,]
-        self.target_test = self.Y[self.nb_sample_train:,]
-        self.optimal_S_train = sel[:nb_sample_train,:]
-        self.optimal_S_test = sel[nb_sample_train:,:]
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
 
 
-class ExpSquaredSumUniformDatasetV2(UniformDataset):
-    def __init__(self, nb_sample_train = 10000, nb_sample_test = 10000, min = -2.0, max = 2.0, dim_input = 2, used_dim = 2, give_index = False, noise_function = None,  **kwargs):
-        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, min = min, max = max, dim_input = dim_input, give_index = give_index, noise_function = noise_function, **kwargs)
-        self.used_dim = used_dim
-        self.nb_classes = 2
-        fa = torch.exp(torch.sum(self.X[:,:used_dim]**2 , axis = 1) - used_dim)
-        b_fa = 1/(1+fa)
-        sel = torch.zeros_like(self.X)
-        sel[:,:used_dim] = 1
 
-        self.Y = torch.rand(size = b_fa.shape,)
-        self.Y = torch.where(self.Y<b_fa, torch.ones_like(b_fa, dtype = torch.int64), torch.zeros_like(b_fa, dtype = torch.int64))
+class ExpProdUniformDataset(SimpleUniformDataset):
+    def __init__(self,
+                min = -2.0,
+                max = 2.0,
+                dim_input = 2,
+                nb_sample_train = 10000,
+                nb_sample_test = 10000,
+                classification = True,
+                used_dim = 2,
+                epsilon_sigma = 0.3,
+                scale_regression = True,
+                give_index = False,
+                noise_function = None,
+                **kwargs):
 
-        self.data_train = self.X[:self.nb_sample_train,:]
-        self.data_test = self.X[self.nb_sample_train:,:]
-        self.target_train = self.Y[:self.nb_sample_train,]
-        self.target_test = self.Y[self.nb_sample_train:,]
-        self.optimal_S_train = sel[:nb_sample_train,:]
-        self.optimal_S_test = sel[nb_sample_train:,:]
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
-    
+        self.function = f_prod
+        super().__init__(min = min,
+                        max = max,
+                        dim_input = dim_input, 
+                        nb_sample_train = nb_sample_train,
+                        nb_sample_test = nb_sample_test,
+                        classification = classification,
+                        used_dim = used_dim,
+                        epsilon_sigma = epsilon_sigma,
+                        scale_regression = scale_regression,
+                        give_index = give_index,
+                        noise_function = noise_function,
+                        **kwargs)
+
+
+
+class ExpSquaredSumUniformDataset(SimpleUniformDataset):
+     def __init__(self,
+                min = -2.0,
+                max = 2.0,
+                dim_input = 2,
+                nb_sample_train = 10000,
+                nb_sample_test = 10000,
+                classification = True,
+                used_dim = 2,
+                epsilon_sigma = 0.3,
+                scale_regression = True,
+                give_index = False,
+                noise_function = None,
+                **kwargs):
+
+        self.function = f_squaredsum
+        super().__init__(min = min,
+                        max = max,
+                        dim_input = dim_input, 
+                        nb_sample_train = nb_sample_train,
+                        nb_sample_test = nb_sample_test,
+                        classification = classification,
+                        used_dim = used_dim,
+                        epsilon_sigma = epsilon_sigma,
+                        scale_regression = scale_regression,
+                        give_index = give_index,
+                        noise_function = noise_function,
+                        **kwargs)
+
+class ExpSquaredSumUniformDatasetV2(SimpleUniformDataset):
+     def __init__(self,
+                min = -2.0,
+                max = 2.0,
+                dim_input = 2,
+                nb_sample_train = 10000,
+                nb_sample_test = 10000,
+                classification = True,
+                used_dim = 2,
+                epsilon_sigma = 0.3,
+                scale_regression = True,
+                give_index = False,
+                noise_function = None,
+                **kwargs):
+
+        self.function = f_squaredsum2
+        super().__init__(min = min,
+                        max = max,
+                        dim_input = dim_input, 
+                        nb_sample_train = nb_sample_train,
+                        nb_sample_test = nb_sample_test,
+                        classification = classification,
+                        used_dim = used_dim,
+                        epsilon_sigma = epsilon_sigma,
+                        scale_regression = scale_regression,
+                        give_index = give_index,
+                        noise_function = noise_function,
+                        **kwargs)

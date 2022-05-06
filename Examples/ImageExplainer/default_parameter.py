@@ -1,11 +1,6 @@
 import sys
-
-from missingDataTrainingModule.PytorchDistributionUtils.distribution.relaxed_bernoulli_threshold_STE import RelaxedBernoulli_thresholded_STE
-
-
 sys.path.append("C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\")
 sys.path.append("/home/hhjs/MissingDataTraining")
-from GaussianMixtureImputation import *
 from missingDataTrainingModule import *
 from datasets import *
 
@@ -27,8 +22,8 @@ def get_default():
 
 
     args_output = {}
-    args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
-    # args_output["path"] = "/scratch/hhjs" # Path to results
+    # args_output["path"] = "C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\Experiments" # Path to results
+    args_output["path"] = "/scratch/hhjs" # Path to results
     
     args_output["save_weights"] = True
     args_output["experiment_name"] = "REBAR"
@@ -116,7 +111,7 @@ def get_default():
     args_distribution_module = {}
     args_distribution_module["distribution_module"] = PytorchDistributionUtils.wrappers.REBARBernoulli_STE
     args_distribution_module["distribution"] = Bernoulli
-    args_distribution_module["distribution_relaxed"] = RelaxedBernoulli_thresholded_STE
+    args_distribution_module["distribution_relaxed"] = PytorchDistributionUtils.distribution.RelaxedBernoulli_thresholded_STE
     args_distribution_module["temperature_init"] = 0.5
     args_distribution_module["test_temperature"] = 0.1
     args_distribution_module["scheduler_parameter"] = PytorchDistributionUtils.wrappers.regular_scheduler

@@ -103,10 +103,12 @@ def get_imputation_method(args_classification, dataset):
 
 
 
-def get_loss_function(args_train):
+def get_loss_function(args_train, output_dim):
     if args_train["loss_function"]== "MSE" :
         loss_function = MSELossLastDim(reduction='none')
     elif args_train["loss_function"]== "NLL" :
+        if output_dim == 1 :
+            raise ValueError("NLL loss is not defined for a regression problem")
         if args_train["post_hoc"] and (not args_train["argmax_post_hoc"]):
             loss_function = continuous_NLLLoss(reduction='none')
         else :
@@ -272,7 +274,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
     classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(args_classification, args_selection, args_complete_trainer, dataset.get_dim_output())
 
     ### Loss Function :
-    loss_function = get_loss_function(args_train)
+    loss_function = get_loss_function(args_train, dataset.get_dim_output())
 
     
     if not os.path.exists(final_path):

@@ -31,7 +31,10 @@ def prepare_data(data, target, index = None, num_classes=10, use_cuda = False):
         target = target.cuda()
         if index is not None :
             index = index.cuda()
-    one_hot_target = torch.nn.functional.one_hot(target, num_classes = num_classes)
+    if target is not None and num_classes > 1:
+        one_hot_target = torch.nn.functional.one_hot(target, num_classes = num_classes)
+    else :
+        one_hot_target = None
 
     return data, target, one_hot_target, index
 
@@ -57,7 +60,7 @@ def on_cuda(data, target = None, index = None,):
     return data, target, index
 
 def get_one_hot(target, num_classes = 10):
-    if target is not None :
+    if target is not None and num_classes > 1:
         one_hot_target = torch.nn.functional.one_hot(target, num_classes = num_classes)
     else :
         one_hot_target = None
@@ -142,6 +145,7 @@ def get_all_z(dim):
 
 def dic_evaluation(accuracy, mse, neg_likelihood, suffix = "", mse_loss_prod = None, confusion_matrix = None,):
     dic = {}
+    
     dic["accuracy" + suffix] = accuracy
     dic["mse" + suffix] = mse
     dic["neg_likelihood" + suffix] = neg_likelihood

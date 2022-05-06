@@ -39,12 +39,11 @@ class ordinaryTraining():
             self.use_cuda = True
        
 
-    def _create_dic(self, loss, neg_likelihood, neg_likelihood_no_selection = None, ):
+    def _create_dic(self, loss, loss_no_selection = None, ):
         dic = {}
-        dic["neg_likelihood"] = neg_likelihood.item()
         dic["total_loss"] = loss.item()
-        if neg_likelihood_no_selection is not None :
-            dic["neg_likelihood_no_selection"] = neg_likelihood_no_selection.item()
+        if loss_no_selection is not None :
+            dic["loss_no_selection"] = loss_no_selection.item()
         return dic
 
 
@@ -60,13 +59,13 @@ class ordinaryTraining():
     def _train_step(self, data, target, dataset, index = None, loss_function = NLLLossAugmented(reduction='none'),):
         self.zero_grad()
         data, target, one_hot_target, index = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
-        target, one_hot_target = define_target(data, index, target, one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
+        target, one_hot_target = define_target(data, index, target, one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
         batch_size = data.shape[0]
         log_y_hat, _ = self.classification_module(data, index= index)
 
         loss_rec = loss_function.eval(input = log_y_hat, target = target, one_hot_target = one_hot_target)
         loss = torch.mean(loss_rec)
-        dic = self._create_dic(loss, torch.mean(loss_rec),)
+        dic = self._create_dic(loss, )
         loss.backward()
         self.optim_classification.step()
         return dic
@@ -115,7 +114,8 @@ class trueSelectionTraining(ordinaryTraining):
     def _train_step(self, data, target, dataset, index=None, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, loss_function = continuous_NLLLoss(reduction = "none") ):
         self.zero_grad()
         data, target, one_hot_target, index = prepare_data(data, target, index, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
-        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
+        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
+
         data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
                                                                                                         target = target,
                                                                                                         index=index,
@@ -236,7 +236,8 @@ class EVAL_X(ordinaryTraining):
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
         one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
-        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc)
+        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
+
         nb_sample_z_monte_carlo_classification, nb_sample_z_iwae_classification = nb_sample_z_monte_carlo*nb_sample_z_iwae, 1
         data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
                                                                                                         target = target,
@@ -251,7 +252,6 @@ class EVAL_X(ordinaryTraining):
 
         # Train classification module :
         z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo_classification,))
-        
         # Classification module :
         loss_classification = calculate_cost(
                         trainer = self,
@@ -264,13 +264,14 @@ class EVAL_X(ordinaryTraining):
                         loss_function = loss_function,
                         )
 
+
+
         loss_classification = loss_classification.mean(axis = 0) # Monte Carlo average
         torch.mean(loss_classification, axis=0).backward() # Batch average
         self.optim_classification.step()
 
         if need_dic :
             dic = self._create_dic(loss = torch.mean(loss_classification),
-                                neg_likelihood = torch.mean(loss_classification),
                         )
         else :
             dic = {}

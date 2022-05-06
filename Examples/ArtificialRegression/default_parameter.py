@@ -17,7 +17,6 @@ from functools import partial
 
 def get_dataset(args_dataset):
     dataset = args_dataset["dataset"](**args_dataset)
-
     loader = args_dataset["loader"](dataset, batch_size_train=args_dataset["batch_size_train"], batch_size_test=args_dataset["batch_size_test"],)
     return dataset, loader
 
@@ -27,9 +26,9 @@ def get_default():
 
 
     args_output = {}
-    # args_output["path"] = "C:\\Users\\hhjs\\Desktop\\FirstProject\\MissingDataTraining\\" # Path to results
+    # args_output["path"] = "C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\Experiments" # Path to results
     args_output["path"] = "/scratch/hhjs" # Path to results
-
+    
     args_output["save_weights"] = True
     args_output["experiment_name"] = "REINFORCE"
 
@@ -164,7 +163,7 @@ def get_default():
 
     args_compiler = {}
     args_compiler["optim_classification"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) #Learning rate for classification module
-    args_compiler["optim_selection"] = partial(Adam, lr=1e-3, weight_decay = 1e-3) # Learning rate for selection module
+    args_compiler["optim_selection"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for selection module
     args_compiler["optim_selection_var"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the variationnal selection module used in Variationnal Training
     args_compiler["optim_distribution_module"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the feature extractor if any
     args_compiler["optim_baseline"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the baseline network

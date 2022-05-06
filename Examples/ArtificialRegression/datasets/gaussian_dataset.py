@@ -3,6 +3,7 @@ import numpy as np
 
 from .artificial_dataset import ArtificialDataset
 from .tensor_dataset_augmented import TensorDatasetAugmented
+from .utils import f_prod, f_squaredsum, f_squaredsum2
 
 
 
@@ -112,106 +113,7 @@ class GaussianDataset(ArtificialDataset):
         return sampled
 
 
-
-def getProbA(X):
-    fa = torch.exp(X[:,0]*X[:,1])
-    b_fa = 1/(1+fa)
-    sel = torch.zeros_like(X)
-    sel[:,:2] = 1
-    return fa, b_fa, sel
-
-def getProbB(X):
-    fb = torch.exp(X[:,2:6].pow(2).sum(axis = 1) - 4)
-    b_fb = 1/(1+fb)
-    sel = torch.zeros_like(X)
-    sel[:,2:6] = 1
-    return fb, b_fb, sel 
-
-def getProbC(X):
-    fc = torch.exp(-10*torch.sin(0.2*X[:,6]) + torch.abs(X[:,7]) + X[:,8] + torch.exp(-X[:,9])-2.4)
-    b_fc = 1/(1+fc)
-    sel = torch.zeros_like(X)
-    sel[:,6:10] = 1
-    return fc, b_fc, sel
-
-def generate_Y(X, nb_sample_train = 10000, nb_sample_test = 10000, getProb1 = getProbA, getProb2 = getProbB):
-    assert(len(X) == nb_sample_test + nb_sample_train)
-    _, prob1, sel1 = getProb1(X)
-    _, prob2, sel2 = getProb2(X)
-    aux = X[:,10]<0
-    prob_total = torch.where(aux, prob1, prob2)
-    
-    # aux = torch.reshape(aux, (aux.shape[0],1)).repeat(repeats = X.shape[1], axis = 1)
-    aux = aux.unsqueeze(1).expand(X.shape[0], X.shape[1])
-    selection = torch.where(aux, sel1, sel2)
-    selection[:,10] = 1
-    Y = torch.rand(size = prob_total.shape)
-    Y = torch.where(Y<prob_total, torch.ones_like(prob_total, dtype = torch.int64), torch.zeros_like(prob_total, dtype = torch.int64))
-
-    data_train = X[:nb_sample_train,:]
-    data_test = X[nb_sample_train:,:]
-    target_train = Y[:nb_sample_train,]
-    target_test = Y[nb_sample_train:,]
-
-    sel_train = selection[:nb_sample_train,:]
-    sel_test = selection[nb_sample_train:,:]
-    
-    return data_train, target_train, sel_train, data_test, target_test, sel_test
-
-class S_1(GaussianDataset):
-    def __init__(self,
-                mean = torch.tensor(0.0, dtype=torch.float32), 
-                cov = torch.tensor(1.0, dtype=torch.float32),
-                covariance_type = 'spherical',
-                nb_sample_train = 10000,
-                nb_sample_test = 10000,
-                give_index = False,
-                noise_function = None,
-                **kwargs):
-        super().__init__(mean = mean, cov=cov, covariance_type = covariance_type, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
-        print(f"Given cov is {self.cov}")
-        self.dim_input = 11
-        self.nb_classes = 2
-        self.data_train, self.target_train, self.optimal_S_train, self.data_test, self.target_test, self.optimal_S_test = generate_Y(X = self.X,nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbA, getProb2=getProbB)
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
-
-
-class S_2(GaussianDataset):
-    def __init__(self,
-                mean = torch.tensor(0.0, dtype=torch.float32), 
-                cov = torch.tensor(1.0, dtype=torch.float32),
-                covariance_type = 'spherical',
-                nb_sample_train = 10000,
-                nb_sample_test = 10000,
-                give_index = False,
-                noise_function = None,
-                **kwargs):
-        super().__init__(mean = mean, cov=cov, covariance_type = covariance_type, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
-        print(f"Given cov is {self.cov}")
-        self.dim_input = 11
-        self.nb_classes = 2
-        self.data_train, self.target_train, self.optimal_S_train, self.data_test, self.target_test, self.optimal_S_test = generate_Y(X = self.X,nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbA, getProb2=getProbC)
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
-
-class S_3(GaussianDataset):
-    def __init__(self,
-                mean = torch.tensor(0.0, dtype=torch.float32), 
-                cov = torch.tensor(1.0, dtype=torch.float32),
-                covariance_type = 'spherical',
-                nb_sample_train = 10000,
-                nb_sample_test = 10000,
-                give_index = False,
-                noise_function = None,
-                **kwargs):
-        super().__init__(mean = mean, cov=cov, covariance_type = covariance_type, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
-        self.dim_input = 11
-        self.nb_classes = 2
-        print(f"Given cov is {self.cov}")
-        self.data_train, self.target_train, self.optimal_S_train, self.data_test, self.target_test, self.optimal_S_test = generate_Y(X = self.X,nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test, getProb1= getProbB, getProb2=getProbC)
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
+  
 
 
 
@@ -280,16 +182,17 @@ class SwitchFeature(GaussianDataset):
 #### ========================================= A FEW SIMPLE DATASET TO SEE THE EFFECT OF IMPUTATION ON THE PERFORMANCE ===========================================
 
 
-
-
-class ExpProdGaussianDataset(GaussianDataset):
-   def __init__(self,
+class SimpleGaussianDataset(GaussianDataset):
+    def __init__(self,
                 mean = torch.tensor(0.0, dtype=torch.float32), 
                 cov = torch.tensor(1.0, dtype=torch.float32),
                 covariance_type = 'spherical',
                 nb_sample_train = 10000,
                 nb_sample_test = 10000,
                 used_dim = 2,
+                classification = True,
+                epsilon_sigma = 0.3,
+                dscale_regression = True,
                 give_index = False,
                 noise_function = None,
                 **kwargs):
@@ -304,16 +207,27 @@ class ExpProdGaussianDataset(GaussianDataset):
                         **kwargs)
 
         self.used_dim = used_dim
-        self.nb_classes = 2
+        
+        self.classification = classification
+        if self.classification :
+            self.nb_class = 2
+        else :
+            self.nb_classes = 1
+        
+        self.epsilon_sigma = epsilon_sigma
         assert self.used_dim <= self.dim_input
 
-        fa = torch.exp(torch.prod(self.X[:,:used_dim], axis = 1))
-        b_fa = 1/(1+fa)
-        sel = torch.zeros_like(self.X)
-        sel[:,:used_dim] = 1
+        fa, b_fa, sel = self.function(self.X, self.used_dim)
+        
+        if self.classification :
+            Y = torch.rand(size = b_fa.shape)
+            Y = torch.where(Y<b_fa, torch.ones_like(b_fa, dtype = torch.int64), torch.zeros_like(b_fa, dtype = torch.int64))
+        else :
+            if dscale_regression :
+                Y = torch.distributions.Normal(b_fa,epsilon_sigma).sample()
+            else :
+                Y = torch.distributions.Normal(fa,epsilon_sigma).sample()
 
-        Y = torch.rand(size = b_fa.shape)
-        Y = torch.where(Y<b_fa, torch.ones_like(b_fa, dtype = torch.int64), torch.zeros_like(b_fa, dtype = torch.int64))
 
         self.data_train = self.X[:self.nb_sample_train,:]
         self.data_test = self.X[self.nb_sample_train:,:]
@@ -325,94 +239,101 @@ class ExpProdGaussianDataset(GaussianDataset):
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
     
 
-class ExpSquaredSumGaussianDataset(GaussianDataset):
-    def __init__(self,
+
+
+
+
+class ExpProdGaussianDataset(SimpleGaussianDataset):
+   def __init__(self,
                 mean = torch.tensor(0.0, dtype=torch.float32), 
                 cov = torch.tensor(1.0, dtype=torch.float32),
                 covariance_type = 'spherical',
                 nb_sample_train = 10000,
                 nb_sample_test = 10000,
                 used_dim = 2,
+                classification = True,
+                epsilon_sigma = 0.3,
+                dscale_regression = True,
                 give_index = False,
                 noise_function = None,
                 **kwargs):
+        self.function = f_prod
         super().__init__(mean = mean,
                         cov=cov,
                         covariance_type = covariance_type,
                         nb_sample_train = nb_sample_train,
                         nb_sample_test = nb_sample_test,
+                        used_dim = used_dim,
+                        classification = classification,
+                        epsilon_sigma = epsilon_sigma,
+                        dscale_regression = dscale_regression,
                         give_index = give_index,
                         noise_function = noise_function,
-                        **kwargs) 
+                        **kwargs)
+
+      
 
 
-        self.used_dim = used_dim
-        self.nb_classes = 2
-        assert self.used_dim <= self.dim_input
 
-        fa = torch.exp(torch.sum(self.X[:,:used_dim]**2, axis = 1) - 4)
-        
-        b_fa = 1/(1+fa)
-        sel = torch.zeros_like(self.X)
-        sel[:,:used_dim] = 1
-
-        Y = torch.rand(size = b_fa.shape)
-        Y = torch.where(Y<b_fa, torch.ones_like(b_fa, dtype = torch.int64), torch.zeros_like(b_fa, dtype = torch.int64))
-
-        self.data_train = self.X[:self.nb_sample_train,:]
-        self.data_test = self.X[self.nb_sample_train:,:]
-        self.target_train = Y[:self.nb_sample_train,]
-        self.target_test = Y[self.nb_sample_train:,]
-        self.optimal_S_train = sel[:nb_sample_train,:]
-        self.optimal_S_test = sel[nb_sample_train:,:]
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
+class ExpSquaredSumGaussianDataset(SimpleGaussianDataset):
+     def __init__(self,
+                mean = torch.tensor(0.0, dtype=torch.float32), 
+                cov = torch.tensor(1.0, dtype=torch.float32),
+                covariance_type = 'spherical',
+                nb_sample_train = 10000,
+                nb_sample_test = 10000,
+                used_dim = 2,
+                classification = True,
+                epsilon_sigma = 0.3,
+                dscale_regression = True,
+                give_index = False,
+                noise_function = None,
+                **kwargs):
+        self.function = f_squaredsum
+        super().__init__(mean = mean,
+                        cov=cov,
+                        covariance_type = covariance_type,
+                        nb_sample_train = nb_sample_train,
+                        nb_sample_test = nb_sample_test,
+                        used_dim = used_dim,
+                        classification = classification,
+                        epsilon_sigma = epsilon_sigma,
+                        dscale_regression = dscale_regression,
+                        give_index = give_index,
+                        noise_function = noise_function,
+                        **kwargs)
 
  
 
-class ExpSquaredSumGaussianDatasetV2(GaussianDataset):
-    def __init__(self,
+class ExpSquaredSumGaussianDatasetV2(SimpleGaussianDataset):
+     def __init__(self,
                 mean = torch.tensor(0.0, dtype=torch.float32), 
                 cov = torch.tensor(1.0, dtype=torch.float32),
                 covariance_type = 'spherical',
                 nb_sample_train = 10000,
                 nb_sample_test = 10000,
                 used_dim = 2,
+                classification = True,
+                epsilon_sigma = 0.3,
+                dscale_regression = True,
                 give_index = False,
                 noise_function = None,
                 **kwargs):
+        self.function = f_squaredsum2
         super().__init__(mean = mean,
                         cov=cov,
                         covariance_type = covariance_type,
                         nb_sample_train = nb_sample_train,
                         nb_sample_test = nb_sample_test,
+                        used_dim = used_dim,
+                        classification = classification,
+                        epsilon_sigma = epsilon_sigma,
+                        dscale_regression = dscale_regression,
                         give_index = give_index,
                         noise_function = noise_function,
-                        **kwargs) 
+                        **kwargs)
 
-
-        self.used_dim = used_dim
-        self.nb_classes = 2
-        assert self.used_dim <= self.dim_input
-
-        fa = torch.exp(torch.sum(self.X[:,:used_dim]**2, axis = 1) - used_dim)
-        
-        b_fa = 1/(1+fa)
-        sel = torch.zeros_like(self.X)
-        sel[:,:used_dim] = 1
-
-        Y = torch.rand(size = b_fa.shape)
-        Y = torch.where(Y<b_fa, torch.ones_like(b_fa, dtype = torch.int64), torch.zeros_like(b_fa, dtype = torch.int64))
-
-        self.data_train = self.X[:self.nb_sample_train,:]
-        self.data_test = self.X[self.nb_sample_train:,:]
-        self.target_train = Y[:self.nb_sample_train,]
-        self.target_test = Y[self.nb_sample_train:,]
-        self.optimal_S_train = sel[:nb_sample_train,:]
-        self.optimal_S_test = sel[nb_sample_train:,:]
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
-
+    
 
 
 class DiagGaussianDataset(GaussianDataset):

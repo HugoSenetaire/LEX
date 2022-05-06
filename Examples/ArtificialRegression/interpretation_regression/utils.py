@@ -1,8 +1,4 @@
 import sys
-
-from numpy.core.function_base import linspace
-
-from missingDataTrainingModule.Classification.classification_network import ClassifierLVL3, ClassifierLinear
 sys.path.append("C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\")
 sys.path.append("/home/hhjs/MissingDataTraining")
 
@@ -10,371 +6,21 @@ import torch
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.cm import ScalarMappable
+import sklearn
+from itertools import cycle, islice
 
 
 colors = np.array(['#377eb8', '#ff7f00', '#4daf4a',
                   '#f781bf', '#a65628', '#984ea3',
                   '#999999', '#e41a1c', '#dede00'])
 
-list_name_post_hoc = [
-  "PostHoc_NoArgmax_NoAuxiliary",
-  "PostHoc_Argmax_NoAuxiliary",
-  "PostHoc_Argmax_ClassifierLinear",
-  "PostHoc_Argmax_ClassifierLVL3",
-  "PostHoc_NoArgmax_ClassifierLinear",
-  "PostHoc_NoArgmax_ClassifierLVL3",
-  ]
-
-
-def get_post_hoc_parameters(name, args_train):
-  _, argmax_value, auxiliary_value = name.split("_")
-
-  args_train["post_hoc"] = True
-  if argmax_value == "Argmax":
-    args_train["argmax_post_hoc_classification"] = True
-  elif argmax_value == "NoArgmax":
-    args_train["argmax_post_hoc_classification"] = False
-  else :
-    raise ValueError("argmax_value should be 'Argmax' or 'NoArgmax'")
-    
-  if auxiliary_value == "NoAuxiliary":
-    args_train["fix_classifier_parameters"] = True
-    args_train["nb_epoch_pretrain"] = 10
-    args_train["post_hoc_guidance"] = None
-  else :
-    args_train["fix_classifier_parameters"] = False
-    args_train["nb_epoch_post_hoc"] = 10
-    args_train["nb_epoch_pretrain"] = 0
-    if auxiliary_value == "ClassifierLinear":
-      args_train["post_hoc_guidance"] = ClassifierLinear
-    elif auxiliary_value == "ClassifierLVL3":
-      args_train["post_hoc_guidance"] = ClassifierLVL3
-    else:
-      raise ValueError("Unknown post hoc guidance")
-
-
-def save_result_artificial(path, data, target, predicted):
-  path_result = os.path.join(path, "result")
-
-  if not os.path.exists(path_result):
-    os.makedirs(path_result)
-
-  nb_dim = data.shape[1]
-
-  for dim1 in range(nb_dim-1):
-    for dim2 in range(dim1+1, nb_dim):
-      fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (12, 4))
-      ax1.scatter(data[:,dim1],data[:, dim2], s=10, color = colors[target])
-      ax1.set_title('Input Data')
-      ax2.scatter(data[:,dim1],data[:, dim2], s=10, color = colors[predicted])
-      ax2.set_title('Prediction')
-      plt.savefig(os.path.join(path_result, f"Prediction_output_dim_{dim1}_{dim2}.jpg"))
-      plt.close(fig)
-
-def save_interpretation_artificial(path, data_destructed, target, predicted, prefix = ""):
-  path_result = os.path.join(path, "result")
-  if not os.path.exists(path_result):
-    os.makedirs(path_result)
-
-  nb_dim = data_destructed.shape[1]
-
-  for dim1 in range(nb_dim):
-    for dim2 in range(dim1+1, nb_dim):
-      fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (12, 4))
-      ax1.scatter(data_destructed[:,dim1], data_destructed[:,dim2], s=10, color = colors[target])
-      ax1.set_title('Destructed data with target')
-      ax2.scatter(data_destructed[:,dim1], data_destructed[:,dim2], s=10, color = colors[predicted])
-      ax2.set_title('Destructed data with prediction')
-      plt.savefig(os.path.join(path_result, f"{prefix}_Destructed_output_dim_{dim1}_{dim2}.jpg"))
-      plt.close(fig)
-
-
-
-def save_interpretation_artificial_bar(path, sample, target, pred):
-  path_result = os.path.join(path, "result")
-  if not os.path.exists(path_result):
-    os.makedirs(path_result)
-
-  nb_dim = sample.shape[1]
-
-
-  sample_list = []
-  label_list = []
-  for dim in range(nb_dim):
-    sample_list.append(sample[np.where(target==0),dim][0])
-    label_list.append(f"Coord {dim} Y 0")
-    sample_list.append(sample[np.where(target==1),dim][0])
-    label_list.append(f"Coord {dim} Y 1")
-    
-
-
-  fig = plt.figure(1)
-  plt.boxplot(sample_list,
-     labels = label_list)
-
-  plt.savefig(os.path.join(path_result, f"box_plot_real_target.jpg"))
-  plt.close(fig)
-
-  sample_list = []
-  label_list = []
-  for dim in range(nb_dim):
-    sample_list.append(sample[np.where(pred==0),dim][0])
-    label_list.append(f"Coord {dim} Y 0")
-    sample_list.append(sample[np.where(pred==1),dim][0])
-    label_list.append(f"Coord {dim} Y 1")
-    
-
-  fig = plt.figure(1)
-  plt.boxplot(sample_list,
-     labels = label_list)
-  
-  plt.savefig(os.path.join(path_result, f"box_plot_real_pred.jpg"))
-  plt.close(fig)
-
 ### SAVINGS FOR HYPERCUDE DATASET
- 
-
-
-
-
-global_keys = ["accuracy_selection_pi", "accuracy_selection_z", "accuracy_selection_thresholded_pi","accuracy_selection_thresholded_z",
- "proportion_pi", "proportion_z", "proportion_thresholded_pi", "proportion_thresholded_z", "accuracy_prediction_no_selection",
-  "accuracy_prediction_selection", "mean_pi_list", "pi_list_q1", "pi_list_q2", "pi_list_median","auc_score_pi", "auc_score_z"]
-
-global_keys_to_count_batch_size = ["proportion_pi", "proportion_z", "proportion_thresholded_pi", "proportion_thresholded_z"]
-global_keys_to_count_dim_batch_size = ["accuracy_selection_pi", "accuracy_selection_z", "accuracy_selection_thresholded_pi","accuracy_selection_thresholded_z","auc_score_pi", "auc_score_z"]
-
-
-
-
-def plot_true_classifier_output(dataset, path, train_data = False, nb_train_data = 1000, figsize=(15,5)):
-  centroids = dataset.centroids
-
-  X = dataset.data_train
-  Y = dataset.target_train
-
-  indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
-  data_train = X[indexes, :]
-  target_train = Y[indexes]
-
-
-
-  min_x = torch.min(dataset.data_train[:,0])
-  max_x = torch.max(dataset.data_train[:,0])
-  linspace_firstdim = torch.linspace(min_x, max_x, 1000)
-  min_x = torch.min(dataset.data_train[:,1])
-  max_x = torch.max(dataset.data_train[:,1])
-  linspace_seconddim = torch.linspace(min_x, max_x, 1000)
-
-  grid_x, grid_y = torch.meshgrid(linspace_firstdim, linspace_seconddim)
-  xaux1 = grid_x.reshape(1, -1)
-  xaux2 = grid_y.reshape(1, -1)
-  complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
-  aux_Y = dataset.centroids_Y.reshape(1,-1).expand(complete_X.shape[0],-1)
-
-  # First dimension needed :
-  mask = torch.ones_like(complete_X)
-  dependency = dataset.get_dependency(mask, complete_X, index=None, dataset_type = None)
-  true_selection = torch.sum(dependency * aux_Y, axis = -1) 
-
-
-  fig, axs = plt.subplots(nrows =1, ncols = 1, figsize = (5,5))
-  colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
-                                             '#f781bf', '#a65628', '#984ea3',
-                                             '#999999', '#e41a1c', '#dede00']),
-                                  int(max(Y) + 1))))
-
-  axs.contourf(grid_x, grid_y, true_selection.reshape(grid_x.shape),  vmin=0, vmax=1.0)
-  
-
-  axs.scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
-  
-  if train_data :
-    axs.scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = colors[target_train.detach().cpu()], alpha = 0.3)
-
-  complete_path = os.path.join(path, "true_classifier.jpg")
-
-  if train_data :
-    complete_path = complete_path.split(".jpg")[0] + "_train_data.jpg"
-
-  plt.savefig(complete_path)
-  plt.close(fig)
-
-
-def plot_true_continuousshape(dataset, path, train_data = False, nb_train_data = 1000, interpretation = False, figsize=(15,5)):
-  centroids = dataset.centroids
-
-  X = dataset.data_train
-  Y = dataset.target_train
-
-  indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
-  data_train = X[indexes, :]
-  target_train = Y[indexes]
-
-
-
-  min_x = torch.min(dataset.data_train[:,0])
-  max_x = torch.max(dataset.data_train[:,0])
-  linspace_firstdim = torch.linspace(min_x, max_x, 1000)
-  min_x = torch.min(dataset.data_train[:,1])
-  max_x = torch.max(dataset.data_train[:,1])
-  linspace_seconddim = torch.linspace(min_x, max_x, 1000)
-
-  grid_x, grid_y = torch.meshgrid(linspace_firstdim, linspace_seconddim)
-  xaux1 = grid_x.reshape(1, -1)
-  xaux2 = grid_y.reshape(1, -1)
-  complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
-  aux_Y = dataset.centroids_Y.reshape(1,-1).expand(complete_X.shape[0],-1)
-
-  # First dimension needed :
-  mask = torch.zeros_like(complete_X)
-  mask_firstdim = mask.clone()
-  mask_firstdim[:,0]=torch.ones_like(complete_X[:,1])
-  complete_x_firstdim = complete_X * mask_firstdim
-  dependency_firstdim = dataset.get_dependency(mask_firstdim, complete_x_firstdim, index=None, dataset_type = None)
-  true_selection_firstdim = 2 * torch.abs(0.5 - torch.sum(dependency_firstdim * aux_Y, axis = -1)) # Get true selection, 1 means selection; 0 means it's not necessary
-
-
-  # Second dimension needed :
-  mask_seconddim = mask.clone()
-  mask_seconddim[:,1]=torch.ones_like(complete_X[:,1])
-  complete_x_seconddim = complete_X * mask_seconddim
-  dependency_seconddim = dataset.get_dependency(mask_seconddim, complete_x_seconddim, index=None, dataset_type = None)
-  true_selection_seconddim = 2 * torch.abs(0.5 - torch.sum(dependency_seconddim * aux_Y, axis=-1))
-
-  # All dim needed :
-  mask_all_dim = torch.ones_like(complete_X)
-  dependency_all_dim = dataset.get_dependency(mask_all_dim, complete_X, index=None, dataset_type = None)
-  true_selection_alldim = 2 * torch.abs(0.5 - torch.sum(dependency_all_dim * aux_Y, axis=-1))
-  aux = torch.cat([true_selection_firstdim.reshape(1,-1), true_selection_seconddim.reshape(1, -1)], dim=0) # Get true selection, 1 means selection; 0 means it's not necessary
-  # true_selection_alldim = torch.max(aux,dim=0)[0] - torch.min(aux, dim=0)[0] # Get true selection, 1 means selection; 0 means it's not necessary
-
-  if interpretation :
-    true_selection_alldim = true_selection_alldim - torch.max(aux, dim=0)[0]
-    true_selection_alldim = torch.where(true_selection_alldim<0., torch.zeros_like(true_selection_alldim), true_selection_alldim)
-  else :
-    true_selection_alldim = 1 - torch.max(aux, dim=0)[0]
-
-  fig, axs = plt.subplots(nrows =1, ncols = 3, figsize = (15,5))
-  colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
-                                             '#f781bf', '#a65628', '#984ea3',
-                                             '#999999', '#e41a1c', '#dede00']),
-                                  int(max(Y) + 1))))
-
-  axs[0].contourf(grid_x, grid_y, true_selection_firstdim.reshape(grid_x.shape),  vmin=0, vmax=1.0)
-  axs[1].contourf(grid_x, grid_y, true_selection_seconddim.reshape(grid_x.shape), vmin=0, vmax=1.0)
-  qcs = axs[2].contourf(grid_x, grid_y, true_selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
-
-  for k in range(3):
-    axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
-  
-  if train_data :
-    for k in range(3):
-      axs[k].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = colors[target_train.detach().cpu()], alpha = 0.3)
-
-  fig.colorbar(
-   ScalarMappable(norm=qcs.norm, cmap=qcs.cmap),
-   ticks=range(0, 1, 20) 
-  )
-
-
-  complete_path = os.path.join(path, "Y_definition.jpg")
-  if interpretation :
-    complete_path = complete_path.split(".jpg")[0] + "_interpretation.jpg"
-
-  if train_data :
-    complete_path = complete_path.split(".jpg")[0] + "_train_data.jpg"
-
-  plt.savefig(complete_path)
-  plt.close(fig)
-
-
-def plot_true_interpretation_v3(dataset, path, train_data = False, nb_train_data = 1000, grid_sample = 100, nb_imputation = 1000,  figsize=(15,5), interpretation = False):
-  if dataset.nb_dim > 2 :
-    return None
-  
-  try :
-    centroids = dataset.centroids
-  except AttributeError:
-    centroids = None
-
-  X = dataset.data_train
-  Y = dataset.target_train
-
-  indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
-  data_train = X[indexes, :]
-  target_train = Y[indexes]
-
-
-
-  min_x = torch.min(dataset.data_train[:,0])
-  max_x = torch.max(dataset.data_train[:,0])
-  linspace_firstdim = torch.linspace(min_x, max_x, grid_sample)
-  min_x = torch.min(dataset.data_train[:,1])
-  max_x = torch.max(dataset.data_train[:,1])
-  linspace_seconddim = torch.linspace(min_x, max_x, grid_sample)
-
-  grid_x, grid_y = torch.meshgrid(linspace_firstdim, linspace_seconddim)
-  xaux1 = grid_x.reshape(1, -1)
-  xaux2 = grid_y.reshape(1, -1)
-  complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
-  complete_X = complete_X.type(torch.float64)
-
-
-
-  true_selection = dataset.calculate_true_selection_variation(complete_X, classifier = None, nb_imputation=nb_imputation, normalize = True)
-
-
-  true_selection_firstdim = true_selection[:,0]
-  true_selection_seconddim = true_selection[:,1]
-  aux = torch.cat([true_selection_firstdim.unsqueeze(0), true_selection_seconddim.unsqueeze(0)], dim=0)
-  true_selection_alldim = torch.min(aux, dim=0)[0]
-  
-
-  if interpretation :
-    true_selection_firstdim = true_selection_firstdim - true_selection_alldim
-    true_selection_seconddim =  true_selection_seconddim - true_selection_alldim
-
-  fig, axs = plt.subplots(nrows =1, ncols = 3, figsize = (15,5))
-  colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
-                                             '#f781bf', '#a65628', '#984ea3',
-                                             '#999999', '#e41a1c', '#dede00']),
-                                  2)))
-
-  axs[0].contourf(grid_x, grid_y, true_selection_firstdim.reshape(grid_x.shape),  vmin=0, vmax=1.0)
-  axs[1].contourf(grid_x, grid_y, true_selection_seconddim.reshape(grid_x.shape), vmin=0, vmax=1.0)
-  qcs = axs[2].contourf(grid_x, grid_y, true_selection_alldim.reshape(grid_x.shape), vmin=0, vmax=1.0)
-
-  if centroids is not None:
-    for k in range(3):
-      axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
-  
-  if train_data :
-    for k in range(3):
-      axs[k].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = colors[target_train.detach().cpu()], alpha = 0.3)
-
-  fig.colorbar(
-   ScalarMappable(norm=qcs.norm, cmap=qcs.cmap),
-   ticks=range(0, 1, 20) 
-  )
-
-  complete_path = os.path.join(path, "true_dataset_selection.jpg")
-  print("Figure saved at", complete_path)
-  if interpretation :
-    complete_path = complete_path.split(".jpg")[0] + "_interpretation.jpg"
-  if train_data :
-    complete_path = complete_path.split(".jpg")[0] + "_train_data.jpg"
-
-  plt.savefig(complete_path)
-  plt.close(fig)
-  
-
 
 def plot_selector_output(selector, dataset, path, train_data = False, nb_train_data = 1000, interpretation= False, figsize = (15,5),):
   try :
     centroids = dataset.centroids
-  except :
+  except Exception as e:
+    print(e)
     centroids = None
 
 
@@ -384,6 +30,13 @@ def plot_selector_output(selector, dataset, path, train_data = False, nb_train_d
   indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
   data_train = X[indexes, :]
   target_train = Y[indexes]
+
+  nb_classes = dataset.get_dim_output()
+  if nb_classes == 1 :
+    classification = False
+  else :
+    classification = True
+
 
 
 
@@ -428,15 +81,21 @@ def plot_selector_output(selector, dataset, path, train_data = False, nb_train_d
 
   axs[0].contourf(grid_x, grid_y, selection_firstdim.reshape(grid_x.shape),  vmin=0.0, vmax=1.0)
   axs[1].contourf(grid_x, grid_y, selection_seconddim.reshape(grid_x.shape), vmin=0.0, vmax=1.0)
+
   if interpretation :
     axs[2].contourf(grid_x, grid_y, selection_bothdim.reshape(grid_x.shape), vmin=0, vmax=1.0)
   if centroids is not None :
     for k in range(len(axs)):
-      axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+      if classification :
+        axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+      else :
+        axs[k].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[0])
   if train_data :
       for k in range(len(axs)):
-        axs[k].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = colors[target_train.detach().cpu()], alpha = 0.3)
-
+        if classification :
+          axs[k].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = colors[target_train.detach().cpu()], alpha = 0.3)
+        else :
+          axs[k].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = "black", alpha = 0.3)
 
   complete_path = os.path.join(path, "selector_selection.jpg")
 
@@ -454,16 +113,22 @@ def plot_selector_output(selector, dataset, path, train_data = False, nb_train_d
 def plot_complete_model_output(trainer, dataset, sampling_distribution, path, imputed_centroids = False, nb_train_data = 1000, train_data = False):
   try :
     centroids = dataset.centroids
-  except :
+  except Exception as e:
+    print(e)
     centroids = None
   X = dataset.data_train
   Y = dataset.target_train
-  nb_classes = dataset.nb_classes
+  nb_classes = dataset.get_dim_output()
+  if nb_classes == 1 :
+    classification = False
+  elif nb_classes>1 :
+    classification = True
+  else :
+    raise ValueError("Number of classes is not correct")
 
   indexes = np.random.choice(np.arange(0, len(Y)), min(nb_train_data, len(Y)), replace=False)
   data_train = X[indexes, :]
   target_train = Y[indexes]
-
 
   if centroids is not None :
     if imputed_centroids :
@@ -494,19 +159,22 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
     z = trainer.distribution_module.sample((1,))
     z = trainer.reshape(z)
 
-    log_y_hat_destructed, _ = trainer.classification_module(complete_X, z)
-    # log_y_hat_destructed = trainer._predict(complete_X, sampling_distribution, nb_classes, Nexpectation = 20, index = None)  
-    pred_selection = torch.exp(log_y_hat_destructed).detach().cpu()
+    output_selection, _ = trainer.classification_module(complete_X, z)
+    # output_selection = trainer._predict(complete_X, sampling_distribution, nb_classes, Nexpectation = 20, index = None)  
+    if classification :
+      pred_selection = torch.exp(output_selection).detach().cpu()
+    output_selection = output_selection.detach().cpu()
     destructive= True
   else :
     destructive = False
   
 
 
-  log_y_hat, _ = trainer.classification_module(complete_X, index = None)
-  pred_classic = torch.exp(log_y_hat).detach().cpu()
+  output, _ = trainer.classification_module(complete_X, index = None)
+  if classification :
+    pred_selection = torch.exp(output).detach().cpu()
   
-
+  output = output.detach().cpu()
 
   # All dim needed :
 
@@ -514,33 +182,48 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
                                         '#f781bf', '#a65628', '#984ea3',
                                         '#999999', '#e41a1c', '#dede00']),
                                     int(max(Y) + 1))))
-  if destructive :
-    fig, axs = plt.subplots(nrows = nb_classes, ncols = 2, figsize = (10, nb_classes*5))
-    for category_index in range(nb_classes):
-      axs[category_index, 0,].contourf(grid_x, grid_y, pred_classic[:,category_index].reshape(grid_x.shape),  vmin=0, vmax=1.0)
-      axs[category_index, 1,].contourf(grid_x, grid_y, pred_selection[:,category_index].reshape(grid_x.shape), vmin=0, vmax=1.0)
-      if centroids is not None:
-        for k in range(2):
-          axs[category_index, k,].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+  if classification :
+    if destructive :
+      fig, axs = plt.subplots(nrows = nb_classes, ncols = 2, figsize = (10, nb_classes*5))
+      for category_index in range(nb_classes):
+        axs[category_index, 0,].contourf(grid_x, grid_y, pred_selection[:,category_index].reshape(grid_x.shape),  vmin=0, vmax=1.0)
+        axs[category_index, 1,].contourf(grid_x, grid_y, pred_selection[:,category_index].reshape(grid_x.shape), vmin=0, vmax=1.0)
+        if centroids is not None:
+          for k in range(2):
+            axs[category_index, k,].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+        
+        if train_data :
+          for k in range(2):
+            axs[category_index, k,].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = colors[target_train.detach().cpu()], alpha = 0.3)
+
+    else :
+      fig, axs = plt.subplots(nrows =nb_classes, ncols = 1, figsize = (5,nb_classes*5))
+      for category_index in range(nb_classes):
+        axs[category_index].contourf(grid_x, grid_y, pred_selection[:,category_index].reshape(grid_x.shape),  vmin=0, vmax=1.0)
+
+        if centroids is not None:
+            axs[category_index].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+        if train_data :
+            axs[category_index].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = colors[target_train.detach().cpu()], alpha = 0.3)
+
       
-      if train_data :
-        for k in range(2):
-          axs[category_index, k,].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = colors[target_train.detach().cpu()], alpha = 0.3)
 
   else :
-    fig, axs = plt.subplots(nrows =nb_classes, ncols = 1, figsize = (5,nb_classes*5))
-    for category_index in range(nb_classes):
-      axs[category_index].contourf(grid_x, grid_y, pred_classic[:,category_index].reshape(grid_x.shape),  vmin=0, vmax=1.0)
-
-      if centroids is not None:
-          axs[category_index].scatter(centroids[:,0].detach().cpu(), centroids[:,1].detach().cpu(), color = colors[dataset.centroids_Y.detach().cpu()])
+    target_train = target_train.detach().cpu().numpy()
+    if destructive :
+      fig, axs = plt.subplots(nrows = 1, ncols = 2, figsize = (10, 5))
+      axs[0].contourf(grid_x, grid_y, output.reshape(grid_x.shape), vmin = np.min(output), vmax = np.max(output))
+      axs[1].contourf(grid_x, grid_y, output_selection.reshape(grid_x.shape), vmin = np.min(output_selection), vmax = np.max(output_selection))
       if train_data :
-          axs[category_index].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), color = colors[target_train.detach().cpu()], alpha = 0.3)
-
-    
+        for k in range(2):
+          axs[k].scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), c = target_train, vmin= np.min(output), vmax = np.max(output), cmap="viridis", alpha = 0.3) 
+    else :
+      fig = plt.figure(figsize = (5,5))
+      plt.contourf(grid_x, grid_y, output.reshape(grid_x.shape),)
+      if train_data :
+        plt.scatter(data_train[:,0].detach().cpu(), data_train[:,1].detach().cpu(), c = target_train,  vmin= np.min(target_train), vmax = np.max(target_train), cmap="viridis", alpha = 0.3)
+      
   complete_path = os.path.join(path, "output_classification.jpg")
-
-
   if imputed_centroids :
     complete_path = complete_path.split(".jpg")[0] + "_imputed_centroids.jpg"
   if train_data :
@@ -560,6 +243,13 @@ def calculate_score(trainer, loader, CFindex = None):
   trainer.classification_module.imputation.nb_imputation_iwae_test = 1     
   trainer.eval()
   
+  if loader.dataset.get_dim_output() > 1 :
+    classification = True
+  elif loader.dataset.get_dim_output() == 1 :
+    classification = False 
+  else :
+    raise ValueError("Dimension of the output must be > 0")
+
 
   data_test = loader.dataset.data_test.type(torch.float32)
   target_test = loader.dataset.target_test.type(torch.float32)
@@ -585,18 +275,26 @@ def calculate_score(trainer, loader, CFindex = None):
       distribution_module(torch.exp(log_pi_list))
       z = distribution_module.sample((1,))
       z = trainer.reshape(z)
-      log_y_hat, _ = classification_module(data_test, z, index=None)
-      pred_classic = torch.exp(log_y_hat).detach().cpu().numpy()
+      output_selection, _ = classification_module(data_test, z, index=None)
+      if classification :
+        pred_selection = np.argmax(torch.exp(output_selection).detach().cpu().numpy(), axis =-1)
+      else :
+        pred_selection = output_selection.detach().cpu().numpy()
       log_pi_list = log_pi_list.detach().cpu().numpy()
       if selection_module.activation is torch.nn.Softmax():
         log_pi_list = torch.log(distribution_module.sample((1000,)).mean(dim = 0))
-        # log_pi_list = log_pi_list * np.prod(log_pi_list.shape[1:])
 
-    log_y_hat_true_selection, _ = classification_module(data_test, optimal_S_test, index = None, )
-    pred_true_selection = torch.exp(log_y_hat_true_selection).detach().cpu().numpy()
+    output_true_selection, _ = classification_module(data_test, optimal_S_test, index = None, )
+    if classification :
+      pred_true_selection = np.argmax(torch.exp(output_true_selection).detach().cpu().numpy(), axis=-1)
+    else :
+      pred_true_selection = output_true_selection.detach().cpu().numpy()
 
-    log_y_hat_no_selection, _ = classification_module(data_test, index = None)
-    pred_no_selection = torch.exp(log_y_hat_no_selection).detach().numpy()
+    output_no_selection, _ = classification_module(data_test, index = None)
+    if classification :
+      pred_no_selection = np.argmax(torch.exp(output_no_selection).detach().numpy(), axis=-1)
+    else :
+      pred_no_selection = output_no_selection.detach().cpu().numpy()
 
 
   target_test = target_test.detach().cpu().numpy()
@@ -604,19 +302,24 @@ def calculate_score(trainer, loader, CFindex = None):
 
   dic = {}
   if selection_evaluation:
-    dic["accuracy"] = 1 - np.mean(np.abs(np.argmax(pred_classic, axis=1) - target_test))
+    dic["accuracy"] = 1 - np.mean(np.abs(pred_selection - target_test))
+    if not classification :
+      dic["mse"] = np.mean((pred_selection - target_test)**2)
     try :
-      dic["auroc"] = sklearn.metrics.roc_auc_score(target_test, pred_classic[:,1])
+      dic["auroc"] = sklearn.metrics.roc_auc_score(target_test, pred_selection[:,1])
       dic["auroc_true_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_true_selection[:,1])
       dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_no_selection[:,1])
-    except :
+    except Exception as e:
+      print(e)
       dic["auroc"] = -1.
       dic["auroc_true_selection"] = -1.
       dic["auroc_no_selection"] = -1.
 
-  dic["accuracy_true_selection"] = 1 - np.mean(np.abs(np.argmax(pred_true_selection, axis=1) - target_test))
-  dic["accuracy_no_selection"] = 1 - np.mean(np.abs(np.argmax(pred_no_selection, axis=1) - target_test))
-
+  dic["accuracy_true_selection"] = 1 - np.mean(np.abs(pred_true_selection - target_test))
+  dic["accuracy_no_selection"] = 1 - np.mean(np.abs(pred_no_selection - target_test))
+  if not classification :
+    dic["mse_true_selection"] = np.mean((pred_true_selection - target_test)**2)
+    dic["mse_no_selection"] = np.mean((pred_no_selection - target_test)**2)
 
   if selection_evaluation:
     if CFindex is not None :
@@ -648,7 +351,8 @@ def calculate_score(trainer, loader, CFindex = None):
     dic["selection_accuracy"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.exp(log_pi_list.reshape(-1))))
     try :
       dic["selection_auroc"] = sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
-    except :
+    except Exception as e:
+      print(e)
       dic["selection_auroc"] = -1.
     dic["mean_selection"] = np.mean(np.exp(log_pi_list), axis=0)
 
