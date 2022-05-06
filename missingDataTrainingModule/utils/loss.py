@@ -172,17 +172,7 @@ class MSELossLastDim():
         else :
             raise AttributeError("IWAE Reg not recognized")
 
-        if torch.any(torch.isnan(torch.pow(current_input-current_target, 2))) :
-            print("Nan detected")
-            print(target.reshape((-1, iwae_mask, iwae_sample, 1))[0,:,:,0])
-
-            print(current_input.shape) 
-
-        if torch.any(torch.isinf(torch.pow(current_input-current_target, 2))) :
-            print("inf detected")
-            print(target.reshape((-1, iwae_mask, iwae_sample, 1))[0,:,:,0])
-            print(torch.pow(current_input-current_target, 2))
-            print(current_input.shape) 
+       
 
 
         out_loss = torch.sum(torch.pow(current_input - current_target, 2), -1)
@@ -285,35 +275,6 @@ def calculate_cost(mask_expanded,
         loss_result = loss_result.reshape(nb_imputation_mc, nb_sample_z_monte_carlo, batch_size,)
         loss_result = loss_result.mean(dim = 0) # Mean on the mc imputation part
 
-        if torch.any(torch.isnan(loss_result)) or torch.any(torch.isinf(loss_result)) :
-            print("log_y_hat", log_y_hat.shape)
-            print("mask_expanded", mask_expanded.shape)
-            print("data_expanded", data_expanded.shape)
-            print("target_expanded", target_expanded.shape)
-
-            index_inf = torch.where(torch.isinf(loss_result.flatten()))[0]
-            print("INDEX_inf", index_inf)
-
-            print(data_expanded[0,:,0][torch.where(torch.isnan(loss_result.flatten()))])
-
-            print("data", data_expanded[0, :, 0][index_inf])
-            print("mask", mask_expanded[:, 0][index_inf])
-            print("target", target_expanded[0, :, 0][index_inf])
-            print("log_y_hat", log_y_hat[:, 0][index_inf,])
-
-
-
-            index_nan = torch.where(torch.isnan(loss_result.flatten()))[0]
-            print("INDEX_nan", index_nan)
-
-            print(data_expanded[0,:,0][torch.where(torch.isnan(loss_result.flatten()))])
-
-            print("data", data_expanded[0, :, 0][index_nan])
-            print("mask", mask_expanded[:, 0][index_nan])
-            print("target", target_expanded[0, :, 0][index_nan])
-            print("log_y_hat", log_y_hat[:, 0][index_nan,])
-
-            assert 1==0
 
 
         return loss_result
