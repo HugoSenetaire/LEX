@@ -88,7 +88,7 @@ class KmeansDatasetImputation(nn.Module):
             Sampled tensor from the Gaussian Mixture
         """
     
-    if not self.use_cuda and self.data.is_cuda :
+    if not self.use_cuda and data.is_cuda :
       self.use_cuda = True
     with torch.no_grad() :
       batch_size = data.shape[0]

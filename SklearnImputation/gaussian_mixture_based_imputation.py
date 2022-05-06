@@ -160,7 +160,7 @@ class GaussianMixtureDatasetImputation(GaussianMixtureBasedImputation):
             Sampled tensor from the dataset using the Gaussian Mixture dataset imputation
 
         """
-    if not self.use_cuda and self.data.is_cuda :
+    if not self.use_cuda and data.is_cuda :
         self.use_cuda = True
         self.data_to_impute = self.data_to_impute.cuda()
     batch_size = len(data)
