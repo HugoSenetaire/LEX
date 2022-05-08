@@ -114,7 +114,7 @@ class SimpleUniformDataset(UniformDataset):
         
         self.classification = classification
         if self.classification :
-            self.nb_class = 2
+            self.nb_classes = 2
         else :
             self.nb_classes = 1
         
