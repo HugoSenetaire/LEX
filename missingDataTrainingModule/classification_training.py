@@ -232,10 +232,9 @@ class EVAL_X(ordinaryTraining):
 
     def _train_step(self, data, target, dataset, index = None, nb_sample_z_monte_carlo = 10, nb_sample_z_iwae = 1, loss_function = continuous_NLLLoss(reduction="none"), need_dic = False,):   
         batch_size = data.shape[0]
-        if self.use_cuda :
-            data, target, index = on_cuda(data, target = target, index = index,)
-        one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
-        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
+        data, target, one_hot_target, index = prepare_data(data, target, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
+        target, one_hot_target = define_target(data, index, target, one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
+
 
         nb_sample_z_monte_carlo_classification, nb_sample_z_iwae_classification = nb_sample_z_monte_carlo*nb_sample_z_iwae, 1
         data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
