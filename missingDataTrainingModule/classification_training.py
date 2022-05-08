@@ -248,7 +248,7 @@ class EVAL_X(ordinaryTraining):
         
         # Destructive module
 
-        p_z = self.fixed_distribution(torch.zeros(batch_size, 1, nb_sample_z_iwae, *self.classification_module.classifier.input_size[1:]))
+        p_z = self.fixed_distribution(torch.zeros(batch_size, 1, nb_sample_z_iwae, *self.classification_module.classifier.input_size[1:]).to(data.device))
         # Train classification module :
         z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo_classification,))
         # Classification module :
