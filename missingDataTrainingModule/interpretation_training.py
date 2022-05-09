@@ -373,6 +373,9 @@ class SELECTION_BASED_CLASSIFICATION():
         self.cuda() # QUICK FIX BECAUE SELECTION TEST THROW OUT OF CUDA @HHJS TODO LEAVE ON CUDA``
         total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
 
+        original_nb_imputation_mc = self.classification_module.imputation.nb_imputation_mc_test
+        original_nb_imputation_iwae = self.classification_module.imputation.nb_imputation_iwae_test
+
         for mc_config in liste_mc :
             nb_sample_z_monte_carlo = mc_config[0]
             nb_sample_z_iwae = mc_config[1]
@@ -382,6 +385,10 @@ class SELECTION_BASED_CLASSIFICATION():
             self.classification_module.imputation.nb_imputation_iwae_test = nb_imputation_iwae
             total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, mask_sampling = self.sample_z))
         total_dic.update(self.get_pi_list(loader = loader,))
+
+        self.classification_module.imputation.nb_imputation_mc_test = original_nb_imputation_mc
+        self.classification_module.imputation.nb_imputation_iwae_test = original_nb_imputation_iwae
+
 
         return total_dic
 

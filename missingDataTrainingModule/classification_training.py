@@ -127,7 +127,6 @@ class trueSelectionTraining(ordinaryTraining):
 
         true_mask = dataset.optimal_S_train[index].type(torch.float32).to(data.device)
         true_mask = extend_input(true_mask, mc_part = nb_sample_z_monte_carlo, iwae_part = nb_sample_z_iwae)
-
         out_loss = calculate_cost(
                     trainer = self,
                     mask_expanded = true_mask,
@@ -177,6 +176,9 @@ class trueSelectionTraining(ordinaryTraining):
     def test(self, epoch, loader, liste_mc = [(1,1,1,1), (100,1,1,1), (1,100,1,1), (1,1,100,1), (1,1,1,100)]):
         total_dic = super().test(epoch, loader)
         total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
+    
+        original_nb_imputation_mc = self.classification_module.imputation.nb_imputation_mc_test
+        original_nb_imputation_iwae = self.classification_module.imputation.nb_imputation_iwae_test
 
         for mc_config in liste_mc :
             nb_sample_z_monte_carlo = mc_config[0]
@@ -186,6 +188,10 @@ class trueSelectionTraining(ordinaryTraining):
             self.classification_module.imputation.nb_imputation_mc_test = nb_imputation_mc
             self.classification_module.imputation.nb_imputation_iwae_test = nb_imputation_iwae
             total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, mask_sampling = self.sample_z))
+
+        self.classification_module.imputation.nb_imputation_mc_test = original_nb_imputation_mc
+        self.classification_module.imputation.nb_imputation_iwae_test = original_nb_imputation_iwae
+
         return total_dic
 
 
@@ -289,6 +295,9 @@ class EVAL_X(ordinaryTraining):
     def test(self, epoch, loader, liste_mc = [(1,1,1,1), (100,1,1,1), (1,100,1,1), (1,1,100,1), (1,1,1,100)]):
         total_dic = super().test(epoch, loader)
         total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
+        original_nb_imputation_mc = self.classification_module.imputation.nb_imputation_mc_test
+        original_nb_imputation_iwae = self.classification_module.imputation.nb_imputation_iwae_test
+        
         for mc_config in liste_mc :
             nb_sample_z_monte_carlo = mc_config[0]
             nb_sample_z_iwae = mc_config[1]
@@ -297,4 +306,9 @@ class EVAL_X(ordinaryTraining):
             self.classification_module.imputation.nb_imputation_mc_test = nb_imputation_mc
             self.classification_module.imputation.nb_imputation_iwae_test = nb_imputation_iwae
             total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae = nb_sample_z_iwae, mask_sampling = self.sample_z))
+
+
+        self.classification_module.imputation.nb_imputation_mc_test = original_nb_imputation_mc
+        self.classification_module.imputation.nb_imputation_iwae_test = original_nb_imputation_iwae
+
         return total_dic
