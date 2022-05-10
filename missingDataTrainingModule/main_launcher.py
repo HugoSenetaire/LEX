@@ -378,6 +378,11 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             dic_list["test_pretraining_eval_x"]  = total_dic_test
 
             if args_complete_trainer["complete_trainer"] is EVAL_X:
+                print("RETURN ERROR")
+                dic_list["train"] = total_dic_train
+                dic_list["test"]  = total_dic_test
+                save_dic(os.path.join(final_path,"train"), total_dic_train)
+                save_dic(os.path.join(final_path,"test"), total_dic_test)
                 return final_path, trainer_ordinary, loader, dic_list
 
     else :
@@ -400,12 +405,14 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
                                     post_hoc = post_hoc_ordinary,
                                     argmax_post_hoc = args_train["argmax_post_hoc"],
                                     )
+            true_selection = True
         else :
             trainer_ordinary = ordinaryTraining(vanilla_classification_module,
                                     post_hoc_guidance = post_hoc_guidance_ordinary,
                                     post_hoc = post_hoc_ordinary,
                                     argmax_post_hoc = args_train["argmax_post_hoc"],
                                 )
+            true_selection = False
 
         if args_train["use_cuda"]:
             trainer_ordinary.cuda()
@@ -421,11 +428,15 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             total_dic_train = fill_dic(total_dic_train, dic_train)
             test_this_epoch = args_complete_trainer["save_epoch_function"](epoch, nb_epoch)
             if test_this_epoch :
-                dic_test = trainer_ordinary.test(epoch, loader, liste_mc = args_test["liste_mc"])
+                if true_selection :
+                    dic_test = trainer_ordinary.test(epoch, loader, liste_mc = args_test["liste_mc"])
+                else :
+                    dic_test = trainer_ordinary.test(epoch, loader,)
                 total_dic_test = fill_dic(total_dic_test, dic_test)
 
 
         if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trueSelectionTraining :
+            print("STUPID RETURN HERE")
             dic_list["train"] = total_dic_train
             dic_list["test"]  = total_dic_test
             save_dic(os.path.join(final_path,"train"), total_dic_train)
