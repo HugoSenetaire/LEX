@@ -192,7 +192,6 @@ def get_regularization_method(args_selection, args_distribution_module):
     """
     sampling_distrib = args_distribution_module["distribution"]
     if sampling_distrib in self_regularized_distributions :
-        
         k = int(np.round(args_selection["rate"] * np.prod(args_selection["output_size_selector"]),))
         if k == 0 :
             print("Warning : k = 0, you need to select at least one variable. K =1 is used instead.")
@@ -313,7 +312,7 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(args_train["nb_epoch_post_hoc"]):
-            dic_train = trainer.train_epoch(epoch, loader, loss_function=loss_function, save_dic = True, print_dic_bool= ((epoch+1) % args_train["print_every"] == 0),)
+            dic_train = trainer.train_epoch(epoch, loader, loss_function=loss_function, save_dic = True,)
             total_dic_train = fill_dic(total_dic_train, dic_train)
 
             test_this_epoch = args_complete_trainer["save_epoch_function"](epoch, args_train["nb_epoch_post_hoc"])
@@ -378,7 +377,6 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
             dic_list["test_pretraining_eval_x"]  = total_dic_test
 
             if args_complete_trainer["complete_trainer"] is EVAL_X:
-                print("RETURN ERROR")
                 dic_list["train"] = total_dic_train
                 dic_list["test"]  = total_dic_test
                 save_dic(os.path.join(final_path,"train"), total_dic_train)
@@ -436,7 +434,6 @@ def experiment(dataset, loader, args_output, args_classification, args_selection
 
 
         if args_complete_trainer["complete_trainer"] is ordinaryTraining or args_complete_trainer["complete_trainer"] is trueSelectionTraining :
-            print("STUPID RETURN HERE")
             dic_list["train"] = total_dic_train
             dic_list["test"]  = total_dic_test
             save_dic(os.path.join(final_path,"train"), total_dic_train)
