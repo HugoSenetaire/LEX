@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sklearn.metrics as metrics
 import copy
+import json
 
 def show_interpretation(sample, data, target, shape = (1,28,28)):
   channels = shape[0]
@@ -50,12 +51,16 @@ def imputation_image(trainer, loader, final_path, nb_samples_image_per_category 
 
 
 
+
     
     log_pi_list,_ = selection_module(data)
+
 
     pz = distribution_module(torch.exp(log_pi_list,))
     z = distribution_module.sample((1,))
     z = trainer.reshape(z)
+
+
     data_imputed = classification_module.get_imputation(data, z)
     data_imputed = data_imputed.cpu().detach().numpy().reshape(nb_imputation, total_image, *wanted_shape)
     data = data.cpu().detach().numpy()
@@ -181,11 +186,26 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = 
     
     
     log_pi_list,_ = selection_module(data)
-    log_pi_list = log_pi_list.cpu().detach().numpy()
-    round_pi_list = np.round(np.exp(log_pi_list)).astype(int)
 
+    
 
-   
+    if hasattr(trainer.distribution_module.distribution, "keywords") :
+        if "rate" in trainer.distribution_module.distribution.keywords :
+            rate = trainer.distribution_module.distribution.keywords["rate"]
+        elif "k" in trainer.distribution_module.distribution.keywords :
+            rate = trainer.distribution_module.distribution.keywords["k"] / np.prod(loader.dataset.get_dim_input(), dtype=np.float32)
+    elif hasattr(trainer.selection_module, "regularization") and hasattr(trainer.selection_module.regularization, "rate"):
+        rate = trainer.selection_module.regularization.rate
+    else :
+        rate = 0.
+
+    if rate == 0 :
+        round_pi_list = np.round(np.exp(log_pi_list.cpu().detach().numpy())).astype(int)
+    else :
+        dim_pi_list = np.prod(trainer.selection_module.selector.output_size)
+        k = max(int(dim_pi_list * rate),1)
+        to_sel = torch.topk(log_pi_list.flatten(1), k, dim = 1)[1]
+        round_pi_list = torch.zeros_like(log_pi_list).scatter(1, to_sel, 1).detach().cpu().numpy().astype(int).reshape(-1) 
 
     data = data.cpu().detach().numpy()
     target = target.cpu().detach().numpy()
@@ -254,24 +274,31 @@ def accuracy_output(trainer, loader, final_path, batch_size = 100):
         f.write(f"f1 score: {f1_score_avg}")
         
        
-def complete_analysis_image(trainer, loader, final_path, batch_size = 100, nb_samples_image_per_category = 3):
-    # Interpretation:
-
-    if hasattr(trainer, "selection_module") and hasattr(trainer, "distribution_module"):
-        imputation_image(trainer, loader, final_path)
-        interpretation_sampled(trainer, loader, final_path)
-        image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = nb_samples_image_per_category)
-        accuracy_output(trainer, loader, final_path, batch_size = batch_size,)
+def complete_analysis_image(trainer, loader, final_path, batch_size = 100, nb_samples_image_per_category = 3, only_loader = False, loader_folder = None):
+    if loader_folder is None :
+        loader_folder = final_path
+    try :
+        if not only_loader :
+            imputation_image(trainer, loader, final_path)
+            interpretation_sampled(trainer, loader, final_path)
+            image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = nb_samples_image_per_category)
+            accuracy_output(trainer, loader, final_path, batch_size = batch_size,)
 
         aux_final_path = os.path.join(final_path, "at_best_iter")
         if not os.path.exists(aux_final_path):
             os.makedirs(aux_final_path)
 
-        if os.path.exists(os.path.join(final_path, "classification_module.pt")):
-            trainer.load_best_iter_dict(final_path)
+        if os.path.exists(os.path.join(loader_folder, "classification_module.pt")):
+            trainer.load_best_iter_dict(loader_folder)
             
         imputation_image(trainer, loader, aux_final_path)
         interpretation_sampled(trainer, loader, aux_final_path)
         image_f1_score(trainer, loader, aux_final_path, nb_samples_image_per_category = nb_samples_image_per_category)
         accuracy_output(trainer, loader, aux_final_path, batch_size = batch_size)
-
+        dic_test = trainer.test(-1, loader, liste_mc = [(1,1,1,1), (1,100, 1, 1), (1,1,100,1), (1,1,1,100)])
+        with open(os.path.join(aux_final_path, "test_dict.json"), "w") as f:
+            json.dump(dic_test, f)
+        
+    except AttributeError as e :
+        print("Could not save image for attribute")
+        print(e)
