@@ -43,7 +43,7 @@ def define_target(data, index, target, one_hot_target, post_hoc = None, post_hoc
             else :
                 #In that case, we need a special form a loss because Nll wont work as is.
                 wanted_target = torch.argmax(log_probs, -1) 
-                wanted_one_hot_target = log_probs
+                wanted_one_hot_target = torch.exp(log_probs)
         else :
             raise AttributeError("No guidance provided for posthoc") 
     else :
@@ -152,8 +152,6 @@ class MSELossLastDim():
             # Handle the case of MSE
             current_target = target.reshape((-1, iwae_mask, iwae_sample, 1))[:,0,0,:]
             current_input = input.reshape((-1, iwae_mask, iwae_sample, 1))
-            # print(current_target)
-            # print(current_input)
         else :
             nb_category = one_hot_target.shape[-1]
             if nb_category == 1 :
