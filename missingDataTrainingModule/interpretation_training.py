@@ -76,11 +76,16 @@ class SELECTION_BASED_CLASSIFICATION():
         self.compiled = True
 
     def load_best_iter_dict(self, final_path):
-        self.classification_module.load_state_dict(torch.load(os.path.join(final_path, "classification_module.pt")))
-        self.selection_module.load_state_dict(torch.load(os.path.join(final_path, "selection_module.pt")))
-        self.distribution_module.load_state_dict(torch.load(os.path.join(final_path, "distribution_module.pt")))
+        if self.use_cuda :
+            device = torch.device("cuda:0")
+        else :
+            device = torch.device("cpu") 
+
+        self.classification_module.load_state_dict(torch.load(os.path.join(final_path, "classification_module.pt"), map_location = device), strict = True)
+        self.selection_module.load_state_dict(torch.load(os.path.join(final_path, "selection_module.pt"), map_location = device), strict = True)
+        self.distribution_module.load_state_dict(torch.load(os.path.join(final_path, "distribution_module.pt"), map_location = device), strict = True)
         if hasattr(self, "baseline") and self.baseline is not None :
-            self.baseline.load_state_dict(torch.load(os.path.join(final_path, "baseline.pt")))
+            self.baseline.load_state_dict(torch.load(os.path.join(final_path, "baseline.pt"), map_location = device), strict = True)
 
 
 
