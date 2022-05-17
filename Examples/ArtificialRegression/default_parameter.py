@@ -39,6 +39,20 @@ def multiple_experiment(
             args_classification_distribution_module,
             args_dataset=None,
             name_modification = False ):
+    count+=1
+    if os.path.exists(args_output["path"]):
+        args_train["nb_epoch"] = 0
+        args_train["nb_epoch_pretrain"] = 0
+        args_train["nb_epoch_post_hoc"] = 0
+        
+        final_path, trainer, loader, dic_list = main_launcher.experiment(dataset, loader, args_output, args_classification,
+                                                                        args_selection, args_distribution_module, args_complete_trainer,
+                                                                        args_train, args_test, args_compiler, args_classification_distribution_module, args_dataset=args_dataset, name_modification = name_modification)
+        trainer.load_best_iter_dict(final_path)
+        total_dic = trainer.multiple_test(loader, args_test, args_compiler, args_classification_distribution_module, args_output)
+        with open(os.path.join(args_output["path"], "total_dic_afterwards.txt"), "z") as f:
+            f.write(str(total_dic))
+        return count
     try :
         final_path, trainer, loader, dic_list = main_launcher.experiment(dataset, loader, args_output, args_classification,
                                                                             args_selection, args_distribution_module, args_complete_trainer,
@@ -65,6 +79,7 @@ def multiple_experiment(
             plt.scatter(loader.dataset.X[:10000,0], loader.dataset.X[:10000,1], c =Y, alpha = 0.15, cmap = 'gray', vmin = np.min(Y), vmax = np.max(Y))
             plt.savefig(out_path)
             plt.close()
+        return count
     except Exception as e :
         print(e)
         if os.path.exists(args_output["path"]):
@@ -74,6 +89,7 @@ def multiple_experiment(
                 os.makedirs(args_output["path"]+"_error")
         with open(args_output["path"]+"_error/error.txt", "w") as f:
             f.write(str(e))
+        return count
 
 
 def get_default():
