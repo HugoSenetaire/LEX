@@ -5,6 +5,8 @@ while(not current_file_path.endswith("MissingDataTraining")):
     current_file_path = os.path.dirname(current_file_path)
 sys.path.append(current_file_path)
 
+
+import traceback
 from missingDataTrainingModule.interpretation_training import SELECTION_BASED_CLASSIFICATION
 from missingDataTrainingModule import PytorchDistributionUtils, utils_reshape, Classification, Selection, main_launcher
 from datasets import *
@@ -16,6 +18,7 @@ from torch.optim import *
 import torch
 from functools import partial
 
+import numpy as np
 
 
 
@@ -63,7 +66,7 @@ def multiple_experiment(
         with open(current_path, "w") as f:
             for key in dic_interpretation:
                 f.write(f"{key} : {dic_interpretation[key]}\n")
-
+        
         if loader.dataset.dim_input ==2:
             if hasattr(trainer, "selection_module"):
                 plot_selector_output(trainer.selection_module, loader.dataset, args_output["path"])
@@ -81,7 +84,7 @@ def multiple_experiment(
             plt.close()
         return count
     except Exception as e :
-        print(e)
+        print(traceback.format_exc())
         if os.path.exists(args_output["path"]):
             os.rename(args_output["path"], args_output["path"]+"_error")
         else :
@@ -89,6 +92,7 @@ def multiple_experiment(
                 os.makedirs(args_output["path"]+"_error")
         with open(args_output["path"]+"_error/error.txt", "w") as f:
             f.write(str(e))
+            f.write(traceback.format_exc())
         return count
 
 

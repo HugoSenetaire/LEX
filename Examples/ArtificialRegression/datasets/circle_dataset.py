@@ -14,12 +14,12 @@ torch.manual_seed(0)
 
 
 class CircleDataset(ArtificialDataset):
-    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, center = [0,0], factor =.6, noise = False, noise_function = None, **kwargs):
-        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = False, noise_function = noise_function, **kwargs)
+    def __init__(self, nb_sample_train = 40000, nb_sample_test=10000, center = [0,0], factor =.6, noise = 0.1, noise_function = None, give_index = True, **kwargs):
+        super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, )
         self.noise = noise
         self.factor = factor
         self.center = center
-
+        self.nb_classes = 2
      
         total_samples = self.nb_sample_train + self.nb_sample_test
         test_size = self.nb_sample_test/float(total_samples)
@@ -27,16 +27,22 @@ class CircleDataset(ArtificialDataset):
         self.data, self.targets = datasets.make_circles(n_samples=total_samples, factor=.6,
                                       noise=noise)
 
-        self.data_train, self.data_test, self.targets_train, self.targets_test = train_test_split(
+        self.X = self.data
+
+        self.data_train, self.data_test, self.target_train, self.target_test = train_test_split(
             self.data, self.targets, test_size=test_size, random_state=0)
 
         self.data_train = torch.tensor(self.data_train)
         self.data_test = torch.tensor(self.data_test)
-        self.targets_train = torch.tensor(self.targets_train)
-        self.targets_test = torch.tensor(self.targets_test)
+        self.target_train = torch.tensor(self.target_train)
+        self.target_test = torch.tensor(self.target_test)
 
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.targets_train, noise_function = noise_function)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.targets_test, noise_function= noise_function)
+        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, noise_function = noise_function)
+        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, noise_function= noise_function)
+
+        self.optimal_S_train = torch.ones_like(self.data_train)
+        self.optimal_S_test = torch.ones_like(self.data_test)
+        self.dim_input = 2
 
 
     def impute(self, value,  mask, index = None , dataset_type= None):

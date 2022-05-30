@@ -98,7 +98,7 @@ class ordinaryTraining():
         print("\nTest epoch {}".format(epoch))
         total_dic = {}
         total_dic["epoch"] = epoch
-        total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
+        total_dic.update(multiple_test(trainer = self, loader = loader,))
         return total_dic
 
 
@@ -110,7 +110,7 @@ class trueSelectionTraining(ordinaryTraining):
     def reshape(self, mask):
         return mask
     
-    def _train_step(self, data, target, dataset, index=None, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, loss_function = continuous_NLLLoss(reduction = "none") ):
+    def _train_step(self, data, target, dataset, index=None, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1, loss_function = continuous_NLLLoss(reduction = "none") ):
         self.zero_grad()
         data, target, one_hot_target, index = prepare_data(data, target, index, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
         target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
@@ -214,7 +214,6 @@ class EVAL_X(ordinaryTraining):
 
         for batch_idx, data in enumerate(loader.train_loader):
             input, target, index = parse_batch(data)
-
             dic = self._train_step(input, target, loader.dataset, index=index, nb_sample_z_monte_carlo = nb_sample_z_monte_carlo, nb_sample_z_iwae=nb_sample_z_iwae, loss_function=loss_function, need_dic= (batch_idx % print_batch_every == 0))
             
             if batch_idx % print_batch_every == 0 :
@@ -254,7 +253,7 @@ class EVAL_X(ordinaryTraining):
         
         # Destructive module
 
-        p_z = self.fixed_distribution(torch.zeros(batch_size, 1, nb_sample_z_iwae, *self.classification_module.classifier.input_size[1:]).to(data.device))
+        p_z = self.fixed_distribution(torch.zeros(batch_size, nb_sample_z_iwae_classification, *self.classification_module.classifier.input_size[1:]).to(data.device))
         # Train classification module :
         z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo_classification,))
         # Classification module :
@@ -268,8 +267,6 @@ class EVAL_X(ordinaryTraining):
                         dim_output = dataset.get_dim_output(),
                         loss_function = loss_function,
                         )
-
-
 
         loss_classification = loss_classification.mean(axis = 0) # Monte Carlo average
         torch.mean(loss_classification, axis=0).backward() # Batch average

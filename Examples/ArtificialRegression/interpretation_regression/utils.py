@@ -2,6 +2,7 @@ import sys
 sys.path.append("C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\")
 sys.path.append("/home/hhjs/MissingDataTraining")
 
+import traceback
 import torch
 import os
 import matplotlib.pyplot as plt
@@ -20,7 +21,7 @@ def plot_selector_output(selector, dataset, path, train_data = False, nb_train_d
   try :
     centroids = dataset.centroids
   except Exception as e:
-    print(e)
+    print(traceback.format_exc())
     centroids = None
 
 
@@ -114,7 +115,7 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
   try :
     centroids = dataset.centroids
   except Exception as e:
-    print(e)
+    print(traceback.format_exc())
     centroids = None
   X = dataset.data_train
   Y = dataset.target_train
@@ -306,11 +307,13 @@ def calculate_score(trainer, loader, CFindex = None):
     if not classification :
       dic["mse"] = np.mean((pred_selection - target_test)**2)
     try :
-      dic["auroc"] = sklearn.metrics.roc_auc_score(target_test, pred_selection[:,1])
-      dic["auroc_true_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_true_selection[:,1])
-      dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_no_selection[:,1])
+      print(pred_selection.shape)
+      print(target_test.shape)
+      dic["auroc"] = sklearn.metrics.roc_auc_score(target_test, pred_selection)
+      dic["auroc_true_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_true_selection)
+      dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_no_selection)
     except Exception as e:
-      print(e)
+      print(traceback.format_exc())
       dic["auroc"] = -1.
       dic["auroc_true_selection"] = -1.
       dic["auroc_no_selection"] = -1.
@@ -352,7 +355,7 @@ def calculate_score(trainer, loader, CFindex = None):
     try :
       dic["selection_auroc"] = sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
     except Exception as e:
-      print(e)
+      print(traceback.format_exc())
       dic["selection_auroc"] = -1.
     dic["mean_selection"] = np.mean(np.exp(log_pi_list), axis=0)
 

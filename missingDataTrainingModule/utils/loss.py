@@ -343,7 +343,7 @@ def test_train_loss(trainer, loader, loss_function = None, nb_sample_z_monte_car
     return dic
 
 
-def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae = 3, mask_sampling = None, set_manual_seed = None,):
+def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1, mask_sampling = None, set_manual_seed = None,):
         """
         Evaluate accuracy, likelihood and mse of trainer on the test set from loader.
 
@@ -365,6 +365,7 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
         y_pred = []
         
         if set_manual_seed is not None :
+            print(f"SET MANUAL SEED {set_manual_seed}")
             torch.manual_seed(set_manual_seed)
         with torch.no_grad():
             for batch_index, data in enumerate(loader.test_loader):
@@ -374,7 +375,6 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
                     data, target, index = on_cuda(data, target = target, index = index,)
                 one_hot_target = get_one_hot(target, num_classes = dim_output)
                 target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = trainer.post_hoc, post_hoc_guidance = trainer.post_hoc_guidance, argmax_post_hoc = trainer.argmax_post_hoc, dim_output= loader.dataset.get_dim_output(),)
-                
                 data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
                                                                                                                 target = target,
                                                                                                                 index=index,
@@ -489,16 +489,18 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 3, nb_sample_z_iwae
             suffix = "selection_mc_{}_iwae_{}_imputemc_{}_imputeiwae_{}".format(nb_sample_z_monte_carlo, nb_sample_z_iwae,
                                                                 trainer.classification_module.imputation.nb_imputation_mc_test,
                                                                 trainer.classification_module.imputation.nb_imputation_iwae_test)
+
         if dim_output > 1 :
             neg_likelihood_selection /= len(loader.test_loader.dataset)
             accuracy_selection = correct_selection / len(loader.test_loader.dataset)
             confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
-            print(confusion_matrix)
+            y_true = np.array(y_true)
             dic = dic_evaluation(accuracy = accuracy_selection.item(),
                             neg_likelihood = neg_likelihood_selection.item(),
                             mse = mse_loss_selection.item(),
                             suffix = suffix,
                             confusion_matrix=confusion_matrix,)
+            print(confusion_matrix)
             
             print('\nTest {} set: MSE: {:.4f}, MSE_PROD: {:.4f}, Likelihood {:.4f}, Accuracy : {}/{} ({:.0f}%)'.format(
                     suffix, mse_loss_selection.item(), mse_loss_selection_prod.item(), -neg_likelihood_selection.item(),

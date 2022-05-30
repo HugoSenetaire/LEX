@@ -363,7 +363,13 @@ class SELECTION_BASED_CLASSIFICATION():
         dic["pi_list_q2"] = q[2].item()
 
         return dic
-        
+
+    def eval_selection(self, epoch, loader,):
+        total_dic = {}
+        total_dic["epoch"] = epoch
+        if hasattr(loader.dataset, "optimal_S_test") :
+            total_dic.update(eval_selection(trainer = self, loader = loader))
+        return total_dic
 
     def test(self, epoch, loader, liste_mc = [(1,1,1,1), (100,1,1,1), (1,100,1,1), (1,1,100,1), (1,1,1,100)]):
         """
@@ -372,7 +378,8 @@ class SELECTION_BASED_CLASSIFICATION():
         print("\nTest epoch {}".format(epoch))
         total_dic = {}
         total_dic["epoch"] = epoch
-        total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
+        if hasattr(self, "last_loss_function") and self.last_loss_function is not None :
+            total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
         if hasattr(loader.dataset, "optimal_S_test") :
             total_dic.update(eval_selection(trainer = self, loader = loader))
         self.cuda() # QUICK FIX BECAUE SELECTION TEST THROW OUT OF CUDA @HHJS TODO LEAVE ON CUDA``
