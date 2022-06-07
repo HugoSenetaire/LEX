@@ -558,20 +558,26 @@ def eval_selection(trainer, loader,):
 
 def eval_selection_local(trainer, loader, rate = None):
     dic = {}
-    dic["fp"] = 0
-    dic["tp"] = 0
-    dic["fn"] = 0
-    dic["tn"] = 0
     dic["selection_auroc"] = 0
     sum_error_round = 0
     sum_error = 0
     error_selection_auroc = False
+
+    nb_data = len(loader.test_loader.dataset)
+
+    fp = np.zeros((nb_data,), dtype=np.float32)
+    tp = np.zeros((nb_data,), dtype=np.float32)
+    fn = np.zeros((nb_data,), dtype=np.float32)
+    tn = np.zeros((nb_data,), dtype=np.float32)
+    total_pi_list = np.zeros((nb_data,11,), dtype=np.float32)
+
     for batch in loader.test_loader :
         try :
             data, target, index = batch
         except :
             print("Should give index to get the eval selection")
             return {}
+
         if not hasattr(loader.dataset, "optimal_S_test") :
             raise AttributeError("This dataset do not have an optimal S defined")
         else :
@@ -591,7 +597,8 @@ def eval_selection_local(trainer, loader, rate = None):
             distribution_module.eval()
             selection_evaluation = True
         else :
-            selection_evaluation = False
+            print("No selection evaluation if there is no selection module")
+            return {}
         classification_module = trainer.classification_module
         classification_module.eval()
 
@@ -605,41 +612,59 @@ def eval_selection_local(trainer, loader, rate = None):
                 pi_list = distribution_module.sample((100,)).mean(dim = 0)
             else :
                 pi_list = torch.exp(log_pi_list)
-
-
+            
+            pi_list = trainer.reshape(pi_list).flatten(1)
+        total_pi_list[index] = pi_list
 
         optimal_S_test = optimal_S_test.detach().cpu().numpy()
         if rate is None :
-            sel_pred = (pi_list >0.5).detach().cpu().numpy().astype(int).reshape(-1)
+            sel_pred = (pi_list >0.5).detach().cpu().numpy().astype(int)
         else :
             dim_pi_list = np.prod(trainer.selection_module.selector.output_size)
             k = max(int(dim_pi_list * rate),1)
             to_sel = torch.topk(pi_list.flatten(1), k, dim = 1)[1]
-            sel_pred = torch.zeros_like(pi_list).scatter(1, to_sel, 1).detach().cpu().numpy().astype(int).reshape(-1)
+            sel_pred = torch.zeros_like(pi_list).scatter(1, to_sel, 1).detach().cpu().numpy().astype(int)
 
-        sel_true = optimal_S_test.reshape(-1)
-        fp = np.sum((sel_pred == 1) & (sel_true == 0))
-        tp = np.sum((sel_pred == 1) & (sel_true == 1))
+        sel_true = optimal_S_test.reshape(sel_pred.shape)
 
-        fn = np.sum((sel_pred == 0) & (sel_true == 1))
-        tn = np.sum((sel_pred == 0) & (sel_true == 0))
+
+        fp[index] = np.sum((sel_pred == 1) & (sel_true == 0),axis=-1)
+        tp[index] = np.sum((sel_pred == 1) & (sel_true == 1),axis=-1)
+        fn[index] = np.sum((sel_pred == 0) & (sel_true == 1),axis=-1)
+        tn[index] = np.sum((sel_pred == 0) & (sel_true == 0),axis=-1)
 
        
-        dic["fp"] += fp
-        dic["tp"] += tp
-        dic["fn"] += fn
-        dic["tn"] += tn
 
-        sum_error_round += np.sum(np.abs(optimal_S_test.reshape(-1) - sel_pred))
+
+        sum_error_round += np.sum(np.abs(optimal_S_test.reshape(-1) - sel_pred.reshape(-1)))
         sum_error += np.sum(np.abs(optimal_S_test.reshape(-1) - pi_list.reshape(-1).detach().cpu().numpy()))
         try :
             dic["selection_auroc"] += sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), pi_list.reshape(-1))
         except :
             error_selection_auroc = True
 
-    total = dic["tp"] + dic["tn"] + dic["fp"] + dic["fn"]
-    dic["fpr"] = dic["fp"] / (dic["fp"] + dic["tn"] + 1e-8)
-    dic["tpr"] = dic["tp"] / (dic["tp"] + dic["fn"] + 1e-8)
+
+    dic["fp_total"] = np.sum(fp)
+    dic["tp_total"] = np.sum(tp)
+    dic["fn_total"] = np.sum(fn)
+    dic["tn_total"] = np.sum(tn)
+    dic["fpr_total"] = dic["fp_total"] / (dic["fp_total"] + dic["tn_total"] + 1e-8)
+    dic["tpr_total"] = dic["tp_total"] / (dic["tp_total"] + dic["fn_total"] + 1e-8)
+    dic["fdr_total"] = dic["fp_total"] / (dic["fp_total"] + dic["tp_total"] + 1e-8)
+
+    total = nb_data
+    
+    fpr = fp / (fp + tn + 1e-8)
+    tpr = tp / (tp + fn + 1e-8)
+    fdr = fp / (fp + tp + 1e-8)
+
+    dic["fpr_mean"] = np.mean(fpr)
+    dic["tpr_mean"] = np.mean(tpr)
+    dic["fdr_mean"] = np.mean(fdr)
+    dic["fpr_std"] = np.std(fpr)
+    dic["tpr_std"] = np.std(tpr)
+    dic["fdr_std"] = np.std(fdr)
+
     dic["selection_accuracy_rounded"] = sum_error_round / total
     dic["selection_accuracy"] = sum_error / total
 
@@ -649,8 +674,22 @@ def eval_selection_local(trainer, loader, rate = None):
         dic["selection_auroc"] /= len(loader.test_loader)
 
     if rate is not None :
-        print("Selection Test rate {:.3f} : fpr {:.4f} tpr {:.4f} auroc {:.4f} accuracy {:.4f}".format(rate, dic["fpr"], dic["tpr"], dic["selection_auroc"], dic["selection_accuracy"]))
+        print("Selection Test rate {:.3f} : fdr_mean {:.4f} fpr_mean {:.4f} tpr_mean {:.4f} fdr_std {:.4f} fpr_std {:.4f} tpr_std {:.4f}".format(rate, dic["fdr_mean"], dic["fpr_mean"], dic["tpr_mean"], dic["fdr_std"], dic["fpr_std"], dic["tpr_std"]))
     else :
-        print("Selection Test : fpr {:.4f} tpr {:.4f} auroc {:.4f} accuracy {:.4f}".format(dic["fpr"], dic["tpr"], dic["selection_auroc"], dic["selection_accuracy"]))
+        print("Selection Test : fdr_mean {:.4f} fpr_mean {:.4f} tpr_mean {:.4f} fdr_std {:.4f} fpr_std {:.4f} tpr_std {:.4f}".format(dic["fdr_mean"], dic["fpr_mean"], dic["tpr_mean"], dic["fdr_std"], dic["fpr_std"], dic["tpr_std"]))
+
+    if rate is not None :
+        print("Selection Test rate {:.3f} : fdr {:.4f} fpr {:.4f} tpr {:.4f} auroc {:.4f} accuracy {:.4f}".format(rate, dic["fdr_total"], dic["fpr_total"], dic["tpr_total"], dic["selection_auroc"], dic["selection_accuracy"]))
+    else :
+        print("Selection Test : fdr {:.4f} fpr {:.4f} tpr {:.4f} auroc {:.4f} accuracy {:.4f}".format(dic["fdr_total"], dic["fpr_total"], dic["tpr_total"], dic["selection_auroc"], dic["selection_accuracy"]))
     
+    mean_total_pi_list = np.mean(total_pi_list, axis = 0)
+    std_total_pi_list = np.std(total_pi_list, axis = 0)
+
+    for dim in range(11):
+        dic[f"Mean_pi_{dim}"] = mean_total_pi_list[dim]
+        dic[f"Std_pi_{dim}"] = std_total_pi_list[dim]
+
+    print("Pi_list Mean {}, Std {}".format(mean_total_pi_list, std_total_pi_list))
+
     return dic
