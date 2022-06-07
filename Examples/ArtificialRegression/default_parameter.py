@@ -112,7 +112,7 @@ def get_default():
     args_complete_trainer = {}
     args_complete_trainer["complete_trainer"] = SELECTION_BASED_CLASSIFICATION
     args_complete_trainer["monte_carlo_gradient_estimator"] = PytorchDistributionUtils.gradientestimator.REINFORCE # Ordinary training, Variational Traininig, No Variational Training, post hoc...
-    args_complete_trainer["save_every_epoch"] = 20
+    args_complete_trainer["save_every_epoch"] = 1
     args_complete_trainer["save_epoch_function"] = lambda epoch, nb_epoch: (epoch % args_complete_trainer["save_every_epoch"] == 0) or (epoch == nb_epoch-1) or (epoch<10)
     args_complete_trainer["baseline"] = None
     args_complete_trainer["reshape_mask_function"] = utils_reshape.CollapseInBatch
@@ -149,15 +149,12 @@ def get_default():
     args_classification["nb_imputation_iwae_test"] = None #If none is given, turn to 1
     args_classification["nb_imputation_mc"] = 1
     args_classification["nb_imputation_mc_test"] = None #If none is given, turn to 1
-
     args_classification["reconstruction_regularization"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
     args_classification["network_reconstruction"] = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
     args_classification["lambda_reconstruction"] = 0.01 # Parameter for controlling the reconstruction regularization
-    
     args_classification["post_process_regularization"] = None # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
     args_classification["network_post_process"] = None # Autoencoder Network to use
     args_classification["post_process_trainable"] = False # If true, pretrain the autoencoder with the training data
-    
     args_classification["mask_reg"] = None
     args_classification["mask_reg_rate"] = 0.5
 
@@ -225,7 +222,7 @@ def get_default():
     args_train["nb_step_fixed_selector"] = 1 # Options for alternate fixing (number of step with fixed selector)
     args_train["nb_step_all_free"] = 1 # Options for alternate fixing (number of step with all free)
     args_train["ratio_class_selection"] = 1.0 # Options for alternate ordinary Ratio of training with only classification compared to selection
-    args_train["print_every"] = 1
+    args_train["print_every"] = 1000
 
     args_train["sampling_subset_size"] = 2 # Sampling size for the subset 
     args_train["use_cuda"] = torch.cuda.is_available()
@@ -236,13 +233,13 @@ def get_default():
     args_train["post_hoc_guidance"] = None
 
     args_compiler = {}
-    args_compiler["optim_classification"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) #Learning rate for classification module
-    args_compiler["optim_selection"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for selection module
-    args_compiler["optim_selection_var"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the variationnal selection module used in Variationnal Training
-    args_compiler["optim_distribution_module"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the feature extractor if any
-    args_compiler["optim_baseline"] = partial(Adam, lr=1e-4, weight_decay = 1e-3) # Learning rate for the baseline network
-    args_compiler["optim_autoencoder"] = partial(Adam, lr=1e-4, weight_decay = 1e-3)
-    args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-4, weight_decay = 1e-3)
+    args_compiler["optim_classification"] = partial(Adam, lr=1e-4, weight_decay = 0, eps=1e-7) #Learning rate for classification module
+    args_compiler["optim_selection"] = partial(Adam, lr=1e-4, weight_decay = 0, eps=1e-7) # Learning rate for selection module
+    args_compiler["optim_selection_var"] = partial(Adam, lr=1e-4, weight_decay = 0, eps=1e-7) # Learning rate for the variationnal selection module used in Variationnal Training
+    args_compiler["optim_distribution_module"] = partial(Adam, lr=1e-4, weight_decay = 0, eps=1e-7) # Learning rate for the feature extractor if any
+    args_compiler["optim_baseline"] = partial(Adam, lr=1e-4, weight_decay = 0, eps=1e-7) # Learning rate for the baseline network
+    args_compiler["optim_autoencoder"] = partial(Adam, lr=1e-4, weight_decay = 0, eps=1e-7)
+    args_compiler["optim_post_hoc"] = partial(Adam, lr=1e-4, weight_decay = 0, eps=1e-7)
 
     args_compiler["scheduler_classification"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) #Learning rate for classification module
     args_compiler["scheduler_selection"] = partial(torch.optim.lr_scheduler.StepLR, step_size=1000, gamma = 0.9) # Learning rate for selection module
