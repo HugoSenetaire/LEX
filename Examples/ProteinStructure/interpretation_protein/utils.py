@@ -24,7 +24,6 @@ amino_acid = ['A', 'C', 'E', 'D', 'G', 'F', 'I', 'H', 'K', 'M', 'L', 'N', 'Q', '
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
-            
 
 
 
@@ -63,7 +62,6 @@ def interpretation_protein(path, samples, interpretations, targets, outputs, suf
         if target_sequence is not None :
             complete_sequence = np.argmax(target_sequence[i],-1)/len(output)
             complete_sequence = complete_sequence.reshape(1,-1)
-
             complete = np.concatenate([np.transpose(sample), interpretation, aux, complete_sequence])
         else :
             complete = np.concatenate([np.transpose(sample), interpretation, aux])

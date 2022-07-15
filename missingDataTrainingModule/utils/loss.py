@@ -522,11 +522,6 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae
                 )
 
 
-
-      
-
-
-
         return dic
 
 

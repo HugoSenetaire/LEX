@@ -295,10 +295,28 @@ def complete_analysis_image(trainer, loader, final_path, batch_size = 100, nb_sa
         interpretation_sampled(trainer, loader, aux_final_path)
         image_f1_score(trainer, loader, aux_final_path, nb_samples_image_per_category = nb_samples_image_per_category)
         accuracy_output(trainer, loader, aux_final_path, batch_size = batch_size)
-        dic_test = trainer.test(-1, loader, liste_mc = [(1,1,1,1), (1,100, 1, 1), (1,1,100,1), (1,1,1,100)])
-        with open(os.path.join(aux_final_path, "test_dict.json"), "w") as f:
-            json.dump(dic_test, f)
+
+        # dic_test = trainer.test(-1, loader, liste_mc = [(1,1,1,1),])
+        # with open(os.path.join(aux_final_path, "test_dict.txt"), "w") as f :
+            # f.write(str(dic_test))
         
     except AttributeError as e :
         print("Could not save image for attribute")
         print(e)
+
+
+def just_eval_selection(trainer, loader, final_path):
+    loader_folder = final_path.replace("_interpretation", "")
+    aux_final_path = os.path.join(final_path, "at_best_iter")
+    if not os.path.exists(aux_final_path):
+        os.makedirs(aux_final_path)
+
+    print(os.path.join(loader_folder, "classification_module.pt"))
+    if os.path.exists(os.path.join(loader_folder, "classification_module.pt")):
+        print("Loading best iteration")
+        trainer.load_best_iter_dict(loader_folder)
+        print("Loaded")
+
+    dic_test = trainer.eval_selection(-1, loader,)
+    with open(os.path.join(final_path, "selection_analysis.txt"), "w") as f :
+        f.write(str(dic_test))

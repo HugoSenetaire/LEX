@@ -96,8 +96,8 @@ class S_init(GaussianDataset):
                                                                                                                             getProb2 = self.getProb2,
                                                                                                                             scaling_regression = self.scaling_regression)
             self.nb_classes = 1
-        self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
-        self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
+        self.dataset_train = TensorDatasetAugmented(x = self.data_train, y = self.target_train, give_index = self.give_index)
+        self.dataset_test = TensorDatasetAugmented(x = self.data_test, y = self.target_test, give_index = self.give_index)
 
 
 class S_1(S_init):
