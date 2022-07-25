@@ -44,7 +44,15 @@ def expand_for_imputations(data, mask, nb_imputation_iwae, nb_imputation_mc, ind
 ## Abstract imputation class :
 
 class Imputation(nn.Module):
-  def __init__(self, nb_imputation_iwae = 1, nb_imputation_mc = 1, nb_imputation_iwae_test = None, nb_imputation_mc_test = None, reconstruction_reg = None, mask_reg = None, add_mask = False, post_process_regularization = None, **kwargs):
+  def __init__(self, nb_imputation_iwae = 1,
+            nb_imputation_mc = 1,
+            nb_imputation_iwae_test = None,
+            nb_imputation_mc_test = None,
+            reconstruction_reg = None,
+            mask_reg = None,
+            add_mask = False,
+            post_process_regularization = None,
+            **kwargs):
     super().__init__()
     self.add_mask = add_mask
     self.reconstruction_reg = prepare_process(reconstruction_reg)
@@ -407,3 +415,26 @@ class DatasetBasedImputation(Imputation):
           return data_imputed
         else :
           return data
+
+
+
+imputation_list = {
+  "LearnConstantImputation" : LearnConstantImputation,
+  "SumImpute" : SumImpute,
+  "ModuleImputation" : ModuleImputation,
+  "DatasetBasedImputation" : DatasetBasedImputation,
+  "NoiseImputation" : NoiseImputation,
+  "ConstantImputation" : ConstantImputation,
+  "MultipleConstantImputation" : MultipleConstantImputation,
+  "MaskAsInput" : MaskAsInput,
+  "NoDestructionImputation" : NoDestructionImputation,  
+
+
+}
+
+## Imputation :
+def get_imputation_type(imputation_name):  
+  if imputation_name in imputation_list :
+    return imputation_list[imputation_name]
+  else :
+    raise ValueError(f"Imputation {imputation_name} is not implemented")

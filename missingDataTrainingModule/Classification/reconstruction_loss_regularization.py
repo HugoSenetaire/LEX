@@ -2,11 +2,6 @@ import torch
 import torch.nn as nn
 
 
-
-
-##### Multiple Imputation
-  
-
 class NetworkBasedReconstructionRegularization(nn.Module):
   def __init__(self, network_reconstruction, lambda_reconstruction=0.1,):
     super(NetworkBasedReconstructionRegularization, self).__init__()
@@ -21,6 +16,9 @@ class NetworkBasedReconstructionRegularization(nn.Module):
 ### LOSS REGULARIZATION : 
 
 class AutoEncoderReconstructionRegularization(NetworkBasedReconstructionRegularization):
+  """
+  Add an extra loss to the complete model so that the reconstruction of the imputed image is not too far from the original image.
+  """
   def __init__(self, network_reconstruction, lambda_reconstruction = 0.1,):
     super().__init__(network_reconstruction = network_reconstruction, lambda_reconstruction = lambda_reconstruction,)
 

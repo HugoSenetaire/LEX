@@ -257,3 +257,24 @@ class ConvSelectorVar(nn.Module):
     y = y.float()
     x = torch.cat([x,y],1)
     return self.fc(x) #TODO : No Fully connected layer at the end.
+
+
+selection_network_list = {
+  "SelectorLinear": SelectorLinear,
+  "SelectorREALX" : SelectorRealX,
+  "SelectorUNET" : SelectorUNET,
+  "SelectorLVL1" : SelectorLVL1,
+  "SelectorVariational" : SelectorVariational,
+  "SelectorLVL2" : SelectorLVL2,
+  "SelectorLVL3" : SelectorLVL3,
+  "SelectorUNET1D" : SelectorUNET1D,
+  "ConvSelector" : ConvSelector,
+}
+
+def get_selection_network(selector_name):
+  if selector_name is None or selector_name == "none" :
+    return None
+  elif selector_name in selection_network_list.keys():
+    return selection_network_list[selector_name]
+  else:
+    raise NotImplementedError(f"This selector {selector_name} is not implemented")

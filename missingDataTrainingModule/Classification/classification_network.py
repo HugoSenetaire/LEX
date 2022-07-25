@@ -278,3 +278,27 @@ class ProteinCNN(PredictorAbstract):
         x = torch.flatten(x,1)
         x = self.fc(x)
         return x
+
+
+
+
+classifiers_list = {
+    "none": None,
+    "ClassifierLinear" : ClassifierLinear,
+    "ConvClassifier" : ConvClassifier,
+    "ConvClassifier2" : ConvClassifier2,
+    "ProteinCNN" : ProteinCNN,
+    "ClassifierLvl1" : ClassifierLVL1,
+    "ClassifierLvl2" : ClassifierLVL2,
+    "ClassifierLvl3" : ClassifierLVL3,
+}
+
+
+def get_pred_network(classifier_name):
+    if classifier_name == "none" or classifier_name == None:
+        return None
+    elif classifier_name in classifiers_list:
+        return classifiers_list[classifier_name]
+    else:
+        raise ValueError(f"Classifier {classifier_name} not found")
+

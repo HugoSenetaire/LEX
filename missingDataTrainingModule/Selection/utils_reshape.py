@@ -56,3 +56,13 @@ class KernelReshape2D():
             return new_z
 
 
+list_reshape_mask_function = {
+    "KernelReshape2D": KernelReshape2D,
+    "CollapseInBatch": CollapseInBatch,
+}
+
+def get_reshape_mask(reshape_mask_function):
+    if reshape_mask_function in list_reshape_mask_function :
+        return list_reshape_mask_function[reshape_mask_function]
+    else :
+        raise ValueError(f"Unknown reshape mask function {reshape_mask_function}")

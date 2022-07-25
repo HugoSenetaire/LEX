@@ -65,3 +65,19 @@ class NetworkTransformMask(PostProcess):
     return data_reconstructed, mask
 
 
+
+list_post_process_reg = {
+  "None" : None,
+  "addNoiseToUnmask" : addNoiseToUnmask,
+  "NetworkTransform" : NetworkTransform,
+  "NetworkAdd" : NetworkAdd,
+  "NetworkTransformMask" : NetworkTransformMask,
+}
+
+def get_post_process_reg(post_process_regularization):
+  if post_process_regularization == None or post_process_regularization == "None" :
+    return None
+  elif post_process_regularization in list_post_process_reg :
+    return list_post_process_reg[post_process_regularization]
+  else :
+    raise ValueError("Post process regularization not found")
