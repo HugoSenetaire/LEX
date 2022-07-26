@@ -91,23 +91,49 @@ class ClassifierLVL3(PredictorAbstract):
         x = self.fc5(x)
         return self.activation(x)
 
+# class RealXClassifier(PredictorAbstract):
+#     def __init__(self, input_size, output, middle_size=200):
+#         super().__init__(input_size=input_size, output=output)
+#         self.input_size = input_size
+#         self.fc1 = nn.Linear(np.prod(input_size), 200)
+#         self.bn1 = nn.BatchNorm1d(200)
+#         self.fc2 = nn.Linear(200, 200)
+#         self.bn2 = nn.BatchNorm1d(200)
+#         self.fc3 = nn.Linear(200, output)
+
+
+#     def __call__(self, x):
+#         x = x.flatten(1)
+#         x = F.relu(self.fc1(x))
+#         x = self.bn1(x)
+#         x = F.relu(self.fc2(x))
+#         x = self.bn2(x)
+#         x = self.fc3(x)
+
+#         return self.activation(x)
+
+
+def init_weights(m):
+    if isinstance(m, nn.Linear):
+        torch.nn.init.xavier_uniform(m.weight)
+        m.bias.data.fill_(0.01)
+
 class RealXClassifier(PredictorAbstract):
     def __init__(self, input_size, output, middle_size=200):
         super().__init__(input_size=input_size, output=output)
         self.input_size = input_size
-        self.fc1 = nn.Linear(np.prod(input_size), middle_size)
-        self.bn1 = nn.BatchNorm1d(middle_size)
-        self.fc2 = nn.Linear(middle_size, middle_size)
-        self.bn2 = nn.BatchNorm1d(middle_size)
-        self.fc3 = nn.Linear(middle_size, output)
+        self.fc1 = nn.Linear(np.prod(input_size), 200)
+        self.fc2 = nn.Linear(200, 200)
+        self.fc3 = nn.Linear(200, output)
 
+        self.fc1.apply(init_weights)
+        self.fc2.apply(init_weights)
+        self.fc3.apply(init_weights)
 
     def __call__(self, x):
         x = x.flatten(1)
         x = F.relu(self.fc1(x))
-        x = self.bn1(x)
         x = F.relu(self.fc2(x))
-        x = self.bn2(x)
         x = self.fc3(x)
 
         return self.activation(x)

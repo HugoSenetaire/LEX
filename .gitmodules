@@ -1,6 +1,6 @@
 [submodule "missingDataTrainingModule/PytorchDistributionUtils"]
 	path = missingDataTrainingModule/PytorchDistributionUtils
 	url = https://github.com/HugoSenetaire/PytorchDistributionUtils.git
-[submodule "VAEACImputation/vaeac"]
-	path = VAEACImputation/vaeac
-	url = https://github.com/HugoSenetaire/vaeac.git
+[submodule "missingDataTrainingModule/Prediction/SupervizedLearningWithMissingData"]
+	path = missingDataTrainingModule/Prediction/SupervizedLearningWithMissingData
+	url = https://github.com/HugoSenetaire/SupervizedLearningWithMissingData.git

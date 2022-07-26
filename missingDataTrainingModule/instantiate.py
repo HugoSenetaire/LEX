@@ -1,4 +1,4 @@
-from .Classification import *
+from .Prediction import *
 from .PytorchDistributionUtils import *
 from .Selection import *
 from .classification_training import *

@@ -36,6 +36,30 @@ class SelectorLinear(AbstractSelector):
         x = x.flatten(1) # Batch_size, Channels* SizeProduct
         return self.pi(x)
 
+
+def init_weights(m):
+    if isinstance(m, nn.Linear):
+        torch.nn.init.xavier_uniform(m.weight)
+        m.bias.data.fill_(0.01)
+
+class SelectorRealX(AbstractSelector):
+  def __init__(self,input_size = (1,28,28), output_size = (1,28,28)):
+    super().__init__(input_size = input_size, output_size = output_size)
+    self.fc1 = nn.Linear(np.prod(self.input_size), 100)
+    self.fc2 = nn.Linear(100, 100)
+    self.pi = nn.Linear(100, np.prod(self.output_size))
+
+    
+    self.fc1.apply(init_weights)
+    self.fc2.apply(init_weights)
+    self.pi.apply(init_weights)
+
+  def __call__(self, x):
+    x = x.flatten(1) # Batch_size, Channels* SizeProduct
+    x = F.relu(self.fc1(x))
+    x = F.relu(self.fc2(x))
+    return self.pi(x)
+
 class SelectorLVL1(AbstractSelector):
     def __init__(self,input_size = (1,28,28), output_size = (1,28,28)):
       super().__init__(input_size = input_size, output_size = output_size)

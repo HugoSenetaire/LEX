@@ -1,9 +1,10 @@
-from .Classification import *
+from .Prediction import *
 from .PytorchDistributionUtils import *
 from .Selection import *
 from .classification_training import *
 from .interpretation_training import *
 from .selection_training import *
+import copy
 
 def instantiate_trainer(args_trainer,):
     if args_trainer.complete_trainer == "SELECTION_BASED_CLASSIFICATION":
@@ -190,11 +191,11 @@ def instantiate_compiler(args_compiler):
 
 
 def convert_all(complete_args):
-    complete_args.args_trainer = instantiate_trainer(complete_args.args_trainer)
-    complete_args.args_distribution_module = instantiate_distribution(complete_args.args_distribution_module)
-    complete_args.args_classification_distribution_module = instantiate_distribution(complete_args.args_classification_distribution_module)
-    complete_args.args_selection = instantiate_selection(complete_args.args_selection)
-    complete_args.args_classification = instantiate_classification(complete_args.args_classification)
-    complete_args.args_compiler = instantiate_compiler(complete_args.args_compiler)
-
-    return complete_args
+    complete_args_converted = copy.deepcopy(complete_args)
+    complete_args_converted.args_trainer = instantiate_trainer(complete_args_converted.args_trainer)
+    complete_args_converted.args_distribution_module = instantiate_distribution(complete_args_converted.args_distribution_module)
+    complete_args_converted.args_classification_distribution_module = instantiate_distribution(complete_args_converted.args_classification_distribution_module)
+    complete_args_converted.args_selection = instantiate_selection(complete_args_converted.args_selection)
+    complete_args_converted.args_classification = instantiate_classification(complete_args_converted.args_classification)
+    complete_args_converted.args_compiler = instantiate_compiler(complete_args_converted.args_compiler)
+    return complete_args_converted

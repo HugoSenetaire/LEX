@@ -72,17 +72,17 @@ def get_default(args = None):
 
     args.args_selection.input_size_selector = (1,2)
     args.args_selection.output_size_selector = (1,2)
-    args.args_selection.selector = missingDataTrainingModule.Selection.selective_network.RealXSelector
+    args.args_selection.selector = "RealXSelector"
     args.args_selection.selector_var = None 
-    args.args_selection.activation = torch.nn.LogSigmoid()
+    args.args_selection.activation = "LogSigmoid"
 
     args.args_selection.trainable_regularisation = False
-    args.args_selection.regularization = missingDataTrainingModule.Selection.regularization_module.LossRegularization
+    args.args_selection.regularization = "LossRegularization"
     args.args_selection.lambda_reg = 0.0 
     args.args_selection.rate = 0.0
     args.args_selection.loss_regularization = "L1" # L1, L2 
     args.args_selection.batched = False
-    args.args_selection.regularization_var =  missingDataTrainingModule.Selection.regularization_module.LossRegularization
+    args.args_selection.regularization_var =  "LossRegularization"
     args.args_selection.lambda_regularization_var = 0.0
     args.args_selection.rate_var = 0.1
     args.args_selection.loss_regularization_var = "L1"
@@ -90,22 +90,22 @@ def get_default(args = None):
 
 
 
-    args.args_distribution_module.distribution_module = missingDataTrainingModule.PytorchDistributionUtils.wrappers.DistributionModule
-    args.args_distribution_module.distribution = Bernoulli
-    args.args_distribution_module.distribution_relaxed = RelaxedBernoulli
+    args.args_distribution_module.distribution_module = "DistributionModule"
+    args.args_distribution_module.distribution = "Bernoulli"
+    args.args_distribution_module.distribution_relaxed = "RelaxedBernoulli"
     args.args_distribution_module.temperature_init = 1.0
     args.args_distribution_module.test_temperature = 1e-5
-    args.args_distribution_module.scheduler_parameter = missingDataTrainingModule.PytorchDistributionUtils.wrappers.regular_scheduler
+    args.args_distribution_module.scheduler_parameter = "regular_scheduler"
     args.args_distribution_module.antitheis_sampling = False 
 
 
     
-    args.args_classification_distribution_module.distribution_module = missingDataTrainingModule.PytorchDistributionUtils.wrappers.FixedBernoulli
-    args.args_classification_distribution_module.distribution = Bernoulli
-    args.args_classification_distribution_module.distribution_relaxed = RelaxedBernoulli
+    args.args_classification_distribution_module.distribution_module = "FixedBernoulli"
+    args.args_classification_distribution_module.distribution = "Bernoulli"
+    args.args_classification_distribution_module.distribution_relaxed = "RelaxedBernoulli"
     args.args_classification_distribution_module.temperature_init = 0.1
     args.args_classification_distribution_module.test_temperature = 1e-5
-    args.args_classification_distribution_module.scheduler_parameter = missingDataTrainingModule.PytorchDistributionUtils.wrappers.regular_scheduler
+    args.args_classification_distribution_module.scheduler_parameter = "regular_scheduler"
     args.args_classification_distribution_module.antitheis_sampling = False 
 
 
