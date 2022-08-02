@@ -7,7 +7,7 @@ sys.path.append(current_file_path)
 
 
 import missingDataTrainingModule
-from experiment_class import complete_args
+from args_class import complete_args
 from datasets import *
 
 import matplotlib.pyplot as plt

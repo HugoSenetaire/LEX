@@ -8,7 +8,7 @@ sys.path.append(current_file_path)
 
 import traceback
 import missingDataTrainingModule
-from experiment_class import complete_args
+from args_class import complete_args
 from datasets import *
 from interpretation_regression import calculate_score, plot_complete_model_output, plot_selector_output
 
