@@ -7,10 +7,6 @@ from .artificial_dataset import ArtificialDataset
 from .tensor_dataset_augmented import TensorDatasetAugmented
 
 torch.pi = torch.tensor(3.1415)
-np.random.seed(0)
-torch.manual_seed(0)
-
-
 
 
 def bit_count(bin_subset):

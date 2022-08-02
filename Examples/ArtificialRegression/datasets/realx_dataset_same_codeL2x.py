@@ -200,8 +200,20 @@ class Syn_init(GaussianDataset):
                 give_index = False,
                 data_type = None,
                 noise_function = None,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
-        super().__init__(mean = mean, cov=cov, covariance_type = covariance_type, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
+        super().__init__(mean = mean,
+                        cov=cov,
+                        covariance_type = covariance_type,
+                        nb_sample_train = nb_sample_train,
+                        nb_sample_test = nb_sample_test,
+                        give_index = give_index,
+                        noise_function = noise_function,
+                        train_seed=train_seed,
+                        test_seed=test_seed,
+                        **kwargs)
+
         print(f"Given cov is {self.cov}")
 
         self.dim_input = 11
@@ -210,8 +222,6 @@ class Syn_init(GaussianDataset):
         self.data_type = data_type
         
         self.nb_classes = 2
-        train_seed = 0
-        test_seed = 1
         self.data_train, self.target_train, self.optimal_S_train = generate_data(n = self.nb_sample_train, data_type = self.data_type,seed = train_seed,)
         self.data_test, self.target_test, self.optimal_S_test = generate_data(n = self.nb_sample_test, data_type = self.data_type, seed=test_seed)
         

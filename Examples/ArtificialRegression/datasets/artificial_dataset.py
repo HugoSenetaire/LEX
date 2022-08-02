@@ -5,12 +5,11 @@ import numpy as np
 
 
 torch.pi = torch.tensor(3.1415)
-np.random.seed(0)
-torch.manual_seed(0)
+
 
 
 class ArtificialDataset():
-    def __init__(self, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs) -> None:
+    def __init__(self, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, train_seed = 0, test_seed = 1, **kwargs) -> None:
         self.nb_sample_train = nb_sample_train
         self.nb_sample_test = nb_sample_test
         self.give_index = give_index
@@ -18,6 +17,8 @@ class ArtificialDataset():
         self.batch_size_calculate = 100
         self.optimal_S_train = None
         self.optimal_S_test = None
+        self.train_seed = train_seed
+        self.test_seed = test_seed
 
     def get_true_output(self, value, mask = None, index=None, dataset_type = None):
         raise NotImplementedError("Using abstract class ArtificialDataset")

@@ -25,12 +25,11 @@ def get_default(args = None):
     args.args_output.experiment_name = "REINFORCE"
 
 
-    args.args_trainer.complete_trainer = missingDataTrainingModule.SELECTION_BASED_CLASSIFICATION
-    args.args_trainer.monte_carlo_gradient_estimator = missingDataTrainingModule.PytorchDistributionUtils.gradientestimator.REINFORCE # Ordinary training, Variational Traininig, No Variational Training, post hoc...
+    args.args_trainer.complete_trainer = "SELECTION_BASED_CLASSIFICATION"
+    args.args_trainer.monte_carlo_gradient_estimator = "REINFORCE" # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args.args_trainer.save_every_epoch = 1
-    args.args_trainer.save_epoch_function = lambda epoch, nb_epoch: (epoch % args.args_trainer.save_every_epoch == 0) or (epoch == nb_epoch-1) or (epoch<10)
     args.args_trainer.baseline = None
-    args.args_trainer.reshape_mask_function = missingDataTrainingModule.utils_reshape.CollapseInBatch
+    args.args_trainer.reshape_mask_function = "CollapseInBatch"
 
 
     args.args_dataset.dataset = DiagDataset
@@ -50,8 +49,8 @@ def get_default(args = None):
 
 
     args.args_classification.input_size_classification_module = (1,2) # Size before imputation
-    args.args_classification.classifier = missingDataTrainingModule.Classification.classification_network.RealXClassifier
-    args.args_classification.imputation = missingDataTrainingModule.Classification.imputation.ConstantImputation
+    args.args_classification.classifier = "RealXClassifier"
+    args.args_classification.imputation = "ConstantImputation"
     args.args_classification.cste_imputation = 0
     args.args_classification.sigma_noise_imputation = 1.0
     args.args_classification.add_mask = False
@@ -114,7 +113,7 @@ def get_default(args = None):
     args.args_train.nb_epoch_post_hoc = 0 # Training post_hoc
     args.args_train.nb_epoch_pretrain_selector = 0 # Pretrain selector
     args.args_train.use_regularization_pretrain_selector = False # Use regularization when pretraining the selector
-    args.args_train.nb_epoch_pretrain = 0 # Training the complete model 
+    args.args_train.nb_epoch_pretrain = 10 # Training the complete model 
     args.args_train.nb_sample_z_train_monte_carlo = 1
     args.args_train.nb_sample_z_train_IWAE = 1  # Number K in the IWAE-similar loss
     args.args_train.loss_function = "NLL" # NLL, MSE

@@ -273,8 +273,7 @@ class EVAL_X(ordinaryTraining):
         self.optim_classification.step()
 
         if need_dic :
-            dic = self._create_dic(loss = torch.mean(loss_classification),
-                        )
+            dic = self._create_dic(loss = torch.mean(loss_classification),)
         else :
             dic = {}
         return dic
