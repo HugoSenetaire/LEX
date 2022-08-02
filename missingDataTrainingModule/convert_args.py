@@ -9,16 +9,16 @@ import copy
 def instantiate_trainer(args_trainer,):
     if args_trainer.complete_trainer == "SELECTION_BASED_CLASSIFICATION":
         args_trainer.complete_trainer = SELECTION_BASED_CLASSIFICATION
-    elif args_trainer.complete_trainer == "SEPARATE_LOSS":
-        args_trainer.complete_trainer == REALX
+    elif args_trainer.complete_trainer == "REALX":
+        args_trainer.complete_trainer = REALX
     elif args_trainer.complete_trainer == "SELECTION_TRAINING":
-        args_trainer.complete_trainer == selectionTraining
+        args_trainer.complete_trainer = selectionTraining
     elif args_trainer.complete_trainer == "PREDICTION_TRAINING":
-        args_trainer.complete_trainer == ordinaryTraining
+        args_trainer.complete_trainer = ordinaryTraining
     elif args_trainer.complete_trainer == "TRUESELECTION":
-        args_trainer.complete_trainer == trueSelectionTraining
+        args_trainer.complete_trainer = trueSelectionTraining
     elif args_trainer.complete_trainer == "EVAL_X":
-        args_trainer.complete_trainer == EVAL_X
+        args_trainer.complete_trainer = EVAL_X
     else :
         raise ValueError(f"Unknown trainer {args_trainer.complete_trainer}")
 
@@ -100,7 +100,7 @@ def instantiate_distribution(args_distribution):
         args_distribution.distribution_module = PytorchDistributionUtils.wrappers.REBARBernoulli_STE
     elif args_distribution.distribution_module == "REBARBernoulli" :
         args_distribution.distribution_module = PytorchDistributionUtils.wrappers.REBARBernoulli
-    elif args_distribution.distribution_module == "DistributionWithTemperature" :
+    elif args_distribution.distribution_module == "DistributionWithTemperature" or args_distribution.distribution_module == "DistributionWithTemperatureParameter" :
         args_distribution.distribution_module = PytorchDistributionUtils.wrappers.DistributionWithTemperatureParameter
     elif args_distribution.distribution_module == "DistributionModule" :
         args_distribution.distribution_module = PytorchDistributionUtils.wrappers.DistributionModule
