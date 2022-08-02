@@ -37,8 +37,9 @@ def save_parameters(path, complete_args):
 
 
 
-def experiment(dataset, loader, complete_args):
-    torch.random.manual_seed(0)
+def experiment(dataset, loader, complete_args,):
+    if complete_args.args_dataset.train_seed is not None:
+        torch.random.manual_seed(complete_args.args_dataset.train_seed )
     dic_list = {}
 
     ### Prepare output path :
@@ -363,7 +364,7 @@ def experiment(dataset, loader, complete_args):
 
         test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch)
         if test_this_epoch :
-            dic_test = trainer.test(epoch, loader, liste_mc = complete_args_converted.args_test.liste_mc)
+            dic_test = trainer.test(epoch, loader, args = complete_args, liste_mc = complete_args_converted.args_test.liste_mc,)
             if complete_args_converted.args_output.save_weights :
                 last_train_loss_in_test = dic_test["train_loss_in_test"]
                 if last_train_loss_in_test < best_train_loss_in_test :

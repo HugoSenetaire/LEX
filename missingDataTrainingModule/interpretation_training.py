@@ -364,14 +364,14 @@ class SELECTION_BASED_CLASSIFICATION():
 
         return dic
 
-    def eval_selection(self, epoch, loader,):
+    def eval_selection(self, epoch, loader, args):
         total_dic = {}
         total_dic["epoch"] = epoch
         if hasattr(loader.dataset, "optimal_S_test") :
-            total_dic.update(eval_selection(trainer = self, loader = loader))
+            total_dic.update(eval_selection(trainer = self, loader = loader, args=args))
         return total_dic
 
-    def test(self, epoch, loader, liste_mc = [(1,1,1,1), (100,1,1,1), (1,100,1,1), (1,1,100,1), (1,1,1,100)]):
+    def test(self, epoch, loader, args, liste_mc = [(1,1,1,1), (100,1,1,1), (1,100,1,1), (1,1,100,1), (1,1,1,100)]):
         """
         Do multiple test with/without sel, with different number of MC samples for mask sampling and imputation sampling.
         """
@@ -381,7 +381,7 @@ class SELECTION_BASED_CLASSIFICATION():
         if hasattr(self, "last_loss_function") and self.last_loss_function is not None :
             total_dic.update(test_train_loss(trainer = self, loader = loader, loss_function = self.last_loss_function, nb_sample_z_monte_carlo = self.last_nb_sample_z_monte_carlo, nb_sample_z_iwae = self.last_nb_sample_z_iwae, mask_sampling = self.sample_z,))
         if hasattr(loader.dataset, "optimal_S_test") :
-            total_dic.update(eval_selection(trainer = self, loader = loader))
+            total_dic.update(eval_selection(trainer = self, loader = loader, args = args,))
         self.cuda() # QUICK FIX BECAUE SELECTION TEST THROW OUT OF CUDA @HHJS TODO LEAVE ON CUDA``
         total_dic.update(multiple_test(trainer = self, loader = loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,))
 
