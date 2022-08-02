@@ -528,24 +528,17 @@ def multiple_test(trainer, loader, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae
 
 
 
-def eval_selection(trainer, loader,):
+def eval_selection(trainer, loader, args):
     trainer.classification_module.imputation.nb_imputation_mc_test = 1
     trainer.classification_module.imputation.nb_imputation_iwae_test = 1     
     trainer.eval()
     dic = eval_selection_local(trainer, loader,)
-    if hasattr(trainer.distribution_module.distribution, "keywords") :
-        if "rate" in trainer.distribution_module.distribution.keywords :
-            rate = trainer.distribution_module.distribution.keywords["rate"]
-        elif "k" in trainer.distribution_module.distribution.keywords :
-            rate = trainer.distribution_module.distribution.keywords["k"] / np.prod(loader.dataset.get_dim_input(), dtype=np.float32)
-    elif hasattr(trainer.selection_module, "regularization") and hasattr(trainer.selection_module.regularization, "rate"):
-        rate = trainer.selection_module.regularization.rate
-    else :
-        rate = 0.
-    if rate > 0.:
-        aux_dic_rate = eval_selection_local(trainer, loader, rate)
-        for key in aux_dic_rate.keys():
-            dic[key+"_rate"] = aux_dic_rate[key]
+    if args.args_selection.rate is not None :
+        rate = args.args_selection.rate
+        if rate > 0.:
+            aux_dic_rate = eval_selection_local(trainer, loader, rate)
+            for key in aux_dic_rate.keys():
+                dic[key+"_rate"] = aux_dic_rate[key]
 
     return dic
 
