@@ -317,6 +317,7 @@ classifiers_list = {
     "ClassifierLvl1" : ClassifierLVL1,
     "ClassifierLvl2" : ClassifierLVL2,
     "ClassifierLvl3" : ClassifierLVL3,
+    "RealXClassifier" : RealXClassifier,
 }
 
 
