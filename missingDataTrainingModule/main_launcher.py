@@ -30,7 +30,7 @@ def save_parameters(path, complete_args):
     if not os.path.exists(complete_path):
         os.makedirs(complete_path)
 
-    with open("parameters.pkl", "wb") as f:
+    with open(os.path.join(complete_path,"parameters.pkl"), "wb") as f:
         pkl.dump(complete_args, f)
 
 
