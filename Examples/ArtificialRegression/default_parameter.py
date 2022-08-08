@@ -32,8 +32,8 @@ def get_default(args = None):
     args.args_trainer.reshape_mask_function = "CollapseInBatch"
 
 
-    args.args_dataset.dataset = DiagDataset
-    args.args_dataset.loader = LoaderArtificial
+    args.args_dataset.dataset = "DiagDataset"
+    args.args_dataset.loader = "LoaderArtificial"
     args.args_dataset.root_dir = os.path.join(args.args_output.path, "datasets")
     args.args_dataset.batch_size_train = 1000
     args.args_dataset.batch_size_test = 1000
@@ -144,7 +144,7 @@ def get_default(args = None):
 
     args.args_compiler.optim_classification_param = {"lr":1e-4,
                                                     "weight_decay" : 1e-3}  #Learning rate for classification module
-    args.args_compiler.optim_selection_param = {"lr":1e-4,
+    args.args_compiler.optim_selection_param = {"lr":1,
                                                 "weight_decay" : 1e-3}  # Learning rate for selection module
     args.args_compiler.optim_selection_var_param = {"lr":1e-4,
                                                     "weight_decay" : 1e-3}  # Learning rate for the variationnal selection module used in Variationnal Training
