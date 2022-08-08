@@ -1,12 +1,12 @@
-from .utils import *
-import torch.nn.functional as F
+from ..utils import *
 
+import torch.nn.functional as F
+import torch
 
 class selectionTraining():
-    def __init__(self, selection_module, use_reg = False):    
-        self.selection_module = selection_module
+    def __init__(self, interpretable_module, use_reg = False):    
+        self.interpretable_module = interpretable_module
         self.use_reg = use_reg
-
         self.compiled = False
         self.use_cuda = False
 
@@ -20,7 +20,7 @@ class selectionTraining():
         if not torch.cuda.is_available() :
             print("CUDA not found, using cpu instead")
         else :
-            self.selection_module.cuda()
+            self.interpretable_module.selection_module.cuda()
             self.use_cuda = True
        
 
@@ -33,17 +33,12 @@ class selectionTraining():
             dic["loss_reg"] = 0
         return dic
 
-    def _create_dic_test(self, correct, mse_loss):
-        dic = {}
-        dic["accuracy"] = correct.item()
-        dic["mse"] = mse_loss.item()
-        return dic
 
     def zero_grad(self):
-        self.selection_module.zero_grad()
+        self.interpretable_module.selection_module.zero_grad()
 
     def train(self):
-        self.selection_module.train()
+        self.interpretable_module.selection_module.train()
 
 
     def _train_step(self, data, target, dataset, index = None):
@@ -51,7 +46,7 @@ class selectionTraining():
         if self.use_cuda :
             data, target, index = on_cuda(data, target, index)
         
-        log_pi_list, loss_reg = self.selection_module(data,)
+        log_pi_list, loss_reg = self.interpretable_module.selection_module(data,)
 
         mse_loss = F.mse_loss(torch.exp(log_pi_list), target, reduction='mean')
 
@@ -90,7 +85,7 @@ class selectionTraining():
 
 
     def test(self, epoch, loader):
-        self.selection_module.eval()
+        self.interpretable_module.selection_module.eval()
 
         dataset = loader.dataset
         test_loss = 0
@@ -101,7 +96,7 @@ class selectionTraining():
                 target = loader.dataset.optimal_S_test[index].type(torch.float32)
                 if self.use_cuda :
                     data, target, index = on_cuda(data, target, index)
-                log_pi_list, _ = self.selection_module(data,)
+                log_pi_list, _ = self.interpretable_module.selection_module(data,)
                 mse = F.mse_loss(torch.exp(log_pi_list), target)
                 test_loss += mse
                 pred = torch.exp(log_pi_list).data.round()

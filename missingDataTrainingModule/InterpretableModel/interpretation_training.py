@@ -1,8 +1,6 @@
 from missingDataTrainingModule import PytorchDistributionUtils
-from ..utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, multiple_test, test_train_loss, eval_selection
 from ..utils.utils import *
-from functools import partial, total_ordering
-from .EVALX import EVAL_X
+from .fixed_selection_training import EVAL_X
 
 import numpy as np
 import torch.nn.functional as F
@@ -13,13 +11,13 @@ class COUPLED_SELECTION(nn.Module):
     """ Abstract class to help the classification of the different module """
 
     def __init__(self,
-                classification_module,
+                prediction_module,
                 selection_module,
                 distribution_module,
                 reshape_mask_function = None,
                 **kwargs):
-
-        self.classification_module = classification_module
+        super(COUPLED_SELECTION, self).__init__()
+        self.prediction_module = prediction_module
         self.selection_module = selection_module
         self.distribution_module = distribution_module
         self.reshape_mask_function = reshape_mask_function
@@ -50,22 +48,32 @@ class COUPLED_SELECTION(nn.Module):
         mask = self.reshape(mask)
 
         # Classification Module :
-        log_y_hat, regul_classification = self.classification_module(data_expanded, mask = mask, index = index_expanded)
+        log_y_hat, regul_classification = self.prediction_module(data_expanded, mask = mask, index = index_expanded)
         return log_y_hat, regul_classification, mask, loss_reg, p_z
+
+    def sample_z(self, data, index, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1):
+        batch_size = data.shape[0]
+        log_pi_list, _ = self.selection_module(data)
+        log_pi_list = log_pi_list.unsqueeze(1).expand(batch_size, nb_sample_z_iwae, -1) # IWae is part of the parameters while monte carlo is used in the monte carlo gradient estimator.
+        pi_list = torch.exp(log_pi_list)
+        p_z = self.distribution_module(probs = pi_list)
+        z = self.distribution_module.sample((nb_sample_z_monte_carlo,))
+        return z
+        
         
 
 
 
 class DECOUPLED_SELECTION(COUPLED_SELECTION):
     def __init__(self,
-                classification_module,
+                prediction_module,
                 selection_module,
                 distribution_module,
                 classification_distribution_module = PytorchDistributionUtils.wrappers.FixedBernoulli(),
                 reshape_mask_function = None,
                ):
 
-        super().__init__(classification_module = classification_module,
+        super().__init__(prediction_module = prediction_module,
                         selection_module = selection_module,
                         distribution_module = distribution_module,
                         reshape_mask_function = reshape_mask_function,
@@ -73,6 +81,6 @@ class DECOUPLED_SELECTION(COUPLED_SELECTION):
 
         self.classification_distribution_module = classification_distribution_module
         self.EVALX = EVAL_X(
-                    classification_module = classification_module,
+                    prediction_module = prediction_module,
                     fixed_distribution = self.classification_distribution_module,
                     reshape_mask_function = self.reshape_mask_function,)

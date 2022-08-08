@@ -29,7 +29,10 @@ def get_default(args = None):
     args.args_trainer.monte_carlo_gradient_estimator = "REINFORCE" # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args.args_trainer.save_every_epoch = 1
     args.args_trainer.baseline = None
-    args.args_trainer.reshape_mask_function = "CollapseInBatch"
+
+    args.args_interpretable_module.interpretable_module = "SINGLE_LOSS"
+    args.args_interpretable_module.reshape_mask_function = "CollapseInBatch"
+
 
 
     args.args_dataset.dataset = "DiagDataset"
@@ -48,7 +51,7 @@ def get_default(args = None):
 
 
 
-    args.args_classification.input_size_classification_module = (1,2) # Size before imputation
+    args.args_classification.input_size_prediction_module = (1,2) # Size before imputation
     args.args_classification.classifier = "RealXClassifier"
     args.args_classification.imputation = "ConstantImputation"
     args.args_classification.cste_imputation = 0
@@ -144,7 +147,7 @@ def get_default(args = None):
 
     args.args_compiler.optim_classification_param = {"lr":1e-4,
                                                     "weight_decay" : 1e-3}  #Learning rate for classification module
-    args.args_compiler.optim_selection_param = {"lr":1,
+    args.args_compiler.optim_selection_param = {"lr":1e-4,
                                                 "weight_decay" : 1e-3}  # Learning rate for selection module
     args.args_compiler.optim_selection_var_param = {"lr":1e-4,
                                                     "weight_decay" : 1e-3}  # Learning rate for the variationnal selection module used in Variationnal Training

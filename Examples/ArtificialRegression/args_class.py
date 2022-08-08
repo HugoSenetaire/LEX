@@ -21,6 +21,11 @@ class args_trainer():
         self.save_every_epoch = None
         self.save_epoch_function = None
         self.baseline = None
+
+
+class args_interpretable_module():
+    def __init__(self):
+        self.interpretable_module = None
         self.reshape_mask_function = None
 
 class args_dataset():
@@ -41,7 +46,7 @@ class args_dataset():
 
 class args_classification():
     def __init__(self):
-        self.input_size_classification_module = None
+        self.input_size_prediction_module = None
         self.classifier = None
         self.imputation = None
         self.cste_imputation = None
@@ -189,5 +194,6 @@ class complete_args():
         self.args_test = args_test()
         self.args_compiler = args_compiler()
         self.args_dataset = args_dataset()
+        self.args_interpretable_module = args_interpretable_module()
 
     

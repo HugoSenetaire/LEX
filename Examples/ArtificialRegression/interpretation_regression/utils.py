@@ -134,7 +134,7 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
   if centroids is not None :
     if imputed_centroids :
       centroids_masks = dataset.optimal_S
-      imputation = trainer.classification_module.imputation
+      imputation = trainer.prediction_module.imputation
       centroids, _ = imputation.impute(centroids, centroids_masks)    
 
   min_x = torch.min(dataset.data_train[:,0])
@@ -150,7 +150,7 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
   complete_X = torch.cat([xaux1, xaux2], dim=0).transpose(1,0)
 
   
-  if next(trainer.classification_module.classifier.parameters()).is_cuda:
+  if next(trainer.prediction_module.classifier.parameters()).is_cuda:
     complete_X = complete_X.cuda()
 
   if hasattr(trainer, "selection_module"):
@@ -160,7 +160,7 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
     z = trainer.distribution_module.sample((1,))
     z = trainer.reshape(z)
 
-    output_selection, _ = trainer.classification_module(complete_X, z)
+    output_selection, _ = trainer.prediction_module(complete_X, z)
     # output_selection = trainer._predict(complete_X, sampling_distribution, nb_classes, Nexpectation = 20, index = None)  
     if classification :
       pred_selection = torch.exp(output_selection).detach().cpu()
@@ -171,7 +171,7 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
   
 
 
-  output, _ = trainer.classification_module(complete_X, index = None)
+  output, _ = trainer.prediction_module(complete_X, index = None)
   if classification :
     pred_selection = torch.exp(output).detach().cpu()
   
@@ -239,10 +239,10 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
 
 
 
-def calculate_score(trainer, loader, CFindex = None):
-  trainer.classification_module.imputation.nb_imputation_mc_test = 1
-  trainer.classification_module.imputation.nb_imputation_iwae_test = 1     
-  trainer.eval()
+def calculate_score(interpretation_module, loader, CFindex = None):
+  interpretation_module.prediction_module.imputation.nb_imputation_mc_test = 1
+  interpretation_module.prediction_module.imputation.nb_imputation_iwae_test = 1     
+  interpretation_module.eval()
   
   if loader.dataset.get_dim_output() > 1 :
     classification = True
@@ -256,18 +256,18 @@ def calculate_score(trainer, loader, CFindex = None):
   target_test = loader.dataset.target_test.type(torch.float32)
   optimal_S_test = loader.dataset.optimal_S_test.type(torch.float32)
 
-  if hasattr(trainer, "selection_module"):
-    selection_module = trainer.selection_module.cpu()
-    distribution_module = trainer.distribution_module.cpu()
+  if hasattr(interpretation_module, "selection_module"):
+    selection_module = interpretation_module.selection_module.cpu()
+    distribution_module = interpretation_module.distribution_module.cpu()
     selection_module.eval()
     distribution_module.eval()
     selection_evaluation = True
   else :
     selection_evaluation = False
-  classification_module = trainer.classification_module.cpu()
+  prediction_module = interpretation_module.prediction_module.cpu()
 
 
-  classification_module.eval()
+  prediction_module.eval()
 
 
   with torch.no_grad():
@@ -275,8 +275,8 @@ def calculate_score(trainer, loader, CFindex = None):
       log_pi_list, _ = selection_module(data_test)
       distribution_module(torch.exp(log_pi_list))
       z = distribution_module.sample((1,))
-      z = trainer.reshape(z)
-      output_selection, _ = classification_module(data_test, z, index=None)
+      z = interpretation_module.reshape(z)
+      output_selection, _ = prediction_module(data_test, z, index=None)
       if classification :
         pred_selection = np.argmax(torch.exp(output_selection).detach().cpu().numpy(), axis =-1)
       else :
@@ -285,13 +285,13 @@ def calculate_score(trainer, loader, CFindex = None):
       if selection_module.activation is torch.nn.Softmax():
         log_pi_list = torch.log(distribution_module.sample((1000,)).mean(dim = 0))
 
-    output_true_selection, _ = classification_module(data_test, optimal_S_test, index = None, )
+    output_true_selection, _ = prediction_module(data_test, optimal_S_test, index = None, )
     if classification :
       pred_true_selection = np.argmax(torch.exp(output_true_selection).detach().cpu().numpy(), axis=-1)
     else :
       pred_true_selection = output_true_selection.detach().cpu().numpy()
 
-    output_no_selection, _ = classification_module(data_test, index = None)
+    output_no_selection, _ = prediction_module(data_test, index = None)
     if classification :
       pred_no_selection = np.argmax(torch.exp(output_no_selection).detach().numpy(), axis=-1)
     else :
@@ -331,8 +331,8 @@ def calculate_score(trainer, loader, CFindex = None):
 
     fpr, tpr, thresholds = sklearn.metrics.roc_curve(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1),)
     
-    dic["fpr"] = fpr
-    dic["tpr"] = tpr
+    dic["fpr_sklearn"] = fpr
+    dic["tpr_sklearn"] = tpr
     dic["thresholds"] = thresholds
 
     sel_pred = (np.exp(log_pi_list) >0.5).astype(int).reshape(-1)
@@ -347,8 +347,8 @@ def calculate_score(trainer, loader, CFindex = None):
     tpr = tp / (tp + fn + 1e-8)
 
 
-    dic["fpr2"] = fpr
-    dic["tpr2"] = tpr
+    dic["fpr"] = fpr
+    dic["tpr"] = tpr
 
     dic["selection_accuracy_rounded"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.round(np.exp(log_pi_list.reshape(-1)))))
     dic["selection_accuracy"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.exp(log_pi_list.reshape(-1))))

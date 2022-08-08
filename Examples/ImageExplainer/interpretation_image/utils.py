@@ -43,11 +43,11 @@ def imputation_image(trainer, loader, final_path, nb_samples_image_per_category 
     if trainer.use_cuda:
         data, target = data.cuda(), target.cuda()
     
-    classification_module = trainer.classification_module
+    prediction_module = trainer.prediction_module
     selection_module = trainer.selection_module
     distribution_module = trainer.distribution_module
-    classification_module.imputation.nb_imputation_mc_test = nb_imputation
-    classification_module.imputation.nb_imputation_iwae_test = 1
+    prediction_module.imputation.nb_imputation_mc_test = nb_imputation
+    prediction_module.imputation.nb_imputation_iwae_test = 1
 
 
 
@@ -61,7 +61,7 @@ def imputation_image(trainer, loader, final_path, nb_samples_image_per_category 
     z = trainer.reshape(z)
 
 
-    data_imputed = classification_module.get_imputation(data, z)
+    data_imputed = prediction_module.get_imputation(data, z)
     data_imputed = data_imputed.cpu().detach().numpy().reshape(nb_imputation, total_image, *wanted_shape)
     data = data.cpu().detach().numpy()
     z = z.cpu().detach().numpy()
@@ -111,7 +111,7 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image_per_cat
         cmap = 'viridis'
 
     
-    classification_module = trainer.classification_module
+    prediction_module = trainer.prediction_module
     selection_module = trainer.selection_module
     distribution_module = trainer.distribution_module
 
@@ -125,7 +125,7 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image_per_cat
     z = distribution_module.sample((1,))
     z = trainer.reshape(z)
     pi_list = trainer.reshape(torch.exp(log_pi_list))
-    pred, _ = classification_module(data, z)
+    pred, _ = prediction_module(data, z)
 
     data = data.cpu().detach().numpy()
     z = z.cpu().detach().numpy()
@@ -177,7 +177,7 @@ def image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = 
         cmap = 'viridis'
 
     
-    classification_module = trainer.classification_module
+    prediction_module = trainer.prediction_module
     selection_module = trainer.selection_module
     distribution_module = trainer.distribution_module
 
@@ -288,7 +288,7 @@ def complete_analysis_image(trainer, loader, final_path, batch_size = 100, nb_sa
         if not os.path.exists(aux_final_path):
             os.makedirs(aux_final_path)
 
-        if os.path.exists(os.path.join(loader_folder, "classification_module.pt")):
+        if os.path.exists(os.path.join(loader_folder, "prediction_module.pt")):
             trainer.load_best_iter_dict(loader_folder)
             
         imputation_image(trainer, loader, aux_final_path)
@@ -311,8 +311,8 @@ def just_eval_selection(trainer, loader, final_path):
     if not os.path.exists(aux_final_path):
         os.makedirs(aux_final_path)
 
-    print(os.path.join(loader_folder, "classification_module.pt"))
-    if os.path.exists(os.path.join(loader_folder, "classification_module.pt")):
+    print(os.path.join(loader_folder, "prediction_module.pt"))
+    if os.path.exists(os.path.join(loader_folder, "prediction_module.pt")):
         print("Loading best iteration")
         trainer.load_best_iter_dict(loader_folder)
         print("Loaded")

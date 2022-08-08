@@ -13,6 +13,8 @@ class LossRegularization():
     self.lambda_reg = lambda_reg
     self.regul_loss = regul_loss
     self.rate = rate
+    if self.rate is None: 
+      self.rate = 0.0
     if self.rate>1.0 or self.rate<0.0:
       raise ValueError("Need a missing rate between 0 and 1.")
 

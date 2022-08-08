@@ -51,22 +51,23 @@ def multiple_experiment(
         return count
     try :
         final_path, trainer, loader, dic_list = missingDataTrainingModule.main_launcher.experiment(dataset, loader, complete_args)
+        interpretable_module = trainer.interpretable_module
         ## Interpretation                
-        dic_interpretation = calculate_score(trainer, loader)
+        dic_interpretation = calculate_score(interpretable_module, loader)
         current_path = os.path.join(final_path, "interpretation.txt")
         with open(current_path, "w") as f:
             for key in dic_interpretation:
                 f.write(f"{key} : {dic_interpretation[key]}\n")
         
         if loader.dataset.dim_input ==2:
-            if hasattr(trainer, "selection_module"):
-                plot_selector_output(trainer.selection_module, loader.dataset, complete_args.args_output.path)
-                plot_selector_output(trainer.selection_module, loader.dataset, complete_args.args_output.path, train_data=True)
-                plot_selector_output(trainer.selection_module, loader.dataset, complete_args.args_output.path, interpretation= True)
-                plot_selector_output(trainer.selection_module, loader.dataset, complete_args.args_output.path, interpretation= True, train_data=True)
+            if hasattr(interpretable_module, "selection_module"):
+                plot_selector_output(interpretable_module.selection_module, loader.dataset, complete_args.args_output.path)
+                plot_selector_output(interpretable_module.selection_module, loader.dataset, complete_args.args_output.path, train_data=True)
+                plot_selector_output(interpretable_module.selection_module, loader.dataset, complete_args.args_output.path, interpretation= True)
+                plot_selector_output(interpretable_module.selection_module, loader.dataset, complete_args.args_output.path, interpretation= True, train_data=True)
                 
-            plot_complete_model_output(trainer, loader.dataset, Bernoulli, complete_args.args_output.path)
-            plot_complete_model_output(trainer, loader.dataset, Bernoulli, complete_args.args_output.path, train_data=True)  
+            plot_complete_model_output(interpretable_module, loader.dataset, Bernoulli, complete_args.args_output.path)
+            plot_complete_model_output(interpretable_module, loader.dataset, Bernoulli, complete_args.args_output.path, train_data=True)  
 
             out_path = os.path.join(complete_args.args_output.path, "output_dataset.png")
             Y = loader.dataset.target_train[:10000].cpu().detach().numpy()

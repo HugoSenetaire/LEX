@@ -29,8 +29,9 @@ def get_default():
     args.args_trainer.complete_trainer = "SELECTION_BASED_CLASSIFICATION"
     args.args_trainer.monte_carlo_gradient_estimator = "REBAR" # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args.args_trainer.save_every_epoch = 20
-    args.args_trainer.reshape_mask_function = "KernelReshape2D"
-
+    
+    args.args_interpretable_module.interpretable_module = "SINGLE_LOSS"
+    args.args_interpretable_module.reshape_mask_function = "KernelReshape2D"
 
     args.args_dataset.dataset = MnistDataset
     args.args_dataset.loader = LoaderEncapsulation
@@ -42,7 +43,8 @@ def get_default():
 
 
 
-    args.args_classification.input_size_classification_module = (1,28,28) # Size before imputation
+
+    args.args_classification.input_size_prediction_module = (1,28,28) # Size before imputation
     args.args_classification.classifier = "ConvClassifier"
 
     args.args_classification.imputation = "ConstantImputation"

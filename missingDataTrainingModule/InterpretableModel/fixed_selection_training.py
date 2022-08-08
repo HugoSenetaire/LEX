@@ -1,4 +1,3 @@
-from ..utils import define_target, continuous_NLLLoss, MSELossLastDim, NLLLossAugmented, AccuracyLoss, calculate_cost, multiple_test, test_train_loss
 from ..utils.utils import *
 from ..PytorchDistributionUtils import *
 import torch.nn.functional as F
@@ -7,24 +6,24 @@ import torch.nn as nn
 
 
 
-class ordinaryTraining(nn.Module):
-    def __init__(self, classification_module,): 
-        super(ordinaryTraining, self).__init__()
-        self.classification_module = classification_module
+class PredictionCompleteModel(nn.Module):
+    def __init__(self, prediction_module,): 
+        super(PredictionCompleteModel, self).__init__()
+        self.prediction_module = prediction_module
         
 
 
     def __call__(self, data, index = None,):
-        log_y_hat, regul_classification = self.classification_module(data, index= index)
+        log_y_hat, regul_classification = self.prediction_module(data, index= index)
         return log_y_hat, regul_classification, None, None, None
 
 
 
 
 
-class trueSelectionTraining(ordinaryTraining):
-    def __init__(self, classification_module, dataset):   
-        super().__init__(classification_module, )
+class trueSelectionCompleteModel(PredictionCompleteModel):
+    def __init__(self, prediction_module, dataset):   
+        super().__init__(prediction_module, )
         self.dataset = dataset
 
     def reshape(self, mask):
@@ -38,7 +37,7 @@ class trueSelectionTraining(ordinaryTraining):
         true_mask_expanded = extend_input(true_mask, mc_part = nb_sample_z_monte_carlo, iwae_part = nb_sample_z_iwae)
         index_expanded = extend_input(index, mc_part = nb_sample_z_monte_carlo, iwae_part = nb_sample_z_iwae)
 
-        log_y_hat, regul_classification = self.classification_module(data_expanded, mask = true_mask_expanded, index=index_expanded)
+        log_y_hat, regul_classification = self.prediction_module(data_expanded, mask = true_mask_expanded, index=index_expanded)
         return log_y_hat, regul_classification, true_mask_expanded, None, None
 
 
@@ -47,17 +46,16 @@ class trueSelectionTraining(ordinaryTraining):
         true_mask = extend_input(true_mask, mc_part = nb_sample_z_monte_carlo, iwae_part = nb_sample_z_iwae)
         return true_mask
     
+    
 
 
-
-
-class EVAL_X(ordinaryTraining):
+class EVAL_X(PredictionCompleteModel):
     def __init__(self,
-                    classification_module,
+                    prediction_module,
                     fixed_distribution = wrappers.FixedBernoulli(),
                     reshape_mask_function = None, 
                     ):
-        super().__init__(classification_module, )
+        super().__init__(prediction_module, )
         self.fixed_distribution = fixed_distribution
         self.reshape_mask_function = reshape_mask_function
 
@@ -72,23 +70,25 @@ class EVAL_X(ordinaryTraining):
     def __call__(self, data, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1, ):   
         data_expanded = extend_input(data, mc_part = nb_sample_z_monte_carlo, iwae_part = nb_sample_z_iwae)
         index_expanded = extend_input(index, mc_part = nb_sample_z_monte_carlo, iwae_part = nb_sample_z_iwae)
+        if index_expanded is not None :
+            index_expanded = index_expanded.flatten(0,2)
         batch_size = data.shape[0]
-
-        nb_sample_z_monte_carlo_classification, nb_sample_z_iwae_classification = nb_sample_z_monte_carlo*nb_sample_z_iwae, 1
         
         # Destructive module
-        p_z = self.fixed_distribution(torch.zeros(batch_size, nb_sample_z_iwae_classification, *self.classification_module.classifier.input_size[1:]).to(data.device))
+        p_z = self.fixed_distribution(torch.zeros(batch_size, nb_sample_z_iwae, *self.prediction_module.classifier.input_size[1:]).to(data.device))
         # Train classification module :
-        mask = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo_classification,))
+        mask = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo,))
         mask = self.reshape(mask)
 
-        log_y_hat, regul_classification = self.classification_module(data_expanded, mask = mask, index = index_expanded)
+        
+        
+        log_y_hat, regul_classification = self.prediction_module(data_expanded.flatten(0,2), mask = mask, index = index_expanded)
         return log_y_hat, regul_classification, mask, None, p_z
 
 
-    def sample_z(self, data, target, index, dataset, nb_sample_z_monte_carlo, nb_sample_z_iwae):
+    def sample_z(self, data, index, nb_sample_z_monte_carlo = 1 , nb_sample_z_iwae = 1):
         batch_size = data.shape[0]
-        p_z = self.fixed_distribution(torch.zeros(batch_size, nb_sample_z_iwae, 1, *self.classification_module.classifier.input_size[1:]).to(data.device))
+        p_z = self.fixed_distribution(torch.zeros(batch_size, nb_sample_z_iwae, 1, *self.prediction_module.classifier.input_size[1:]).to(data.device))
         z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo,))
         return z
     
