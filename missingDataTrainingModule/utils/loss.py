@@ -612,6 +612,11 @@ def eval_selection_local(trainer, loader, rate = None):
             dim_pi_list = np.prod(trainer.selection_module.selector.output_size)
             k = max(int(dim_pi_list * rate),1)
             top_k_value, to_sel = torch.topk(pi_list.flatten(1), k, dim = 1)
+            # min_value = torch.min(pi_list.flatten(1)[to_sel],dim=1)
+            # print(min_value[0].shape)
+            # sel_pred =  pi_list.flatten(1) > min_value
+            # aux = torch.min(top_k_value,dim=1)[0].unsqueeze(1).expand(pi_list.shape[0],pi_list.shape[1])
+            # print(torch.sum(torch.where(pi_list.flatten(1) >aux , torch.tensor(1), torch.tensor(0))))
             sel_pred = torch.zeros_like(pi_list).scatter(1, to_sel, 1).detach().cpu().numpy().astype(int)
 
         sel_true = optimal_S_test.reshape(sel_pred.shape)

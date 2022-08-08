@@ -38,7 +38,7 @@ class LossRegularization():
       
 class SoftmaxRegularization():
   def __init__(self, rate = 0.5, batched = False, **kwargs):
-    self.rate =rate
+    self.rate = rate
     self.batched = batched
     if self.rate>1.0 or self.rate<0.0:
       raise ValueError("Need a missing rate between 0 and 1.")
