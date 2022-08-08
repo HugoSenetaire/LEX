@@ -532,14 +532,15 @@ def eval_selection(trainer, loader, args):
     trainer.classification_module.imputation.nb_imputation_mc_test = 1
     trainer.classification_module.imputation.nb_imputation_iwae_test = 1     
     trainer.eval()
-    dic = eval_selection_local(trainer, loader,)
+    
     if args.args_selection.rate is not None :
         rate = args.args_selection.rate
         if rate > 0.:
-            aux_dic_rate = eval_selection_local(trainer, loader, rate)
-            for key in aux_dic_rate.keys():
-                dic[key+"_rate"] = aux_dic_rate[key]
-
+            dic = eval_selection_local(trainer, loader, rate)
+        else :
+            dic = eval_selection_local(trainer, loader,)
+    else :
+        dic = eval_selection_local(trainer, loader,)
     return dic
 
 
@@ -602,7 +603,7 @@ def eval_selection_local(trainer, loader, rate = None):
                 pi_list = torch.exp(log_pi_list)
             
             pi_list = trainer.reshape(pi_list).flatten(1)
-        total_pi_list[index] = pi_list
+        total_pi_list[index] = pi_list.detach()
 
         optimal_S_test = optimal_S_test.detach().cpu().numpy()
         if rate is None :
@@ -610,7 +611,7 @@ def eval_selection_local(trainer, loader, rate = None):
         else :
             dim_pi_list = np.prod(trainer.selection_module.selector.output_size)
             k = max(int(dim_pi_list * rate),1)
-            to_sel = torch.topk(pi_list.flatten(1), k, dim = 1)[1]
+            top_k_value, to_sel = torch.topk(pi_list.flatten(1), k, dim = 1)
             sel_pred = torch.zeros_like(pi_list).scatter(1, to_sel, 1).detach().cpu().numpy().astype(int)
 
         sel_true = optimal_S_test.reshape(sel_pred.shape)
