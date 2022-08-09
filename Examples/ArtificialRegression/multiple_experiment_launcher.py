@@ -23,9 +23,9 @@ import numpy as np
 
 def get_dataset(args_dataset):
     #Turn class to dictionary
-    dic_args_dataset = vars(args_dataset)
-    dataset = list_dataset[args_dataset.dataset](**dic_args_dataset)
-    loader = LoaderArtificial(dataset, batch_size_train=args_dataset.batch_size_train, batch_size_test=args_dataset.batch_size_test,)
+    dic_parameters_dataset = vars(args_dataset.args_dataset_parameters)
+    dataset = list_dataset[args_dataset.dataset](**dic_parameters_dataset)
+    loader = LoaderArtificial(dataset, batch_size_train=args_dataset.args_dataset_parameters.batch_size_train, batch_size_test=args_dataset.args_dataset_parameters.batch_size_test,)
     return dataset, loader
 
 
