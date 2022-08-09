@@ -141,53 +141,55 @@ def experiment(dataset, loader, complete_args,):
     ##### ============ Modules initialisation for ordinary training ============:
 
     pretrainer_pred = None
-    if complete_args_converted.args_train.nb_epoch_pretrain > 0 and\
-        (complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION or complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION):
-        if complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION :
+    if complete_args_converted.args_train.nb_epoch_pretrain > 0 :
+        if (complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION or complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION):
+            if complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION :
+                pretrainer_pred = trainingWithSelection(interpretable_module.EVALX, 
             pretrainer_pred = trainingWithSelection(interpretable_module.EVALX, 
-                            post_hoc_guidance = post_hoc_guidance_prediction_module,
-                            post_hoc = complete_args_converted.args_train.post_hoc,
-                            argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
-                            loss_function = loss_function,
-                            nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo,
-                            nb_sample_z_iwae = complete_args_converted.args_train.nb_sample_z_train_IWAE,
-                            )
-        elif complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION :
-            pretrainer_pred = ordinaryPredictionTraining(interpretable_module,
-                            post_hoc_guidance = post_hoc_guidance_prediction_module,
-                            post_hoc = complete_args_converted.args_train.post_hoc,
-                            argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
-                            loss_function = loss_function,
-                            )
-        
-        if complete_args_converted.args_train.use_cuda:
-            pretrainer_pred.cuda()
+                pretrainer_pred = trainingWithSelection(interpretable_module.EVALX, 
+                                post_hoc_guidance = post_hoc_guidance_prediction_module,
+                                post_hoc = complete_args_converted.args_train.post_hoc,
+                                argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
+                                loss_function = loss_function,
+                                nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo,
+                                nb_sample_z_iwae = complete_args_converted.args_train.nb_sample_z_train_IWAE,
+                                )
+            elif complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION :
+                pretrainer_pred = ordinaryPredictionTraining(interpretable_module,
+                                post_hoc_guidance = post_hoc_guidance_prediction_module,
+                                post_hoc = complete_args_converted.args_train.post_hoc,
+                                argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
+                                loss_function = loss_function,
+                                )
+            
+            if complete_args_converted.args_train.use_cuda:
+                pretrainer_pred.cuda()
 
-        optim_classification, scheduler_classification = get_optim(interpretable_module.prediction_module,
-                                                        complete_args_converted.args_compiler.optim_classification,
-                                                        complete_args_converted.args_compiler.optim_classification_param,
-                                                        complete_args_converted.args_compiler.scheduler_classification,
-                                                        complete_args_converted.args_compiler.scheduler_classification_param,)
-        pretrainer_pred.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
-        nb_epoch = complete_args_converted.args_train.nb_epoch_pretrain
+            optim_classification, scheduler_classification = get_optim(interpretable_module.prediction_module,
+                                                            complete_args_converted.args_compiler.optim_classification,
+                                                            complete_args_converted.args_compiler.optim_classification_param,
+                                                            complete_args_converted.args_compiler.scheduler_classification,
+                                                            complete_args_converted.args_compiler.scheduler_classification_param,)
+            pretrainer_pred.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
+            nb_epoch = complete_args_converted.args_train.nb_epoch_pretrain
 
-        epoch_scheduler = classic_train_epoch(save_dic = True, verbose=complete_args_converted.args_train.verbose,)
-        total_dic_train = {}
-        total_dic_test = {}
-        for epoch in range(nb_epoch):
-            dic_train = epoch_scheduler(epoch, loader, pretrainer_pred)
-            total_dic_train = fill_dic(total_dic_train, dic_train)
+            epoch_scheduler = classic_train_epoch(save_dic = True, verbose=complete_args_converted.args_train.verbose,)
+            total_dic_train = {}
+            total_dic_test = {}
+            for epoch in range(nb_epoch):
+                dic_train = epoch_scheduler(epoch, loader, pretrainer_pred)
+                total_dic_train = fill_dic(total_dic_train, dic_train)
 
-            test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch_post_hoc)
-            if test_this_epoch :
-                dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = complete_args_converted.args_test.liste_mc, trainer = pretrainer_pred)
-                total_dic_test = fill_dic(total_dic_test, dic_test)
+                test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch_post_hoc)
+                if test_this_epoch :
+                    dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = complete_args_converted.args_test.liste_mc, trainer = pretrainer_pred)
+                    total_dic_test = fill_dic(total_dic_test, dic_test)
 
-        dic_list["train_pretraining"] = total_dic_train
-        dic_list["test_pretraining"]  = total_dic_test
-    else :
-        print(f"Pretraining is either not implemented or not needed for this interpretable module {complete_args.args_interpretable_module.interpretable_module}")
-        
+            dic_list["train_pretraining"] = total_dic_train
+            dic_list["test_pretraining"]  = total_dic_test
+        else :
+            print(f"Pretraining is either not implemented or not needed for this interpretable module {complete_args.args_interpretable_module.interpretable_module}")
+            
 
     ##### ======================= Training in selection ==========================:
 
