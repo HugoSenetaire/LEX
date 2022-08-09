@@ -125,9 +125,9 @@ def multiple_test(interpretable_module, loader, nb_sample_z_monte_carlo = 1, nb_
             argmax_post_hoc = trainer.argmax_post_hoc
 
         
-        if set_manual_seed is not None :
-            print(f"SET MANUAL SEED {set_manual_seed}")
-            torch.manual_seed(set_manual_seed)
+        # if set_manual_seed is not None :
+            # print(f"SET MANUAL SEED {set_manual_seed}")
+            # torch.manual_seed(set_manual_seed)
         with torch.no_grad():
             for batch_index, data in enumerate(loader.test_loader):
                 data, target, index = parse_batch(data)
