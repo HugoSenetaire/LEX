@@ -114,6 +114,7 @@ class args_train():
         self.nb_sample_z_train_IWAE = None  # Number K in the IWAE-similar loss
         self.loss_function = None # NLL, MSE
         self.loss_function_selection = None # This is used for DECOUPLED SELECTION WHEN ONE WANTS A DIFFERENT LOSS THERE
+        self.verbose = False
 
         self.training_type = None # Options are ["classic", "alternate_ordinary", "alternate_fixing"]
         self.nb_step_fixed_classifier = None # Options for alternate fixing (number of step with fixed classifier)

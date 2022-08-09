@@ -171,7 +171,7 @@ def experiment(dataset, loader, complete_args,):
         pretrainer_pred.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
         nb_epoch = complete_args_converted.args_train.nb_epoch_pretrain
 
-        epoch_scheduler = classic_train_epoch(save_dic = True, verbose=True,)
+        epoch_scheduler = classic_train_epoch(save_dic = True, verbose=complete_args_converted.args_train.verbose,)
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(nb_epoch):
@@ -288,7 +288,7 @@ def experiment(dataset, loader, complete_args,):
 
 ###### Main module training :
     # epoch_scheduler = classic_train_epoch(save_dic = True, verbose=((epoch+1) % complete_args_converted.args_train.print_every == 0),)
-    epoch_scheduler = classic_train_epoch(save_dic = True, verbose=True,)
+    epoch_scheduler = classic_train_epoch(save_dic = True, verbose=complete_args_converted.args_train.verbose,)
     best_train_loss_in_test = float("inf")
     total_dic_train = {}
     total_dic_test = {}

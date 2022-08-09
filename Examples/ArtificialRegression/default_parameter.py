@@ -120,6 +120,8 @@ def get_default(args = None):
     args.args_train.nb_sample_z_train_monte_carlo = 1
     args.args_train.nb_sample_z_train_IWAE = 1  # Number K in the IWAE-similar loss
     args.args_train.loss_function = "NLL" # NLL, MSE
+    args.args_train.loss_function_selection = None
+    args.args_train.verbose = True
 
     args.args_train.training_type = "classic" # Options are .classic "alternate_ordinary", "alternate_fixing"]
     args.args_train.nb_step_fixed_classifier = 1 # Options for alternate fixing (number of step with fixed classifier)
