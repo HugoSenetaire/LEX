@@ -145,8 +145,6 @@ def experiment(dataset, loader, complete_args,):
         if (complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION or complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION):
             if complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION :
                 pretrainer_pred = trainingWithSelection(interpretable_module.EVALX, 
-            pretrainer_pred = trainingWithSelection(interpretable_module.EVALX, 
-                pretrainer_pred = trainingWithSelection(interpretable_module.EVALX, 
                                 post_hoc_guidance = post_hoc_guidance_prediction_module,
                                 post_hoc = complete_args_converted.args_train.post_hoc,
                                 argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
