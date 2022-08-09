@@ -80,7 +80,7 @@ def eval_selection_local(interpretable_module, loader, rate = None):
                 pi_list = torch.exp(log_pi_list)
             
             pi_list = interpretable_module.reshape(pi_list).flatten(1)
-        total_pi_list[index] = pi_list.detach()
+        total_pi_list[index] = pi_list.detach().cpu().numpy()
 
         optimal_S_test = optimal_S_test.detach().cpu().numpy()
         if rate is None :
