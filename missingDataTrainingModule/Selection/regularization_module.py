@@ -15,6 +15,7 @@ class LossRegularization():
     self.rate = rate
     if self.rate is None: 
       self.rate = 0.0
+    
     if self.rate>1.0 or self.rate<0.0:
       raise ValueError("Need a missing rate between 0 and 1.")
 
@@ -34,7 +35,7 @@ class LossRegularization():
     if self.batched:
       pi_list = torch.mean(pi_list, -1)
 
-    regularizing_vector = torch.full_like(pi_list, self.rate)
+    regularizing_vector = torch.full_like(pi_list, self.rate, device=log_pi_list.device)
     loss_reg = self.lambda_reg * torch.mean(self.function(regularizing_vector - pi_list))
     return log_pi_list, loss_reg
       

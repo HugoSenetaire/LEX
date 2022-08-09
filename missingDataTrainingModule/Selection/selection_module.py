@@ -23,15 +23,10 @@ class SelectionModule(nn.Module):
             # self.regularization = nn.ModuleList(self.regularization)
         self.use_cuda = False
     
-    def cuda(self,):
-        super(SelectionModule, self).cuda()
-        self.use_cuda = True
 
     def __call__(self, data_expanded, one_hot_target = None, test=False):
         
-        loss_reg = torch.tensor(0.)
-        if self.use_cuda :
-            loss_reg = loss_reg.cuda()
+        loss_reg = torch.tensor(0., device = data_expanded.device)
 
         if one_hot_target is not None :
             log_pi_list = self.selector(data_expanded, one_hot_target)
@@ -44,8 +39,6 @@ class SelectionModule(nn.Module):
         if self.regularization is not None :
             for reg in self.regularization :
                 log_pi_list, loss_reg_aux = reg(log_pi_list)
-                if self.use_cuda:
-                    loss_reg_aux.cuda()
                 loss_reg +=loss_reg_aux
                 
             return log_pi_list, loss_reg
