@@ -54,16 +54,18 @@ def get_imputation_method(args_classification, dataset):
 
 
 
-def get_loss_function(args_train, output_dim):
-    if args_train.loss_function== "MSE" :
+def get_loss_function(loss_function, args_train, output_dim):
+    if loss_function== "MSE" :
         loss_function = MSELossLastDim(reduction='none')
-    elif args_train.loss_function== "NLL" :
+    elif loss_function== "NLL" :
         if output_dim == 1 :
             raise ValueError("NLL loss is not defined for a regression problem")
         if args_train.post_hoc and (not args_train.argmax_post_hoc):
             loss_function = continuous_NLLLoss(reduction='none')
         else :
             loss_function = NLLLossAugmented(reduction='none')
+    elif loss_function == None :
+        loss_function = None
     else :
         raise ValueError("Unknown loss function") 
     

@@ -65,8 +65,12 @@ def experiment(dataset, loader, complete_args,):
     ### Networks :
     classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(complete_args_converted.args_classification, complete_args_converted.args_selection, complete_args_converted.args_trainer, complete_args_converted.args_interpretable_module, dataset.get_dim_output())
     ### Loss Function :
-    loss_function = get_loss_function(complete_args_converted.args_train, dataset.get_dim_output())
-
+    loss_function = get_loss_function(complete_args_converted.args_train.loss_function,
+                                            complete_args_converted.args_train,
+                                            dataset.get_dim_output())
+    loss_function_selection = get_loss_function(complete_args_converted.args_train.loss_function_selection,
+                                            complete_args_converted.args_train,
+                                            dataset.get_dim_output())
     ### Complete Module :
     prediction_module = PredictionModule(classifier, imputation=imputation)
     selection_module =  SelectionModule(selector,
@@ -235,7 +239,7 @@ def experiment(dataset, loader, complete_args,):
         post_hoc = complete_args_converted.args_train.post_hoc,
         argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
         loss_function = loss_function,
-        loss_function_selection= None,
+        loss_function_selection = loss_function_selection,
         nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo,
         nb_sample_z_iwae = complete_args_converted.args_train.nb_sample_z_train_IWAE,
         )
