@@ -293,7 +293,7 @@ def multiple_test(interpretable_module, loader, nb_sample_z_monte_carlo = 1, nb_
                     )
                 )
 
-        print("==========================================================")
+        print("============")
         print("\n")
         return dic
 

@@ -231,48 +231,49 @@ def get_trainer(trainer,
                 nb_sample_z_iwae = 1):
     
     if trainer is SINGLE_LOSS :
-        trainer = SINGLE_LOSS(interpretable_module,
-                            monte_carlo_gradient_estimator,
-                            baseline,
-                            fix_classifier_parameters,
-                            fix_selector_parameters,
-                            post_hoc_guidance,
-                            post_hoc,
-                            argmax_post_hoc,
-                            loss_function,
-                            nb_sample_z_monte_carlo,
-                            nb_sample_z_iwae)
+        trainer = SINGLE_LOSS(interpretable_module = interpretable_module,
+                            monte_carlo_gradient_estimator= monte_carlo_gradient_estimator,
+                            baseline = baseline,
+                            fix_classifier_parameters = fix_classifier_parameters,
+                            fix_selector_parameters = fix_selector_parameters,
+                            post_hoc_guidance = post_hoc_guidance,
+                            post_hoc = post_hoc,
+                            argmax_post_hoc = argmax_post_hoc,
+                            loss_function = loss_function,
+                            nb_sample_z_monte_carlo = nb_sample_z_monte_carlo,
+                            nb_sample_z_iwae = nb_sample_z_iwae)
     elif trainer is SEPARATE_LOSS :
-        trainer = SEPARATE_LOSS(interpretable_module,
-                            monte_carlo_gradient_estimator,
-                            baseline,
-                            fix_classifier_parameters,
-                            fix_selector_parameters,
-                            post_hoc_guidance,
-                            post_hoc,
-                            argmax_post_hoc,
-                            loss_function,
-                            loss_function_selection,
-                            nb_sample_z_monte_carlo,
-                            nb_sample_z_iwae
+        trainer = SEPARATE_LOSS(interpretable_module = interpretable_module,
+                            monte_carlo_gradient_estimator= monte_carlo_gradient_estimator,
+                            baseline = baseline,
+                            fix_classifier_parameters = fix_classifier_parameters,
+                            fix_selector_parameters = fix_selector_parameters,
+                            post_hoc_guidance = post_hoc_guidance,
+                            post_hoc = post_hoc,
+                            argmax_post_hoc = argmax_post_hoc,
+                            loss_function = loss_function,
+                            loss_function_selection= loss_function_selection,
+                            nb_sample_z_monte_carlo = nb_sample_z_monte_carlo,
+                            nb_sample_z_iwae = nb_sample_z_iwae
                     )
     elif trainer is ordinaryPredictionTraining :
-        trainer = ordinaryPredictionTraining(interpretable_module,
-                    post_hoc,
-                    post_hoc_guidance, 
-                    argmax_post_hoc,
-                    loss_function,
-                    nb_sample_z_monte_carlo,
-                    nb_sample_z_iwae,)
+        trainer = ordinaryPredictionTraining(interpretable_module = interpretable_module,
+                    post_hoc = post_hoc,
+                    post_hoc_guidance = post_hoc_guidance,
+                    argmax_post_hoc = argmax_post_hoc,
+                    loss_function = loss_function,
+                    nb_sample_z_monte_carlo = nb_sample_z_monte_carlo,
+                    nb_sample_z_iwae = nb_sample_z_iwae,
+                    )
         
     elif trainer is trainingWithSelection :
-        trainer = trainingWithSelection(interpretable_module,
-                    post_hoc,
-                    post_hoc_guidance, 
-                    argmax_post_hoc,
-                    loss_function,
-                    nb_sample_z_monte_carlo,
-                    nb_sample_z_iwae,)
+        trainer = trainingWithSelection(interpretable_module = interpretable_module,
+                    post_hoc = post_hoc,
+                    post_hoc_guidance = post_hoc_guidance,
+                    argmax_post_hoc = argmax_post_hoc,
+                    loss_function = loss_function,
+                    nb_sample_z_monte_carlo = nb_sample_z_monte_carlo,
+                    nb_sample_z_iwae = nb_sample_z_iwae,)
     else :
         raise ValueError(f"Trainer {trainer} is not implemented")
 

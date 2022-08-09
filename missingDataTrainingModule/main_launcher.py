@@ -141,9 +141,10 @@ def experiment(dataset, loader, complete_args,):
     ##### ============ Modules initialisation for ordinary training ============:
 
     pretrainer_pred = None
-    if complete_args_converted.args_train.nb_epoch_pretrain > 0 and (interpretable_module is DECOUPLED_SELECTION or interpretable_module is COUPLED_SELECTION):
-        if interpretable_module is DECOUPLED_SELECTION :
-            pretrainer_pred = trainingWithSelection(interpretable_module, 
+    if complete_args_converted.args_train.nb_epoch_pretrain > 0 and\
+        (complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION or complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION):
+        if complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION :
+            pretrainer_pred = trainingWithSelection(interpretable_module.EVALX, 
                             post_hoc_guidance = post_hoc_guidance_prediction_module,
                             post_hoc = complete_args_converted.args_train.post_hoc,
                             argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
@@ -151,7 +152,7 @@ def experiment(dataset, loader, complete_args,):
                             nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo,
                             nb_sample_z_iwae = complete_args_converted.args_train.nb_sample_z_train_IWAE,
                             )
-        elif interpretable_module is COUPLED_SELECTION :
+        elif complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION :
             pretrainer_pred = ordinaryPredictionTraining(interpretable_module,
                             post_hoc_guidance = post_hoc_guidance_prediction_module,
                             post_hoc = complete_args_converted.args_train.post_hoc,
@@ -228,15 +229,14 @@ def experiment(dataset, loader, complete_args,):
     ##### ============  Modules initialisation for complete training ===========:
    
 
-
     trainer = get_trainer(complete_args_converted.args_trainer.complete_trainer,
         interpretable_module,
         monte_carlo_gradient_estimator = complete_args_converted.args_trainer.monte_carlo_gradient_estimator,
         baseline = None,
         fix_classifier_parameters = complete_args_converted.args_train.fix_classifier_parameters,
         fix_selector_parameters = complete_args_converted.args_train.fix_selector_parameters,
-        post_hoc_guidance = post_hoc_guidance_prediction_module,
         post_hoc = complete_args_converted.args_train.post_hoc,
+        post_hoc_guidance = post_hoc_guidance_prediction_module,
         argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
         loss_function = loss_function,
         loss_function_selection = loss_function_selection,
