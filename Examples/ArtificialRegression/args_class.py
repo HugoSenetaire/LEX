@@ -1,5 +1,7 @@
 from torch.nn import LogSoftmax, LogSigmoid
 
+from datasets import args_dataset_parameters
+
 class args_object():
     def __init__(self) -> None:
         pass
@@ -32,17 +34,7 @@ class args_dataset():
     def __init__(self):
         self.dataset = None
         self.loader = None
-        self.root_dir = None
-        self.batch_size_train = None
-        self.batch_size_test = None
-        self.noise_function = None
-        self.cov = None
-        self.covariance_type = None
-        self.mean = None
-        self.download = None
-        self.dim_input = None
-        self.used_dim = None
-        self.give_index = None
+        self.args_dataset_parameters = args_dataset_parameters()
 
 class args_classification():
     def __init__(self):

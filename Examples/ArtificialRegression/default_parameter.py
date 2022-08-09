@@ -37,17 +37,17 @@ def get_default(args = None):
 
     args.args_dataset.dataset = "DiagDataset"
     args.args_dataset.loader = "LoaderArtificial"
-    args.args_dataset.root_dir = os.path.join(args.args_output.path, "datasets")
-    args.args_dataset.batch_size_train = 1000
-    args.args_dataset.batch_size_test = 1000
-    args.args_dataset.noise_function = None
-    args.args_dataset.cov = torch.tensor(1.0, dtype=torch.float32)
-    args.args_dataset.covariance_type = "spherical" #Choice spherical diagonal full
-    args.args_dataset.mean = torch.tensor(0.0, dtype=torch.float32)
-    args.args_dataset.download = True
-    args.args_dataset.dim_input = 11
-    args.args_dataset.used_dim = 10
-    args.args_dataset.give_index = True
+    args.args_dataset.args_dataset_parameters.root_dir = os.path.join(args.args_output.path, "datasets")
+    args.args_dataset.args_dataset_parameters.batch_size_train = 1000
+    args.args_dataset.args_dataset_parameters.batch_size_test = 1000
+    args.args_dataset.args_dataset_parameters.noise_function = None
+    args.args_dataset.args_dataset_parameters.cov = torch.tensor(1.0, dtype=torch.float32)
+    args.args_dataset.args_dataset_parameters.covariance_type = "spherical" #Choice spherical diagonal full
+    args.args_dataset.args_dataset_parameters.mean = torch.tensor(0.0, dtype=torch.float32)
+    args.args_dataset.args_dataset_parameters.download = True
+    args.args_dataset.args_dataset_parameters.dim_input = 11
+    args.args_dataset.args_dataset_parameters.used_dim = 10
+    args.args_dataset.args_dataset_parameters.give_index = True
 
 
 

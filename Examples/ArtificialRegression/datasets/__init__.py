@@ -26,3 +26,17 @@ list_dataset = {
     "ExpSquaredSumUniformDataset": ExpSquaredSumUniformDataset,   
     "ExpSquaredSumUniformDatasetV2": ExpSquaredSumUniformDatasetV2,
 }
+
+class args_dataset_parameters():
+    def __init__(self) -> None:
+        self.root_dir = None
+        self.batch_size_train = None
+        self.batch_size_test = None
+        self.noise_function = None
+        self.cov = None
+        self.covariance_type = None
+        self.mean = None
+        self.download = None
+        self.dim_input = None
+        self.used_dim = None
+        self.give_index = None  
