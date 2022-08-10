@@ -152,7 +152,6 @@ def Ground_Truth_Generation(X, data_type):
             out[idx2,6:10] = 1
     return out
 
-    
 #%% Generate X and Y
 '''
 n: Number of samples
@@ -235,6 +234,41 @@ class Syn_init(GaussianDataset):
 
         self.dataset_train = TensorDatasetAugmented(x = self.data_train, y = self.target_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(x = self.data_test, y = self.target_test, give_index = self.give_index)
+
+    def true_predictor(self, X):
+        # number of samples
+        n = len(X[:,0])
+        
+        # Logit generation
+        # 1. Syn4
+        if (self.data_type == 'Syn4'):
+            logit1 = torch.exp(X[:,0]*X[:,1])
+            logit2 = torch.exp(torch.sum(X[:,2:6]**2, axis = 1) - 4.0)        
+        # 2. Syn5
+        elif (self.data_type == 'Syn5'):
+            logit1 = torch.exp(X[:,0]*X[:,1])
+            logit2 = torch.exp(-10 * torch.sin(0.2*X[:,6]) + abs(X[:,7]) + X[:,8] + torch.exp(-X[:,9])  - 2.4) 
+        # 3. Syn6
+        elif (self.data_type == 'Syn6'):
+            logit1 = torch.exp(torch.sum(X[:,2:6]**2, axis = 1) - 4.0) 
+            logit2 = torch.exp(-10 * torch.sin(0.2*X[:,6]) + abs(X[:,7]) + X[:,8] + torch.exp(-X[:,9])  - 2.4) 
+
+            # Based on X[:,10], combine two logits        
+        idx1 = (X[:,10]< 0)*1
+        idx2 = (X[:,10]>=0)*1
+
+        logit = logit1 * idx1 + logit2 * idx2
+
+                    
+        # P(Y=1|X) & P(Y=0|X)
+        prob_1 = torch.reshape( (1 / (1+logit)), [n,1])
+        prob_0 = torch.reshape( (logit / (1+logit)), [n,1])
+        
+        # Probability output
+        prob_y = torch.cat((prob_0,prob_1), axis = 1)
+    
+        return prob_y
+        
 
 
 class Syn1(Syn_init):
