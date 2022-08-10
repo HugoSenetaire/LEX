@@ -21,6 +21,7 @@ def get_all_paths(input_dirs, dataset_name):
             first_step = os.path.join(os.path.join(input_dir, dataset), "*")
             path_finder = os.path.join(os.path.join(first_step, "*"),"interpretation.txt")
             list_all_paths[dataset].extend(glob.glob(path_finder, recursive=True))
+            print("Found {} interpretations for dataset {}".format(len(list_all_paths[dataset]), dataset))
     print("Found {} paths".format(len(list_all_paths)))
     return list_all_paths
 
@@ -85,7 +86,7 @@ def parameter_to_dic(file):
 
     dic["parameters_args_dataset_dataset"] = str(dic["parameters_args_dataset_dataset"])
     dic["parameters_args_dataset_loader"] = str(dic["parameters_args_dataset_loader"])
-
+    dic["parameters_args_test_liste_mc"] = str(dic["parameters_args_test_liste_mc"])
 
     return dic
 
@@ -149,11 +150,13 @@ def get_train_log(path,):
 
 def create_data_frame(input_dirs, dataset_name, get_output = False):
     list_all_paths = get_all_paths(input_dirs, dataset_name)
+    
     dataframe = None
     dic = {}
     k=0
-    for dataset_name in list_all_paths :
+    for dataset_name in list_all_paths.keys() :
         print("Treating {}".format(dataset_name))
+        print("{} : {}".format(dataset_name, len(list_all_paths[dataset_name])))
         for i,path in tqdm.tqdm(enumerate(list_all_paths[dataset_name])) :
             # Parameter
             dic = get_parameters(path)
