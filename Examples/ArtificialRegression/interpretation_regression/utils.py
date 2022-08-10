@@ -10,6 +10,7 @@ import numpy as np
 import sklearn
 from itertools import cycle, islice
 
+from missingDataTrainingModule.EvaluationUtils import eval_selection_sample, test_epoch
 
 colors = np.array(['#377eb8', '#ff7f00', '#4daf4a',
                   '#f781bf', '#a65628', '#984ea3',
@@ -237,127 +238,16 @@ def plot_complete_model_output(trainer, dataset, sampling_distribution, path, im
 
 ##  Accuracy of the experiments :
 
+def calculate_score(interpretable_module, loader, trainer, args, CFindex = None):
+  interpretable_module.eval()
+  dic = eval_selection_sample(interpretable_module, loader,)
 
+  if CFindex is not None and f"Mean_pi_{CFindex}" in list(dic.keys()):
+    dic["CPFR_rate"] = dic["Mean_pi_{}".format(CFindex)]
 
-def calculate_score(interpretation_module, loader, CFindex = None):
-  interpretation_module.prediction_module.imputation.nb_imputation_mc_test = 1
-  interpretation_module.prediction_module.imputation.nb_imputation_iwae_test = 1     
-  interpretation_module.eval()
-  
-  if loader.dataset.get_dim_output() > 1 :
-    classification = True
-  elif loader.dataset.get_dim_output() == 1 :
-    classification = False 
-  else :
-    raise ValueError("Dimension of the output must be > 0")
+  for key in list(dic.keys()) :
+    dic["sampled_" +key] = dic[key]
 
-
-  data_test = loader.dataset.data_test.type(torch.float32)
-  target_test = loader.dataset.target_test.type(torch.float32)
-  optimal_S_test = loader.dataset.optimal_S_test.type(torch.float32)
-
-  if hasattr(interpretation_module, "selection_module"):
-    selection_module = interpretation_module.selection_module.cpu()
-    distribution_module = interpretation_module.distribution_module.cpu()
-    selection_module.eval()
-    distribution_module.eval()
-    selection_evaluation = True
-  else :
-    selection_evaluation = False
-  prediction_module = interpretation_module.prediction_module.cpu()
-
-
-  prediction_module.eval()
-
-
-  with torch.no_grad():
-    if selection_evaluation :
-      log_pi_list, _ = selection_module(data_test)
-      distribution_module(torch.exp(log_pi_list))
-      z = distribution_module.sample((1,))
-      z = interpretation_module.reshape(z)
-      output_selection, _ = prediction_module(data_test, z, index=None)
-      if classification :
-        pred_selection = np.argmax(torch.exp(output_selection).detach().cpu().numpy(), axis =-1)
-      else :
-        pred_selection = output_selection.detach().cpu().numpy()
-      log_pi_list = log_pi_list.detach().cpu().numpy()
-      if selection_module.activation is torch.nn.Softmax():
-        log_pi_list = torch.log(distribution_module.sample((1000,)).mean(dim = 0))
-
-    output_true_selection, _ = prediction_module(data_test, optimal_S_test, index = None, )
-    if classification :
-      pred_true_selection = np.argmax(torch.exp(output_true_selection).detach().cpu().numpy(), axis=-1)
-    else :
-      pred_true_selection = output_true_selection.detach().cpu().numpy()
-
-    output_no_selection, _ = prediction_module(data_test, index = None)
-    if classification :
-      pred_no_selection = np.argmax(torch.exp(output_no_selection).detach().numpy(), axis=-1)
-    else :
-      pred_no_selection = output_no_selection.detach().cpu().numpy()
-
-
-  target_test = target_test.detach().cpu().numpy()
-  optimal_S_test = optimal_S_test.detach().cpu().numpy()
-
-  dic = {}
-  if selection_evaluation:
-    dic["accuracy"] = 1 - np.mean(np.abs(pred_selection - target_test))
-    if not classification :
-      dic["mse"] = np.mean((pred_selection - target_test)**2)
-    try :
-      print(pred_selection.shape)
-      print(target_test.shape)
-      dic["auroc"] = sklearn.metrics.roc_auc_score(target_test, pred_selection)
-      dic["auroc_true_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_true_selection)
-      dic["auroc_no_selection"] = sklearn.metrics.roc_auc_score(target_test, pred_no_selection)
-    except Exception as e:
-      print(traceback.format_exc())
-      dic["auroc"] = -1.
-      dic["auroc_true_selection"] = -1.
-      dic["auroc_no_selection"] = -1.
-
-  dic["accuracy_true_selection"] = 1 - np.mean(np.abs(pred_true_selection - target_test))
-  dic["accuracy_no_selection"] = 1 - np.mean(np.abs(pred_no_selection - target_test))
-  if not classification :
-    dic["mse_true_selection"] = np.mean((pred_true_selection - target_test)**2)
-    dic["mse_no_selection"] = np.mean((pred_no_selection - target_test)**2)
-
-  if selection_evaluation:
-    if CFindex is not None :
-      dic["CPFSelection"] = np.sum(np.exp(log_pi_list[:,10]) > 0.5)/len(log_pi_list)
-      dic["CPFR_rate"] = np.mean(np.exp(log_pi_list[:,10]))
-
-    fpr, tpr, thresholds = sklearn.metrics.roc_curve(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1),)
-    
-    dic["fpr_sklearn"] = fpr
-    dic["tpr_sklearn"] = tpr
-    dic["thresholds"] = thresholds
-
-    sel_pred = (np.exp(log_pi_list) >0.5).astype(int).reshape(-1)
-    sel_true = optimal_S_test.reshape(-1)
-    fp = np.sum((sel_pred == 1) & (sel_true == 0))
-    tp = np.sum((sel_pred == 1) & (sel_true == 1))
-
-    fn = np.sum((sel_pred == 0) & (sel_true == 1))
-    tn = np.sum((sel_pred == 0) & (sel_true == 0))
-
-    fpr = fp / (fp + tn + 1e-8)
-    tpr = tp / (tp + fn + 1e-8)
-
-
-    dic["fpr"] = fpr
-    dic["tpr"] = tpr
-
-    dic["selection_accuracy_rounded"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.round(np.exp(log_pi_list.reshape(-1)))))
-    dic["selection_accuracy"] = 1 - np.mean(np.abs(optimal_S_test.reshape(-1) - np.exp(log_pi_list.reshape(-1))))
-    try :
-      dic["selection_auroc"] = sklearn.metrics.roc_auc_score(optimal_S_test.reshape(-1), np.exp(log_pi_list).reshape(-1))
-    except Exception as e:
-      print(traceback.format_exc())
-      dic["selection_auroc"] = -1.
-    dic["mean_selection"] = np.mean(np.exp(log_pi_list), axis=0)
-
+  dic.update(test_epoch(interpretable_module, None, loader, args, liste_mc = [(1,1,1,1),], trainer = trainer,))
 
   return dic

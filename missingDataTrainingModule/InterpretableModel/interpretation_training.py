@@ -29,9 +29,6 @@ class COUPLED_SELECTION(nn.Module):
             return reshaped_z
         else :
             return z
-        
-
-
     
     def __call__(self, data, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,):
         data_expanded = extend_input(data, mc_part = nb_sample_z_monte_carlo, iwae_part = nb_sample_z_iwae)
@@ -80,7 +77,6 @@ class DECOUPLED_SELECTION(COUPLED_SELECTION):
                         )
 
         self.classification_distribution_module = classification_distribution_module
-        self.EVALX = EVAL_X(
-                    prediction_module = prediction_module,
+        self.EVALX = EVAL_X(prediction_module = prediction_module,
                     fixed_distribution = self.classification_distribution_module,
                     reshape_mask_function = self.reshape_mask_function,)

@@ -160,15 +160,15 @@ def save_model(final_path, prediction_module, selection_module, distribution_mod
     if not os.path.exists(final_path):
         os.makedirs(final_path)
 
-    path = os.path.join(final_path, f"prediction_module_{suffix}.pt")
+    path = os.path.join(final_path, f"prediction_module{suffix}.pt")
     torch.save(prediction_module.state_dict(), path)
 
-    path = os.path.join(final_path, f"selection_module_{suffix}.pt")
+    path = os.path.join(final_path, f"selection_module{suffix}.pt")
     torch.save(selection_module.state_dict(), path)
 
-    path = os.path.join(final_path, f"distribution_module_{suffix}.pt")
+    path = os.path.join(final_path, f"distribution_module{suffix}.pt")
     torch.save(distribution_module.state_dict(), path)
 
     if baseline is not None:
-        path = os.path.join(final_path, f"baseline_{suffix}.pt")
+        path = os.path.join(final_path, f"baseline{suffix}.pt")
         torch.save(baseline.state_dict(), path)

@@ -17,7 +17,7 @@ from torch.distributions import *
 from torch.optim import *
 import torch
 from functools import partial
-
+import pickle as pkl
 import numpy as np
 
 
@@ -53,11 +53,14 @@ def multiple_experiment(
         final_path, trainer, loader, dic_list = missingDataTrainingModule.main_launcher.experiment(dataset, loader, complete_args)
         interpretable_module = trainer.interpretable_module
         ## Interpretation                
-        dic_interpretation = calculate_score(interpretable_module, loader)
+        dic_interpretation = calculate_score(interpretable_module, loader, trainer, complete_args, CFindex = None)
         current_path = os.path.join(final_path, "interpretation.txt")
         with open(current_path, "w") as f:
             for key in dic_interpretation:
                 f.write(f"{key} : {dic_interpretation[key]}\n")
+        current_path = os.path.join(final_path, "interpretation.pkl")
+        with open(current_path, "wb") as f :
+            pkl.dump(dic_interpretation, f)
         
         if loader.dataset.dim_input ==2:
             if hasattr(interpretable_module, "selection_module"):

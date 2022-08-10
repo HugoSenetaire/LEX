@@ -16,7 +16,8 @@ def test_epoch(interpretable_module, epoch, loader, args, liste_mc = [(1,1,1,1),
     print("==========================================================")
     print("\nTest epoch {} started".format(epoch))
     total_dic = {}
-    total_dic["epoch"] = epoch
+    if epoch is not None :
+        total_dic["epoch"] = epoch
 
     total_dic.update(multiple_test(interpretable_module= interpretable_module, loader = loader,))
 
@@ -92,9 +93,6 @@ def test_epoch(interpretable_module, epoch, loader, args, liste_mc = [(1,1,1,1),
                             trainer = trainer,
                             prefix = "EVALX_",
                             ))
-    # if hasattr(interpretable_module, "selection_module"):
-    #     total_dic.update(get_pi_list(interpretable_module = interpretable_module,
-    #                                 loader = loader,))
 
     print("\nTest epoch {} done".format(epoch))
     print("==========================================================")

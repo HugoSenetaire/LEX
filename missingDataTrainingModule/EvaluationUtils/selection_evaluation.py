@@ -9,7 +9,7 @@ def eval_selection(interpretable_module, loader, args):
     interpretable_module.prediction_module.imputation.nb_imputation_mc_test = 1
     interpretable_module.prediction_module.imputation.nb_imputation_iwae_test = 1     
     interpretable_module.eval()
-    
+
     if args.args_selection.rate is not None :
         rate = args.args_selection.rate
         if rate > 0.:
@@ -20,6 +20,110 @@ def eval_selection(interpretable_module, loader, args):
         dic = eval_selection_local(interpretable_module, loader,)
     return dic
 
+
+def get_eval_stats(fp, tp, fn, tn):
+    """
+    From the false positive, true positive, false negative and true negative,
+    compute the AUROC, the accuracy, the FPR, TPR, FDR per instance, the total FPR, TPR FDR.
+    
+    """
+    dic = {}
+
+    dic["fp_total"] = np.sum(fp)
+    dic["tp_total"] = np.sum(tp)
+    dic["fn_total"] = np.sum(fn)
+    dic["tn_total"] = np.sum(tn)
+    dic["fpr_total"] = dic["fp_total"] / (dic["fp_total"] + dic["tn_total"] + 1e-8)
+    dic["tpr_total"] = dic["tp_total"] / (dic["tp_total"] + dic["fn_total"] + 1e-8)
+    dic["fdr_total"] = dic["fp_total"] / (dic["fp_total"] + dic["tp_total"] + 1e-8)
+
+    
+    fpr = fp / (fp + tn + 1e-8)
+    tpr = tp / (tp + fn + 1e-8)
+    fdr = fp / (fp + tp + 1e-8)
+
+    dic["fpr_instance_mean"] = np.mean(fpr)
+    dic["tpr_instance_mean"] = np.mean(tpr)
+    dic["fdr_instance_mean"] = np.mean(fdr)
+    dic["fpr_instance_std"] = np.std(fpr)
+    dic["tpr_instance_std"] = np.std(tpr)
+    dic["fdr_instance_std"] = np.std(fdr)
+
+    return dic
+
+
+def eval_selection_sample(interpretable_module, loader, nb_sample = 100):
+    dic = {}
+    nb_data = len(loader.test_loader.dataset)
+    fp = np.zeros((nb_data,), dtype=np.float32)
+    tp = np.zeros((nb_data,), dtype=np.float32)
+    fn = np.zeros((nb_data,), dtype=np.float32)
+    tn = np.zeros((nb_data,), dtype=np.float32)
+    total_pi_list = None
+
+    for batch in loader.test_loader :
+        try :
+            data, target, index = batch
+        except :
+            print("Should give index to get the eval selection")
+            return {}
+
+        if not hasattr(loader.dataset, "optimal_S_test") :
+            raise AttributeError("This dataset do not have an optimal S defined")
+        else :
+            optimal_S_test = loader.dataset.optimal_S_test[index]
+
+        batch_size = data.size(0)
+        dim = np.prod(data.size()[1:])
+        if total_pi_list is None and dim<20:
+            total_pi_list = np.zeros((nb_data, dim),)
+
+        X_test = data.type(torch.float32)
+        Y_test = target.type(torch.float32)
+        if next(interpretable_module.parameters()).is_cuda :
+            X_test = X_test.cuda()
+            Y_test = Y_test.cuda()
+            optimal_S_test = optimal_S_test.cuda()
+
+        if hasattr(interpretable_module, "selection_module"):
+            selection_module = interpretable_module.selection_module
+            distribution_module = interpretable_module.distribution_module
+            selection_module.eval()
+            distribution_module.eval()
+        else :
+            print("No selection evaluation if there is no selection module")
+            return {}
+
+        interpretable_module.eval()
+        with torch.no_grad():
+            sel_pred = interpretable_module.sample_z(X_test, index, nb_sample_z_monte_carlo = nb_sample, nb_sample_z_iwae = 1)
+            sel_pred = sel_pred.reshape(nb_sample, batch_size, dim).detach().cpu().numpy()
+
+        sel_true = optimal_S_test.unsqueeze(0).expand(nb_sample, batch_size, dim).detach().cpu().numpy()
+        
+        if dim < 20 :
+            total_pi_list[index] = np.mean(sel_pred, axis=0)
+
+
+        fp[index] = np.mean(np.sum((sel_pred == 1) & (sel_true == 0),axis=-1),axis = 0)
+        tp[index] = np.mean(np.sum((sel_pred == 1) & (sel_true == 1),axis=-1),axis = 0)
+        fn[index] = np.mean(np.sum((sel_pred == 0) & (sel_true == 1),axis=-1),axis = 0)
+        tn[index] = np.mean(np.sum((sel_pred == 0) & (sel_true == 0),axis=-1),axis = 0)
+
+
+    dic.update(get_eval_stats(fp, tp, fn, tn))
+    print(total_pi_list.shape)
+    if dim < 20 :
+        mean_total_pi_list = np.mean(total_pi_list, axis = 0)
+        std_total_pi_list = np.std(total_pi_list, axis = 0)
+
+        for current_dim in range(dim):
+            dic[f"Mean_pi_{current_dim}"] = mean_total_pi_list[current_dim]
+            dic[f"Std_pi_{current_dim}"] = std_total_pi_list[current_dim]
+
+        print("Pi_list Mean {}, Std {}".format(mean_total_pi_list, std_total_pi_list))
+
+    return dic
 
 
 def eval_selection_local(interpretable_module, loader, rate = None):
@@ -49,6 +153,9 @@ def eval_selection_local(interpretable_module, loader, rate = None):
         else :
             optimal_S_test = loader.dataset.optimal_S_test[index]
 
+
+        batch_size = data.size(0)
+        dim = np.prod(data.size()[1:])
         X_test = data.type(torch.float32)
         Y_test = target.type(torch.float32)
         if next(interpretable_module.parameters()).is_cuda :
@@ -88,12 +195,7 @@ def eval_selection_local(interpretable_module, loader, rate = None):
         else :
             dim_pi_list = np.prod(interpretable_module.selection_module.selector.output_size)
             k = max(int(dim_pi_list * rate),1)
-            top_k_value, to_sel = torch.topk(pi_list.flatten(1), k, dim = 1)
-            # min_value = torch.min(pi_list.flatten(1)[to_sel],dim=1)
-            # print(min_value[0].shape)
-            # sel_pred =  pi_list.flatten(1) > min_value
-            # aux = torch.min(top_k_value,dim=1)[0].unsqueeze(1).expand(pi_list.shape[0],pi_list.shape[1])
-            # print(torch.sum(torch.where(pi_list.flatten(1) >aux , torch.tensor(1), torch.tensor(0))))
+            _, to_sel = torch.topk(pi_list.flatten(1), k, dim = 1)
             sel_pred = torch.zeros_like(pi_list).scatter(1, to_sel, 1).detach().cpu().numpy().astype(int)
 
         sel_true = optimal_S_test.reshape(sel_pred.shape)
@@ -115,27 +217,10 @@ def eval_selection_local(interpretable_module, loader, rate = None):
             error_selection_auroc = True
 
 
-    dic["fp_total"] = np.sum(fp)
-    dic["tp_total"] = np.sum(tp)
-    dic["fn_total"] = np.sum(fn)
-    dic["tn_total"] = np.sum(tn)
-    dic["fpr_total"] = dic["fp_total"] / (dic["fp_total"] + dic["tn_total"] + 1e-8)
-    dic["tpr_total"] = dic["tp_total"] / (dic["tp_total"] + dic["fn_total"] + 1e-8)
-    dic["fdr_total"] = dic["fp_total"] / (dic["fp_total"] + dic["tp_total"] + 1e-8)
+    dic.update(get_eval_stats(fp, tp, fn, tn))
 
     total = nb_data
     
-    fpr = fp / (fp + tn + 1e-8)
-    tpr = tp / (tp + fn + 1e-8)
-    fdr = fp / (fp + tp + 1e-8)
-
-    dic["fpr_mean"] = np.mean(fpr)
-    dic["tpr_mean"] = np.mean(tpr)
-    dic["fdr_mean"] = np.mean(fdr)
-    dic["fpr_std"] = np.std(fpr)
-    dic["tpr_std"] = np.std(tpr)
-    dic["fdr_std"] = np.std(fdr)
-
     dic["selection_accuracy_rounded"] = sum_error_round / total
     dic["selection_accuracy"] = sum_error / total
 
@@ -145,22 +230,21 @@ def eval_selection_local(interpretable_module, loader, rate = None):
         dic["selection_auroc"] /= len(loader.test_loader)
 
     if rate is not None :
-        print("Selection Test rate {:.3f} : fdr_mean {:.4f} fpr_mean {:.4f} tpr_mean {:.4f} fdr_std {:.4f} fpr_std {:.4f} tpr_std {:.4f}".format(rate, dic["fdr_mean"], dic["fpr_mean"], dic["tpr_mean"], dic["fdr_std"], dic["fpr_std"], dic["tpr_std"]))
+        print("Selection Test rate {:.3f} : fdr_instance_mean {:.4f} fpr_instance_mean {:.4f} tpr_instance_mean {:.4f} fdr_instance_std {:.4f} fpr_instance_std {:.4f} tpr_instance_std {:.4f}".format(rate, dic["fdr_instance_mean"], dic["fpr_instance_mean"], dic["tpr_instance_mean"], dic["fdr_instance_std"], dic["fpr_instance_std"], dic["tpr_instance_std"]))
     else :
-        print("Selection Test : fdr_mean {:.4f} fpr_mean {:.4f} tpr_mean {:.4f} fdr_std {:.4f} fpr_std {:.4f} tpr_std {:.4f}".format(dic["fdr_mean"], dic["fpr_mean"], dic["tpr_mean"], dic["fdr_std"], dic["fpr_std"], dic["tpr_std"]))
+        print("Selection Test : fdr_instance_mean {:.4f} fpr_instance_mean {:.4f} tpr_instance_mean {:.4f} fdr_instance_std {:.4f} fpr_instance_std {:.4f} tpr_instance_std {:.4f}".format(dic["fdr_instance_mean"], dic["fpr_instance_mean"], dic["tpr_instance_mean"], dic["fdr_instance_std"], dic["fpr_instance_std"], dic["tpr_instance_std"]))
 
     if rate is not None :
         print("Selection Test rate {:.3f} : fdr {:.4f} fpr {:.4f} tpr {:.4f} auroc {:.4f} accuracy {:.4f}".format(rate, dic["fdr_total"], dic["fpr_total"], dic["tpr_total"], dic["selection_auroc"], dic["selection_accuracy"]))
     else :
         print("Selection Test : fdr {:.4f} fpr {:.4f} tpr {:.4f} auroc {:.4f} accuracy {:.4f}".format(dic["fdr_total"], dic["fpr_total"], dic["tpr_total"], dic["selection_auroc"], dic["selection_accuracy"]))
     
-    mean_total_pi_list = np.mean(total_pi_list, axis = 0)
-    std_total_pi_list = np.std(total_pi_list, axis = 0)
-
-    for dim in range(11):
-        dic[f"Mean_pi_{dim}"] = mean_total_pi_list[dim]
-        dic[f"Std_pi_{dim}"] = std_total_pi_list[dim]
-
-    print("Pi_list Mean {}, Std {}".format(mean_total_pi_list, std_total_pi_list))
+    if dim < 20 :
+        mean_total_pi_list = np.mean(total_pi_list, axis = 0)
+        std_total_pi_list = np.std(total_pi_list, axis = 0)
+        for dim in range(11):
+            dic[f"Mean_pi_{dim}"] = mean_total_pi_list[dim]
+            dic[f"Std_pi_{dim}"] = std_total_pi_list[dim]
+        print("Pi_list Mean {}, Std {}".format(mean_total_pi_list, std_total_pi_list))
 
     return dic
