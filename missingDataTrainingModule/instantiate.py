@@ -90,10 +90,15 @@ def get_optim(module, args_optimizer, args_optimizer_param, args_scheduler, args
 
     return optimizer, scheduler
 
-def get_networks(args_classification, args_selection, args_trainer, args_interpretable_module, output_category):
+def get_networks(args_classification, args_selection, args_trainer, args_interpretable_module, dataset):
+
+    output_category = dataset.get_dim_output()
     input_size_classifier = args_classification.input_size_prediction_module
     input_size_baseline = args_classification.input_size_prediction_module
-    classifier =  args_classification.classifier(input_size_classifier, output_category)
+    if args_classification.classifier is DatasetBasedClassifier :
+        classifier = args_classification.classifier(dataset)
+    else :
+        classifier =  args_classification.classifier(input_size_classifier, output_category)
 
     if args_trainer.baseline is not None :
         baseline = args_trainer.baseline(input_size_baseline, output_category)

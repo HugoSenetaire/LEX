@@ -63,7 +63,11 @@ def experiment(dataset, loader, complete_args,):
     ### Imputation :
     imputation = get_imputation_method(complete_args_converted.args_classification, dataset)
     ### Networks :
-    classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(complete_args_converted.args_classification, complete_args_converted.args_selection, complete_args_converted.args_trainer, complete_args_converted.args_interpretable_module, dataset.get_dim_output())
+    classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(complete_args_converted.args_classification,
+                                                                        complete_args_converted.args_selection,
+                                                                        complete_args_converted.args_trainer,
+                                                                        complete_args_converted.args_interpretable_module,
+                                                                        dataset=dataset)
     ### Loss Function :
     loss_function = get_loss_function(complete_args_converted.args_train.loss_function,
                                             complete_args_converted.args_train,
