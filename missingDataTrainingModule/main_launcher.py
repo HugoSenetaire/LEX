@@ -126,7 +126,7 @@ def experiment(dataset, loader, complete_args,):
 
             test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch_post_hoc)
             if test_this_epoch :
-                dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = complete_args_converted.args_test.liste_mc, trainer = trainer)
+                dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = [], trainer = trainer)
                 total_dic_test = fill_dic(total_dic_test, dic_test)
 
         save_dic(os.path.join(final_path,"train_post_hoc"), total_dic_train)
@@ -149,8 +149,8 @@ def experiment(dataset, loader, complete_args,):
                                 post_hoc = complete_args_converted.args_train.post_hoc,
                                 argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
                                 loss_function = loss_function,
-                                nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo,
-                                nb_sample_z_iwae = complete_args_converted.args_train.nb_sample_z_train_IWAE,
+                                nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo_classification,
+                                nb_sample_z_iwae = complete_args_converted.args_train.nb_sample_z_train_IWAE_classification,
                                 )
             elif complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION :
                 pretrainer_pred = ordinaryPredictionTraining(interpretable_module,
@@ -180,7 +180,7 @@ def experiment(dataset, loader, complete_args,):
 
                 test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch_post_hoc)
                 if test_this_epoch :
-                    dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = complete_args_converted.args_test.liste_mc, trainer = pretrainer_pred)
+                    dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = [], trainer = pretrainer_pred)
                     total_dic_test = fill_dic(total_dic_test, dic_test)
 
             dic_list["train_pretraining"] = total_dic_train
@@ -242,6 +242,8 @@ def experiment(dataset, loader, complete_args,):
         loss_function_selection = loss_function_selection,
         nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo,
         nb_sample_z_iwae = complete_args_converted.args_train.nb_sample_z_train_IWAE,
+        nb_sample_z_monte_carlo_classification = complete_args_converted.args_train.nb_sample_z_train_monte_carlo_classification,
+        nb_sample_z_iwae_classification = complete_args_converted.args_train.nb_sample_z_train_IWAE_classification,
         )
 
 

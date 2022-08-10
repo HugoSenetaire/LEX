@@ -232,7 +232,10 @@ def get_trainer(trainer,
                 loss_function,
                 loss_function_selection = None,
                 nb_sample_z_monte_carlo = 1,
-                nb_sample_z_iwae = 1):
+                nb_sample_z_iwae = 1,
+                nb_sample_z_monte_carlo_classification = 1,
+                nb_sample_z_iwae_classification = 1,
+                ):
     
     if trainer is SINGLE_LOSS :
         trainer = SINGLE_LOSS(interpretable_module = interpretable_module,
@@ -258,8 +261,11 @@ def get_trainer(trainer,
                             loss_function = loss_function,
                             loss_function_selection= loss_function_selection,
                             nb_sample_z_monte_carlo = nb_sample_z_monte_carlo,
-                            nb_sample_z_iwae = nb_sample_z_iwae
-                    )
+                            nb_sample_z_iwae = nb_sample_z_iwae,
+                            nb_sample_z_monte_carlo_classification = nb_sample_z_monte_carlo_classification,
+                            nb_sample_z_iwae_classification = nb_sample_z_iwae_classification
+                            )
+                    
     elif trainer is ordinaryPredictionTraining :
         trainer = ordinaryPredictionTraining(interpretable_module = interpretable_module,
                     post_hoc = post_hoc,

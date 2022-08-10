@@ -112,6 +112,8 @@ class args_train():
         self.nb_epoch_pretrain = None # Training the complete model 
         self.nb_sample_z_train_monte_carlo = None
         self.nb_sample_z_train_IWAE = None  # Number K in the IWAE-similar loss
+        self.nb_sample_z_train_monte_carlo_classification = None
+        self.nb_sample_z_train_IWAE_classification = None
         self.loss_function = None # NLL, MSE
         self.loss_function_selection = None # This is used for DECOUPLED SELECTION WHEN ONE WANTS A DIFFERENT LOSS THERE
         self.verbose = False

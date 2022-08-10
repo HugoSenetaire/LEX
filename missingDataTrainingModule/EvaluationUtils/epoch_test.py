@@ -85,14 +85,15 @@ def test_epoch(interpretable_module, epoch, loader, args, liste_mc = [(1,1,1,1),
         interpretable_module.prediction_module.imputation.nb_imputation_iwae_test = original_nb_imputation_iwae_test
     
     if hasattr(interpretable_module, "EVALX"):
-        total_dic.update(multiple_test(interpretable_module = interpretable_module.EVALX,
-                            loader = loader,
-                            nb_sample_z_monte_carlo = trainer.nb_sample_z_monte_carlo,
-                            nb_sample_z_iwae = trainer.nb_sample_z_iwae,
-                            mask_sampling = interpretable_module.EVALX.sample_z,
-                            trainer = trainer,
-                            prefix = "EVALX_",
-                            ))
+        if hasattr(trainer, "nb_sample_z_monte_carlo_classification"):
+            total_dic.update(multiple_test(interpretable_module = interpretable_module.EVALX,
+                                loader = loader,
+                                nb_sample_z_monte_carlo = trainer.nb_sample_z_monte_carlo_classification,
+                                nb_sample_z_iwae = trainer.nb_sample_z_iwae_classification,
+                                mask_sampling = interpretable_module.EVALX.sample_z,
+                                trainer = trainer,
+                                prefix = "EVALX_",
+                                ))
 
     print("\nTest epoch {} done".format(epoch))
     print("==========================================================")

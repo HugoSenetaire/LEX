@@ -25,6 +25,8 @@ class SEPARATE_LOSS(SINGLE_LOSS):
                 loss_function_selection = None,
                 nb_sample_z_monte_carlo = 1,
                 nb_sample_z_iwae = 1,
+                nb_sample_z_monte_carlo_classification = 1,
+                nb_sample_z_iwae_classification = 1,
                 ):
 
         super().__init__(interpretable_module=interpretable_module,
@@ -48,6 +50,8 @@ class SEPARATE_LOSS(SINGLE_LOSS):
 
         assert self.interpretable_module.classification_distribution_module is not None, "classification_distribution_module must be defined"
 
+        self.nb_sample_z_monte_carlo_classification = nb_sample_z_monte_carlo_classification
+        self.nb_sample_z_iwae_classification = nb_sample_z_iwae_classification
 
     def _create_dic(self,
                 loss_total,
@@ -78,13 +82,12 @@ class SEPARATE_LOSS(SINGLE_LOSS):
         one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
         target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
         
-        nb_sample_z_monte_carlo_classification, nb_sample_z_iwae_classification = self.nb_sample_z_monte_carlo*self.nb_sample_z_iwae, 1
         data_expanded_classification, target_expanded_classification, index_expanded_classification, one_hot_target_expanded_classification = sampling_augmentation(data,
                                                                                                 target = target,
                                                                                                 index=index,
                                                                                                 one_hot_target = one_hot_target,
-                                                                                                mc_part = nb_sample_z_monte_carlo_classification,
-                                                                                                iwae_part = nb_sample_z_iwae_classification,
+                                                                                                mc_part = self.nb_sample_z_monte_carlo_classification,
+                                                                                                iwae_part = self.nb_sample_z_iwae_classification,
                                                                                                 )
 
 
@@ -99,7 +102,7 @@ class SEPARATE_LOSS(SINGLE_LOSS):
 
         # Destructive module :
         log_pi_list, loss_reg = self.interpretable_module.selection_module(data)
-        log_pi_list_classification = log_pi_list.unsqueeze(1).expand(batch_size, nb_sample_z_iwae_classification, -1)
+        log_pi_list_classification = log_pi_list.unsqueeze(1).expand(batch_size, self.nb_sample_z_iwae_classification, -1)
         pi_list_classification = torch.exp(log_pi_list_classification)
 
 
@@ -112,7 +115,7 @@ class SEPARATE_LOSS(SINGLE_LOSS):
         
         # Train classification module :
         p_z = self.interpretable_module.classification_distribution_module(pi_list_classification)
-        z = self.interpretable_module.classification_distribution_module.sample(sample_shape = (nb_sample_z_monte_carlo_classification,))
+        z = self.interpretable_module.classification_distribution_module.sample(sample_shape = (self.nb_sample_z_monte_carlo_classification,))
         loss_classification = calculate_cost(mask_expanded = z,
                         interpretable_module = self.interpretable_module,
                         data_expanded = data_expanded_classification,
