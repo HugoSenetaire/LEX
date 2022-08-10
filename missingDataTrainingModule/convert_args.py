@@ -66,6 +66,8 @@ def convert_selection(args_selection):
         args_selection.regularization = SoftmaxRegularization
     elif args_selection.regularization == "TopkRegularization" :
         args_selection.regularization == TopKRegularization
+    elif args_selection.regularization == "None" or args_selection.regularization == None :
+        args_selection.regularization = None
     else :
         raise ValueError("Unknown Regularization")
 
@@ -77,6 +79,8 @@ def convert_selection(args_selection):
         args_selection.regularization_var = SoftmaxRegularization
     elif args_selection.regularization_var == "TopkRegularization" :
         args_selection.regularization_var == TopKRegularization
+    elif args_selection.regularization_var == "None" or args_selection.regularization_var == None :
+        args_selection.regularization_var = None
     else :
         raise ValueError("Unknown Regularization")
 
