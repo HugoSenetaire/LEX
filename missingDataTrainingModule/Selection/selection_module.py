@@ -41,4 +41,4 @@ class SelectionModule(nn.Module):
                 log_pi_list, loss_reg_aux = reg(log_pi_list)
                 loss_reg +=loss_reg_aux
                 
-            return log_pi_list, loss_reg
+        return log_pi_list, loss_reg

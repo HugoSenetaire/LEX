@@ -144,6 +144,7 @@ def get_regularization_method(args_selection, args_distribution_module):
     no regularization method is explicitely used.
     
     """
+
     sampling_distrib = args_distribution_module.distribution
     if sampling_distrib in self_regularized_distributions :
         k = int(np.round(args_selection.rate * np.prod(args_selection.output_size_selector),))
@@ -152,9 +153,12 @@ def get_regularization_method(args_selection, args_distribution_module):
             k = 1
         args_distribution_module.distribution = partial(sampling_distrib, k=k)
     
-    dic_args_selection = vars(args_selection)
-    regularization = args_selection.regularization(**dic_args_selection)
-    return regularization
+    if args_selection.regularization is None :
+        return None
+    else :
+        dic_args_selection = vars(args_selection)
+        regularization = args_selection.regularization(**dic_args_selection)
+        return regularization
 
 def check_parameters_compatibility(args_classification, args_selection, args_distribution_module, args_trainer, args_train, args_test, args_output):
     sampling_distrib = args_distribution_module.distribution
