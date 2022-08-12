@@ -224,13 +224,15 @@ if __name__ == '__main__':
     assert len(args.input_dirs) > 0, "Please provide at least one input directory"
 
     df = create_data_frame(input_dirs = args.input_dirs, dataset_name=args.dataset_name, get_output = args.get_output)
-    df_grouped = get_average_and_std(df)
 
     if not os.path.exists(args.out_dir):
         os.makedirs(args.out_dir)
 
     out_file = os.path.join(args.out_dir, args.out_path + '.csv')
     df.to_csv(out_file, sep=';')
+
+    df_grouped = get_average_and_std(df)
+
 
     out_file_grouped = os.path.join(args.out_dir, args.out_path + '_grouped.csv')
     df_grouped.to_csv(out_file_grouped, sep=';')
