@@ -25,23 +25,18 @@ def get_all_paths(input_dirs, dataset_name):
     print("Found {} paths".format(len(list_all_paths)))
     return list_all_paths
 
-def read_interpretation(path, wanted_measure = ["accuracy", "accuracy_true_selection", "accuracy_no_selection", "auroc", "auroc_true_selection", "auroc_no_selection", "fpr2", "tpr2"]):
+def read_interpretation(path,):
     dic = {}
     with open(path, "r") as f :
         text = f.readlines()
         for line in text :
             try :
                 key, value = line.replace("\n", "").split(" : ")
-                if key in wanted_measure :
-                    dic[key] = float(value)
+                dic[key] = float(value)
             except(ValueError):
                 continue
 
-    for key in wanted_measure :
-        if key not in dic :
-            dic[key] = None
-            # if key ==   
-            # TODO @hhjs : Interesting to get the value for all the mean and pi.   
+
     return dic
 
 
