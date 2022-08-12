@@ -12,7 +12,7 @@ import torch
 from functools import partial
 from datasets import *
 from interpretation_image import *
-from experiment_class import complete_args
+from args_class import complete_args
 
 
 
@@ -33,13 +33,13 @@ def get_default():
     args.args_interpretable_module.interpretable_module = "SINGLE_LOSS"
     args.args_interpretable_module.reshape_mask_function = "KernelReshape2D"
 
-    args.args_dataset.dataset = MnistDataset
-    args.args_dataset.loader = LoaderEncapsulation
-    args.args_dataset.root_dir = os.path.join(args.args_output.path, "datasets")
-    args.args_dataset.batch_size_train = 100
-    args.args_dataset.batch_size_test = 100
-    args.args_dataset.noise_function = None
-    args.args_dataset.download = True
+    args.args_dataset.dataset = "MnistDataset"
+    args.args_dataset.loader = "LoaderEncapsulation"
+    args.args_dataset.args_dataset_parameters.root_dir = os.path.join(args.args_output.path, "datasets")
+    args.args_dataset.args_dataset_parameters.batch_size_train = 1000
+    args.args_dataset.args_dataset_parameters.batch_size_test = 1000
+    args.args_dataset.args_dataset_parameters.noise_function = None
+    args.args_dataset.args_dataset_parameters.download = True
 
 
 
@@ -125,7 +125,11 @@ def get_default():
     args.args_train.nb_epoch_pretrain = 0 # Training the complete model 
     args.args_train.nb_sample_z_train_monte_carlo = 1
     args.args_train.nb_sample_z_train_IWAE = 1  # Number K in the IWAE-similar loss
+    args.args_train.nb_sample_z_train_monte_carlo_classification = 1
+    args.args_train.nb_sample_z_train_IWAE_classification = 1  
     args.args_train.loss_function = "NLL" # NLL, MSE
+    args.args_train.loss_function_selection = None
+    args.args_train.verbose = True
 
 
     args.args_train.training_type = "classic" # Options are args..classic "alternate_ordinary", "alternate_fixing"]
