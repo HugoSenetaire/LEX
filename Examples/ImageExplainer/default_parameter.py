@@ -53,9 +53,9 @@ def get_default():
     args.args_classification.add_mask = False
     args.args_classification.module_imputation = None # Path to the weights of the network to use for post processing)
     args.args_classification.nb_imputation_iwae = 1
-    args.args_classification.nb_imputation_iwae_test = None #If none is given, turn to 1
+    args.args_classification.nb_imputation_iwae_test = 1 #If none is given, turn to 1
     args.args_classification.nb_imputation_mc = 1
-    args.args_classification.nb_imputation_mc_test = None #If none is given, turn to 1
+    args.args_classification.nb_imputation_mc_test = 1 #If none is given, turn to 1
 
 
     args.args_classification.reconstruction_regularization = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)

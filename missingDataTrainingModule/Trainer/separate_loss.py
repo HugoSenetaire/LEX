@@ -116,6 +116,7 @@ class SEPARATE_LOSS(SINGLE_LOSS):
         # Train classification module :
         p_z = self.interpretable_module.classification_distribution_module(pi_list_classification)
         z = self.interpretable_module.classification_distribution_module.sample(sample_shape = (self.nb_sample_z_monte_carlo_classification,))
+        self.interpretable_module.reshape(z)
         loss_classification = calculate_cost(mask_expanded = z,
                         interpretable_module = self.interpretable_module,
                         data_expanded = data_expanded_classification,

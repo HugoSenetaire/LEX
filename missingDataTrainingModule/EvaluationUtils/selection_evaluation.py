@@ -99,7 +99,7 @@ def eval_selection_sample(interpretable_module, loader, nb_sample = 100):
             sel_pred = interpretable_module.sample_z(X_test, index, nb_sample_z_monte_carlo = nb_sample, nb_sample_z_iwae = 1)
             sel_pred = sel_pred.reshape(nb_sample, batch_size, dim).detach().cpu().numpy()
 
-        sel_true = optimal_S_test.unsqueeze(0).expand(nb_sample, batch_size, dim).detach().cpu().numpy()
+        sel_true = optimal_S_test.unsqueeze(0).flatten(2).expand(nb_sample, batch_size, dim).detach().cpu().numpy()
         
         if dim < 20 :
             total_pi_list[index] = np.mean(sel_pred, axis=0)
@@ -112,7 +112,6 @@ def eval_selection_sample(interpretable_module, loader, nb_sample = 100):
 
 
     dic.update(get_eval_stats(fp, tp, fn, tn))
-    print(total_pi_list.shape)
     if dim < 20 :
         mean_total_pi_list = np.mean(total_pi_list, axis = 0)
         std_total_pi_list = np.std(total_pi_list, axis = 0)
@@ -139,7 +138,7 @@ def eval_selection_local(interpretable_module, loader, rate = None):
     tp = np.zeros((nb_data,), dtype=np.float32)
     fn = np.zeros((nb_data,), dtype=np.float32)
     tn = np.zeros((nb_data,), dtype=np.float32)
-    total_pi_list = np.zeros((nb_data,11,), dtype=np.float32)
+    total_pi_list = None
 
     for batch in loader.test_loader :
         try :
@@ -156,6 +155,9 @@ def eval_selection_local(interpretable_module, loader, rate = None):
 
         batch_size = data.size(0)
         dim = np.prod(data.size()[1:])
+        if total_pi_list is None and dim<20:
+            total_pi_list = np.zeros((nb_data,dim,), dtype=np.float32)
+
         X_test = data.type(torch.float32)
         Y_test = target.type(torch.float32)
         if next(interpretable_module.parameters()).is_cuda :
@@ -186,8 +188,10 @@ def eval_selection_local(interpretable_module, loader, rate = None):
             else :
                 pi_list = torch.exp(log_pi_list)
             
-            pi_list = interpretable_module.reshape(pi_list).flatten(1)
-        total_pi_list[index] = pi_list.detach().cpu().numpy()
+
+            pi_list = interpretable_module.reshape(pi_list[None,:,None]).flatten(1)
+        if dim < 20 :
+            total_pi_list[index] = pi_list.detach().cpu().numpy()
 
         optimal_S_test = optimal_S_test.detach().cpu().numpy()
         if rate is None :

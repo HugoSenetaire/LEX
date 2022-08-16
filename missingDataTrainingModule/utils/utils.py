@@ -67,12 +67,6 @@ def get_one_hot(target, num_classes = 10):
 
     return one_hot_target
 
-# def extend_input_mask(input, mc_part = 1, iwae_part = 1,):
-#     shape = input.shape
-#     reshape_shape = torch.Size((1,1,)) + shape
-#     wanted_shape = torch.Size((iwae_part, mc_part,)) + shape
-#     input_expanded = input.reshape(reshape_shape).expand(wanted_shape)
-#     return input_expanded
 
 def extend_input(input, mc_part = 1, iwae_part = 1,):
     shape = input.shape
@@ -81,12 +75,6 @@ def extend_input(input, mc_part = 1, iwae_part = 1,):
     input_expanded = input.reshape(reshape_shape).expand(wanted_shape)
     return input_expanded
      
-# def extend_input_sample(input, mc_part = 1, iwae_part = 1,):
-#     shape = input.shape
-#     reshape_shape = torch.Size((shape[0],)) + torch.Size((1,1,)) + shape[1:]
-#     wanted_shape = torch.Size((shape[0],)) + torch.Size((mc_part, iwae_part,)) + shape[1:]
-#     input_expanded = input.reshape(reshape_shape).expand(wanted_shape)
-#     return input_expanded
 
 def sampling_augmentation(data, target = None, index=None, one_hot_target = None, mc_part = 1, iwae_part = 1,):
     if index is not None :

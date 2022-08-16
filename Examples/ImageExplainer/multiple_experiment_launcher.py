@@ -26,7 +26,8 @@ def multiple_experiment(count,
                         loader,
                         complete_args,
                         name_modification = False,
-                        nb_samples_image_per_category = 20,
+                        nb_samples_image_per_category = 1,
+                        nb_imputation = 1,
                         batch_size_test = 100,):
     try :
         final_path, trainer, loader, dic_list = main_launcher.experiment(dataset,
@@ -34,7 +35,7 @@ def multiple_experiment(count,
                                                             complete_args=complete_args,
                                                             )
 
-        dic_interpretation = complete_analysis_image(trainer, loader, final_path, batch_size = batch_size_test, nb_samples_image_per_category = nb_samples_image_per_category)
+        dic_interpretation = complete_analysis_image(trainer.interpretable_module, loader, trainer, args= complete_args, batch_size = batch_size_test, nb_samples_image_per_category = nb_samples_image_per_category, nb_imputation = nb_imputation)
         current_path = os.path.join(final_path, "interpretation.txt")
         with open(current_path, "w") as f:
             for key in dic_interpretation:
