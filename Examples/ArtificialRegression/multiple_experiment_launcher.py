@@ -7,8 +7,9 @@ sys.path.append(current_file_path)
 
 
 import traceback
+from args_class import CompleteArgs
+from missingDataTrainingModule.utils import compare_args, from_args_to_dictionary, dic_to_line_str
 import missingDataTrainingModule
-from args_class import complete_args
 from datasets import *
 from interpretation_regression import calculate_score, plot_complete_model_output, plot_selector_output
 
@@ -16,7 +17,6 @@ import matplotlib.pyplot as plt
 from torch.distributions import *
 from torch.optim import *
 import torch
-from functools import partial
 import pickle as pkl
 import numpy as np
 
@@ -35,14 +35,22 @@ def multiple_experiment(
             dataset,
             loader,
             complete_args,
-            name_modification = False ):
+            name_modification = True,):
+
+    default_args = CompleteArgs()
+    if not compare_args(complete_args, default_args) :
+        raise ValueError("The arguments are not the default ones")
+
+    if name_modification :
+        line_name = dic_to_line_str(from_args_to_dictionary(complete_args, to_str=True))
+        hashed = str(hash(line_name))
+        complete_args.args_output.path = os.path.join(complete_args.args_output.path, hashed)
 
     count+=1
     if os.path.exists(complete_args.args_output.path):
         complete_args.args_train.nb_epoch = 0
         complete_args.args_train.nb_epoch_pretrain = 0
         complete_args.args_train.nb_epoch_post_hoc = 0
-        
         final_path, trainer, loader, dic_list = missingDataTrainingModule.main_launcher.experiment(dataset, loader, complete_args=complete_args)
         trainer.load_best_iter_dict(final_path)
         total_dic = trainer.multiple_test(loader, complete_args.args_test, complete_args.args_compiler, complete_args.args_classification_distribution_module, complete_args.args_output)
@@ -95,7 +103,6 @@ def multiple_experiment(
             f.write(str(e))
             f.write(traceback.format_exc())
         
-        del trainer, loader, dic_list
         try :
             torch.cuda.empty_cache()
         except BaseException as e:

@@ -39,4 +39,9 @@ class args_dataset_parameters():
         self.download = None
         self.dim_input = None
         self.used_dim = None
-        self.give_index = None  
+        self.give_index = None
+        self.epsilon_sigma = None
+        self.scale_regression = None
+        self.classification = None  
+        self.train_seed = None
+        self.test_seed = None

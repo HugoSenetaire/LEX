@@ -65,8 +65,9 @@ class args_selection():
         self.output_size_selector = None
         self.selector = None
         self.selector_var = None 
-        self.activation = LogSigmoid()
-        # self.activation = torch.nn.LogSoftmax(dim=-1)
+        self.activation = None
+        self.kernel_size = None
+        self.kernel_stride = None
 
         # For regularization :
         self.trainable_regularisation = None
@@ -75,6 +76,8 @@ class args_selection():
         self.rate = None
         self.loss_regularization = None # L1, L2 
         self.batched = None
+        self.continuous = None
+
 
 
         self.regularization_var = None
@@ -82,6 +85,7 @@ class args_selection():
         self.rate_var = None
         self.loss_regularization_var = None
         self.batched_var = None
+        self.continuous_var = None
 
 class args_distribution_module():
     def __init__(self):
@@ -95,9 +99,9 @@ class args_distribution_module():
 
 class args_classification_distribution_module():
     def __init__(self):
-        self.classification_distribution_module = None
-        self.classification_distribution = None
-        self.classification_distribution_relaxed = None
+        self.distribution_module = None
+        self.distribution = None
+        self.distribution_relaxed = None
         self.temperature_init = None
         self.test_temperature = None
         self.scheduler_parameter = None
@@ -178,7 +182,7 @@ class args_compiler():
         
 
     
-class complete_args():
+class CompleteArgs():
     def __init__(self):
         self.args_output = args_output()
         self.args_trainer = args_trainer()

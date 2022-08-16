@@ -30,3 +30,5 @@ class args_dataset_parameters():
         self.batch_size_test = None
         self.noise_function = None
         self.download = None
+        self.train_seed = None
+        self.test_seed = None

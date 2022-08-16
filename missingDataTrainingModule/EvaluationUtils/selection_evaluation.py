@@ -20,9 +20,10 @@ def eval_selection(interpretable_module, loader, args):
 
 
 def get_sel_pred(interpretable_module, pi_list, rate = None):
-    for regul in interpretable_module.selection_module.regularization :
-        if hasattr(regul, "select_pi") :
-            return regul.select_pi(pi_list)
+    if interpretable_module.selection_module.regularization is not None :
+        for regul in interpretable_module.selection_module.regularization :
+            if hasattr(regul, "select_pi") :
+                return regul.select_pi(pi_list)
     if rate is None or rate == 0.0 :
         return  pi_list>0.5
     else :

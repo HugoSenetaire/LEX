@@ -12,12 +12,12 @@ import torch
 from functools import partial
 from datasets import *
 from interpretation_image import *
-from args_class import complete_args
+from args_class import CompleteArgs
 
 
 
 def get_default():
-    args = complete_args()
+    args = CompleteArgs()
 
     args.args_output.path = "C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\Experiments" # Path to results
     # args.args_output.path = "/scratch/hhjs" # Path to results
@@ -40,6 +40,8 @@ def get_default():
     args.args_dataset.args_dataset_parameters.batch_size_test = 1000
     args.args_dataset.args_dataset_parameters.noise_function = None
     args.args_dataset.args_dataset_parameters.download = True
+    args.args_dataset.args_dataset_parameters.train_seed = 0
+    args.args_dataset.args_dataset_parameters.test_seed = 1
 
 
 
@@ -90,12 +92,13 @@ def get_default():
     args.args_selection.continuous = False
 
 
+
     args.args_selection.regularization_var = "LossRegularization"
     args.args_selection.lambda_regularization_var = 0.0
     args.args_selection.rate_var = 0.1
     args.args_selection.loss_regularization_var = "L1"
     args.args_selection.batched_var = False
-    args.args_selection.continuous = False
+    args.args_selection.continuous_var = False
 
 
 

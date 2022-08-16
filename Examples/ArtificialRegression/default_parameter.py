@@ -7,7 +7,7 @@ sys.path.append(current_file_path)
 
 
 import missingDataTrainingModule
-from args_class import complete_args
+from args_class import CompleteArgs
 from datasets import *
 
 import matplotlib.pyplot as plt
@@ -18,7 +18,7 @@ from functools import partial
 
 def get_default(args = None):
     if args is None :
-        args = complete_args()
+        args = CompleteArgs()
 
     args.args_output.path = os.path.join(os.path.dirname(missingDataTrainingModule.__path__[0]), "Experiments") # Path to results
     args.args_output.save_weights = True
@@ -48,6 +48,11 @@ def get_default(args = None):
     args.args_dataset.args_dataset_parameters.dim_input = 11
     args.args_dataset.args_dataset_parameters.used_dim = 10
     args.args_dataset.args_dataset_parameters.give_index = True
+    args.args_dataset.args_dataset_parameters.epsilon_sigma = 1.0
+    args.args_dataset.args_dataset_parameters.scale_regression = False
+    args.args_dataset.args_dataset_parameters.classification = True  
+    args.args_dataset.args_dataset_parameters.train_seed = 0
+    args.args_dataset.args_dataset_parameters.test_seed = 1
 
 
 

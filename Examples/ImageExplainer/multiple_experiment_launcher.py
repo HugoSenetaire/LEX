@@ -10,8 +10,10 @@ from torch.distributions import *
 from torch.optim import *
 from datasets import *
 from interpretation_image import *
+from missingDataTrainingModule.utils import compare_args, from_args_to_dictionary, dic_to_line_str
 import pickle as pkl
 import traceback
+from args_class import CompleteArgs
 
 def get_dataset(args_dataset):
     #Turn class to dictionary
@@ -25,10 +27,20 @@ def multiple_experiment(count,
                         dataset,
                         loader,
                         complete_args,
-                        name_modification = False,
+                        name_modification = True,
                         nb_samples_image_per_category = 1,
                         nb_imputation = 1,
                         batch_size_test = 100,):
+
+    default_args = CompleteArgs()
+    if not compare_args(complete_args, default_args) :
+        raise ValueError("The arguments are not the default ones")
+
+    if name_modification :
+        line_name = dic_to_line_str(from_args_to_dictionary(complete_args, to_str=True))
+        hashed = str(hash(line_name))
+        complete_args.args_output.path = os.path.join(complete_args.args_output.path, hashed)
+
     try :
         final_path, trainer, loader, dic_list = main_launcher.experiment(dataset,
                                                             loader,

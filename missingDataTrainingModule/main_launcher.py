@@ -33,8 +33,8 @@ def save_parameters(path, complete_args):
 
 
 def experiment(dataset, loader, complete_args,):
-    if complete_args.args_dataset.train_seed is not None:
-        torch.random.manual_seed(complete_args.args_dataset.train_seed )
+    if complete_args.args_dataset.args_dataset_parameters.train_seed is not None:
+        torch.random.manual_seed(complete_args.args_dataset.args_dataset_parameters.train_seed )
     dic_list = {}
 
     ### Prepare output path :
