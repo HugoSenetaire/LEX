@@ -8,17 +8,29 @@ from ..utils.utils import *
 def eval_selection(interpretable_module, loader, args):
     interpretable_module.prediction_module.imputation.nb_imputation_mc_test = 1
     interpretable_module.prediction_module.imputation.nb_imputation_iwae_test = 1     
-    interpretable_module.eval()
+    interpretable_module.eval()   
 
     if args.args_selection.rate is not None :
         rate = args.args_selection.rate
-        if rate > 0.:
-            dic = eval_selection_local(interpretable_module, loader, rate)
-        else :
-            dic = eval_selection_local(interpretable_module, loader,)
+        dic = eval_selection_local(interpretable_module, loader, rate)
     else :
         dic = eval_selection_local(interpretable_module, loader,)
+
     return dic
+
+
+def get_sel_pred(interpretable_module, pi_list, rate = None):
+    for regul in interpretable_module.selection_module.regularization :
+        if hasattr(regul, "select_pi") :
+            return regul.select_pi(pi_list)
+    if rate is None or rate == 0.0 :
+        return  pi_list>0.5
+    else :
+        dim_pi_list = np.prod(interpretable_module.selection_module.selector.output_size)
+        k = max(int(dim_pi_list * rate),1)
+        _, to_sel = torch.topk(pi_list.flatten(1), k, dim = 1)
+        sel_pred = torch.zeros_like(pi_list).scatter(1, to_sel, 1)
+        return sel_pred
 
 
 def get_eval_stats(fp, tp, fn, tn):
@@ -194,14 +206,7 @@ def eval_selection_local(interpretable_module, loader, rate = None):
             total_pi_list[index] = pi_list.detach().cpu().numpy()
 
         optimal_S_test = optimal_S_test.detach().cpu().numpy()
-        if rate is None :
-            sel_pred = (pi_list >0.5).detach().cpu().numpy().astype(int)
-        else :
-            dim_pi_list = np.prod(interpretable_module.selection_module.selector.output_size)
-            k = max(int(dim_pi_list * rate),1)
-            _, to_sel = torch.topk(pi_list.flatten(1), k, dim = 1)
-            sel_pred = torch.zeros_like(pi_list).scatter(1, to_sel, 1).detach().cpu().numpy().astype(int)
-
+        sel_pred = get_sel_pred(interpretable_module, pi_list, rate = rate).detach().cpu().numpy().astype(int)
         sel_true = optimal_S_test.reshape(sel_pred.shape)
 
 
