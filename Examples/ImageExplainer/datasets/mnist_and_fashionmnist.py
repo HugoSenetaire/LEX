@@ -44,7 +44,6 @@ class MNIST_and_FASHIONMNIST():
         self.data_test_fashion += np.random.normal(0, 0.1, size = self.data_test_fashion.shape) #Handled the way it's handled in REAL X
         self.data_test_fashion = self.data_test_fashion.reshape(-1, 1, 28, 28)
 
-
         self.target_train = self.mnist_train.targets
         self.target_test = self.mnist_test.targets
 
@@ -64,12 +63,14 @@ class MNIST_and_FASHIONMNIST():
 
 
 
+        self.data_train = torch.tensor(self.data_train.reshape(-1,1,28,56), dtype = torch.float32, requires_grad=False)
+        self.data_test = torch.tensor(self.data_test.reshape(-1,1,28,56), dtype = torch.float32, requires_grad=False)
+        self.quadrant_test = torch.tensor(self.quadrant_test.reshape(-1,1,28,56), dtype = torch.int64, requires_grad=False)
+        self.quadrant_train = torch.tensor(self.quadrant_train.reshape(-1,1,28,56), dtype = torch.int64, requires_grad=False)
 
-        self.data_train = torch.tensor(self.data_train.reshape(-1,1,28,56), dtype = torch.float32)
-        self.data_test = torch.tensor(self.data_test.reshape(-1,1,28,56), dtype = torch.float32)
-        self.quadrant_test = torch.tensor(self.quadrant_test.reshape(-1,1,28,56), dtype = torch.int64)
-        self.quadrant_train = torch.tensor(self.quadrant_train.reshape(-1,1,28,56), dtype = torch.int64)
-
+        
+        del self.mnist_train, self.mnist_test, self.fashion_mnist_train, self.fashion_mnist_test
+        del self.data_train_mnist, self.data_test_mnist, self.data_train_fashion, self.data_test_fashion
 
         # TODO : DELETE THE ADDING OF NOISE
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)

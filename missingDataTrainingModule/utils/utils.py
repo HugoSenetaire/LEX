@@ -178,3 +178,5 @@ def memory_manager(save_path = None,):
             pass
     with open(save_path, "a") as f:
         f.write(txt)
+    print("Saved at {}".format(save_path))
+    print(os.path.exists(save_path))
