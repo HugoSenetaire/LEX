@@ -67,12 +67,6 @@ def get_one_hot(target, num_classes = 10):
 
     return one_hot_target
 
-# def extend_input_mask(input, mc_part = 1, iwae_part = 1,):
-#     shape = input.shape
-#     reshape_shape = torch.Size((1,1,)) + shape
-#     wanted_shape = torch.Size((iwae_part, mc_part,)) + shape
-#     input_expanded = input.reshape(reshape_shape).expand(wanted_shape)
-#     return input_expanded
 
 def extend_input(input, mc_part = 1, iwae_part = 1,):
     shape = input.shape
@@ -81,12 +75,6 @@ def extend_input(input, mc_part = 1, iwae_part = 1,):
     input_expanded = input.reshape(reshape_shape).expand(wanted_shape)
     return input_expanded
      
-# def extend_input_sample(input, mc_part = 1, iwae_part = 1,):
-#     shape = input.shape
-#     reshape_shape = torch.Size((shape[0],)) + torch.Size((1,1,)) + shape[1:]
-#     wanted_shape = torch.Size((shape[0],)) + torch.Size((mc_part, iwae_part,)) + shape[1:]
-#     input_expanded = input.reshape(reshape_shape).expand(wanted_shape)
-#     return input_expanded
 
 def sampling_augmentation(data, target = None, index=None, one_hot_target = None, mc_part = 1, iwae_part = 1,):
     if index is not None :
@@ -156,19 +144,19 @@ def dic_evaluation(accuracy, mse, neg_likelihood, suffix = "", mse_loss_prod = N
     return dic
 
 
-def save_model(final_path, classification_module, selection_module, distribution_module, baseline,):
+def save_model(final_path, prediction_module, selection_module, distribution_module, baseline, suffix = ""):
     if not os.path.exists(final_path):
         os.makedirs(final_path)
 
-    path = os.path.join(final_path, "classification_module.pt")
-    torch.save(classification_module.state_dict(), path)
+    path = os.path.join(final_path, f"prediction_module{suffix}.pt")
+    torch.save(prediction_module.state_dict(), path)
 
-    path = os.path.join(final_path, "selection_module.pt")
+    path = os.path.join(final_path, f"selection_module{suffix}.pt")
     torch.save(selection_module.state_dict(), path)
 
-    path = os.path.join(final_path, "distribution_module.pt")
+    path = os.path.join(final_path, f"distribution_module{suffix}.pt")
     torch.save(distribution_module.state_dict(), path)
 
     if baseline is not None:
-        path = os.path.join(final_path, "baseline.pt")
+        path = os.path.join(final_path, f"baseline{suffix}.pt")
         torch.save(baseline.state_dict(), path)

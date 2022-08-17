@@ -7,7 +7,7 @@ sys.path.append(current_file_path)
 
 
 import missingDataTrainingModule
-from args_class import complete_args
+from args_class import CompleteArgs
 from datasets import *
 
 import matplotlib.pyplot as plt
@@ -18,7 +18,7 @@ from functools import partial
 
 def get_default(args = None):
     if args is None :
-        args = complete_args()
+        args = CompleteArgs()
 
     args.args_output.path = os.path.join(os.path.dirname(missingDataTrainingModule.__path__[0]), "Experiments") # Path to results
     args.args_output.save_weights = True
@@ -29,26 +29,34 @@ def get_default(args = None):
     args.args_trainer.monte_carlo_gradient_estimator = "REINFORCE" # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args.args_trainer.save_every_epoch = 1
     args.args_trainer.baseline = None
-    args.args_trainer.reshape_mask_function = "CollapseInBatch"
+
+    args.args_interpretable_module.interpretable_module = "SINGLE_LOSS"
+    args.args_interpretable_module.reshape_mask_function = "CollapseInBatch"
+
 
 
     args.args_dataset.dataset = "DiagDataset"
     args.args_dataset.loader = "LoaderArtificial"
-    args.args_dataset.root_dir = os.path.join(args.args_output.path, "datasets")
-    args.args_dataset.batch_size_train = 1000
-    args.args_dataset.batch_size_test = 1000
-    args.args_dataset.noise_function = None
-    args.args_dataset.cov = torch.tensor(1.0, dtype=torch.float32)
-    args.args_dataset.covariance_type = "spherical" #Choice spherical diagonal full
-    args.args_dataset.mean = torch.tensor(0.0, dtype=torch.float32)
-    args.args_dataset.download = True
-    args.args_dataset.dim_input = 11
-    args.args_dataset.used_dim = 10
-    args.args_dataset.give_index = True
+    args.args_dataset.args_dataset_parameters.root_dir = os.path.join(args.args_output.path, "datasets")
+    args.args_dataset.args_dataset_parameters.batch_size_train = 1000
+    args.args_dataset.args_dataset_parameters.batch_size_test = 1000
+    args.args_dataset.args_dataset_parameters.noise_function = None
+    args.args_dataset.args_dataset_parameters.cov = torch.tensor(1.0, dtype=torch.float32)
+    args.args_dataset.args_dataset_parameters.covariance_type = "spherical" #Choice spherical diagonal full
+    args.args_dataset.args_dataset_parameters.mean = torch.tensor(0.0, dtype=torch.float32)
+    args.args_dataset.args_dataset_parameters.download = True
+    args.args_dataset.args_dataset_parameters.dim_input = 11
+    args.args_dataset.args_dataset_parameters.used_dim = 10
+    args.args_dataset.args_dataset_parameters.give_index = True
+    args.args_dataset.args_dataset_parameters.epsilon_sigma = 1.0
+    args.args_dataset.args_dataset_parameters.scale_regression = False
+    args.args_dataset.args_dataset_parameters.classification = True  
+    args.args_dataset.args_dataset_parameters.train_seed = 0
+    args.args_dataset.args_dataset_parameters.test_seed = 1
 
 
 
-    args.args_classification.input_size_classification_module = (1,2) # Size before imputation
+    args.args_classification.input_size_prediction_module = (1,2) # Size before imputation
     args.args_classification.classifier = "RealXClassifier"
     args.args_classification.imputation = "ConstantImputation"
     args.args_classification.cste_imputation = 0
@@ -116,7 +124,11 @@ def get_default(args = None):
     args.args_train.nb_epoch_pretrain = 10 # Training the complete model 
     args.args_train.nb_sample_z_train_monte_carlo = 1
     args.args_train.nb_sample_z_train_IWAE = 1  # Number K in the IWAE-similar loss
+    args.args_train.nb_sample_z_train_monte_carlo_classification = 1
+    args.args_train.nb_sample_z_train_IWAE_classification = 1  
     args.args_train.loss_function = "NLL" # NLL, MSE
+    args.args_train.loss_function_selection = None
+    args.args_train.verbose = True
 
     args.args_train.training_type = "classic" # Options are .classic "alternate_ordinary", "alternate_fixing"]
     args.args_train.nb_step_fixed_classifier = 1 # Options for alternate fixing (number of step with fixed classifier)
@@ -144,7 +156,7 @@ def get_default(args = None):
 
     args.args_compiler.optim_classification_param = {"lr":1e-4,
                                                     "weight_decay" : 1e-3}  #Learning rate for classification module
-    args.args_compiler.optim_selection_param = {"lr":1,
+    args.args_compiler.optim_selection_param = {"lr":1e-4,
                                                 "weight_decay" : 1e-3}  # Learning rate for selection module
     args.args_compiler.optim_selection_var_param = {"lr":1e-4,
                                                     "weight_decay" : 1e-3}  # Learning rate for the variationnal selection module used in Variationnal Training

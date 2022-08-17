@@ -13,6 +13,9 @@ class LossRegularization():
     self.lambda_reg = lambda_reg
     self.regul_loss = regul_loss
     self.rate = rate
+    if self.rate is None: 
+      self.rate = 0.0
+    
     if self.rate>1.0 or self.rate<0.0:
       raise ValueError("Need a missing rate between 0 and 1.")
 
@@ -32,13 +35,16 @@ class LossRegularization():
     if self.batched:
       pi_list = torch.mean(pi_list, -1)
 
-    regularizing_vector = torch.full_like(pi_list, self.rate)
+    regularizing_vector = torch.full_like(pi_list, self.rate, device=log_pi_list.device)
     loss_reg = self.lambda_reg * torch.mean(self.function(regularizing_vector - pi_list))
     return log_pi_list, loss_reg
+  
+  def select_pi(self, pi_list):
+    return pi_list>0.5
       
 class SoftmaxRegularization():
   def __init__(self, rate = 0.5, batched = False, **kwargs):
-    self.rate =rate
+    self.rate = rate
     self.batched = batched
     if self.rate>1.0 or self.rate<0.0:
       raise ValueError("Need a missing rate between 0 and 1.")
@@ -72,6 +78,9 @@ class SoftmaxRegularization():
       loss_reg = loss_reg.cuda()
 
     return log_pi_list, loss_reg
+
+  def select_pi(self, pi_list):
+    return torch.where(pi_list>0.5, torch.ones_like(pi_list), torch.zeros_like(pi_list))
 
 
 class TopKRegularization():
@@ -109,7 +118,7 @@ class TopKRegularization():
       if self.batched :
         log_pi_list = PytorchDistributionUtils.distribution.utils.topK_STE.apply(log_pi_list.reshape(1,-1), k_selected).reshape(batch_size,-1)
       else :
-        log_pi_list = PytorchDistributionUtils.distribution.utils.topK_STEpply(log_pi_list, k_selected)
+        log_pi_list = PytorchDistributionUtils.distribution.utils.topK_STE.apply(log_pi_list, k_selected)
     
    
     
@@ -120,4 +129,5 @@ class TopKRegularization():
       loss_reg = loss_reg.cuda()
 
     return log_pi_list, loss_reg
+
 

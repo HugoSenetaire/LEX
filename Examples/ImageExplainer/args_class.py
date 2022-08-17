@@ -66,6 +66,8 @@ class args_selection():
         self.selector = None
         self.selector_var = None 
         self.activation = None
+        self.kernel_size = None
+        self.kernel_stride = None
 
         # For regularization :
         self.trainable_regularisation = None
@@ -74,6 +76,8 @@ class args_selection():
         self.rate = None
         self.loss_regularization = None # L1, L2 
         self.batched = None
+        self.continuous = None
+
 
 
         self.regularization_var = None
@@ -81,6 +85,7 @@ class args_selection():
         self.rate_var = None
         self.loss_regularization_var = None
         self.batched_var = None
+        self.continuous_var = None
 
 class args_distribution_module():
     def __init__(self):

@@ -12,12 +12,12 @@ import torch
 from functools import partial
 from datasets import *
 from interpretation_image import *
-from experiment_class import complete_args
+from args_class import CompleteArgs
 
 
 
 def get_default():
-    args = complete_args()
+    args = CompleteArgs()
 
     args.args_output.path = "C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\Experiments" # Path to results
     # args.args_output.path = "/scratch/hhjs" # Path to results
@@ -29,20 +29,24 @@ def get_default():
     args.args_trainer.complete_trainer = "SELECTION_BASED_CLASSIFICATION"
     args.args_trainer.monte_carlo_gradient_estimator = "REBAR" # Ordinary training, Variational Traininig, No Variational Training, post hoc...
     args.args_trainer.save_every_epoch = 20
-    args.args_trainer.reshape_mask_function = "KernelReshape2D"
+    
+    args.args_interpretable_module.interpretable_module = "SINGLE_LOSS"
+    args.args_interpretable_module.reshape_mask_function = "KernelReshape2D"
+
+    args.args_dataset.dataset = "MnistDataset"
+    args.args_dataset.loader = "LoaderEncapsulation"
+    args.args_dataset.args_dataset_parameters.root_dir = os.path.join(args.args_output.path, "datasets")
+    args.args_dataset.args_dataset_parameters.batch_size_train = 1000
+    args.args_dataset.args_dataset_parameters.batch_size_test = 1000
+    args.args_dataset.args_dataset_parameters.noise_function = None
+    args.args_dataset.args_dataset_parameters.download = True
+    args.args_dataset.args_dataset_parameters.train_seed = 0
+    args.args_dataset.args_dataset_parameters.test_seed = 1
 
 
-    args.args_dataset.dataset = MnistDataset
-    args.args_dataset.loader = LoaderEncapsulation
-    args.args_dataset.root_dir = os.path.join(args.args_output.path, "datasets")
-    args.args_dataset.batch_size_train = 100
-    args.args_dataset.batch_size_test = 100
-    args.args_dataset.noise_function = None
-    args.args_dataset.download = True
 
 
-
-    args.args_classification.input_size_classification_module = (1,28,28) # Size before imputation
+    args.args_classification.input_size_prediction_module = (1,28,28) # Size before imputation
     args.args_classification.classifier = "ConvClassifier"
 
     args.args_classification.imputation = "ConstantImputation"
@@ -51,9 +55,9 @@ def get_default():
     args.args_classification.add_mask = False
     args.args_classification.module_imputation = None # Path to the weights of the network to use for post processing)
     args.args_classification.nb_imputation_iwae = 1
-    args.args_classification.nb_imputation_iwae_test = None #If none is given, turn to 1
+    args.args_classification.nb_imputation_iwae_test = 1 #If none is given, turn to 1
     args.args_classification.nb_imputation_mc = 1
-    args.args_classification.nb_imputation_mc_test = None #If none is given, turn to 1
+    args.args_classification.nb_imputation_mc_test = 1 #If none is given, turn to 1
 
 
     args.args_classification.reconstruction_regularization = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
@@ -88,12 +92,13 @@ def get_default():
     args.args_selection.continuous = False
 
 
+
     args.args_selection.regularization_var = "LossRegularization"
     args.args_selection.lambda_regularization_var = 0.0
     args.args_selection.rate_var = 0.1
     args.args_selection.loss_regularization_var = "L1"
     args.args_selection.batched_var = False
-    args.args_selection.continuous = False
+    args.args_selection.continuous_var = False
 
 
 
@@ -123,7 +128,11 @@ def get_default():
     args.args_train.nb_epoch_pretrain = 0 # Training the complete model 
     args.args_train.nb_sample_z_train_monte_carlo = 1
     args.args_train.nb_sample_z_train_IWAE = 1  # Number K in the IWAE-similar loss
+    args.args_train.nb_sample_z_train_monte_carlo_classification = 1
+    args.args_train.nb_sample_z_train_IWAE_classification = 1  
     args.args_train.loss_function = "NLL" # NLL, MSE
+    args.args_train.loss_function_selection = None
+    args.args_train.verbose = True
 
 
     args.args_train.training_type = "classic" # Options are args..classic "alternate_ordinary", "alternate_fixing"]

@@ -1,26 +1,12 @@
 from .Prediction import *
 from .PytorchDistributionUtils import *
 from .Selection import *
-from .classification_training import *
-from .interpretation_training import *
-from .selection_training import *
+from .InterpretableModel import *
+from .Trainer import *
 import copy
 
-def instantiate_trainer(args_trainer,):
-    if args_trainer.complete_trainer == "SELECTION_BASED_CLASSIFICATION":
-        args_trainer.complete_trainer = SELECTION_BASED_CLASSIFICATION
-    elif args_trainer.complete_trainer == "REALX":
-        args_trainer.complete_trainer = REALX
-    elif args_trainer.complete_trainer == "SELECTION_TRAINING":
-        args_trainer.complete_trainer = selectionTraining
-    elif args_trainer.complete_trainer == "PREDICTION_TRAINING":
-        args_trainer.complete_trainer = ordinaryTraining
-    elif args_trainer.complete_trainer == "TRUESELECTION":
-        args_trainer.complete_trainer = trueSelectionTraining
-    elif args_trainer.complete_trainer == "EVAL_X":
-        args_trainer.complete_trainer = EVAL_X
-    else :
-        raise ValueError(f"Unknown trainer {args_trainer.complete_trainer}")
+def convert_trainer(args_trainer,):
+    args_trainer.complete_trainer = get_complete_trainer(args_trainer.complete_trainer)
 
     if args_trainer.monte_carlo_gradient_estimator == "REBAR": 
         args_trainer.monte_carlo_gradient_estimator = PytorchDistributionUtils.gradientestimator.REBAR # Ordinary training, Variational Traininig, No Variational Training, post hoc...
@@ -36,12 +22,14 @@ def instantiate_trainer(args_trainer,):
     args_trainer.save_epoch_function = lambda epoch, nb_epoch: (epoch % args_trainer.save_every_epoch == 0) or (epoch == nb_epoch-1) or (epoch<10)
     args_trainer.baseline = get_pred_network(args_trainer.baseline,) # Write the get network function ? But then I also need some information about the classification part.
     
-    
-    args_trainer.reshape_mask_function = get_reshape_mask(args_trainer.reshape_mask_function)
-
     return args_trainer
 
-def instantiate_classification(args_classification):
+def convert_interpretable_module(args_interpretable_module,):
+    args_interpretable_module.interpretable_module = get_interpretable_module(args_interpretable_module.interpretable_module)
+    args_interpretable_module.reshape_mask_function = get_reshape_mask(args_interpretable_module.reshape_mask_function)
+    return args_interpretable_module
+
+def convert_classification(args_classification):
     
     args_classification.classifier = get_pred_network(args_classification.classifier) 
     args_classification.imputation = get_imputation_type(args_classification.imputation)
@@ -61,7 +49,7 @@ def instantiate_classification(args_classification):
 
     return args_classification
 
-def instantiate_selection(args_selection):
+def convert_selection(args_selection):
     
     args_selection.selector = get_selection_network(args_selection.selector) 
     args_selection.selector_var = get_selection_network(args_selection.selector_var) 
@@ -78,6 +66,8 @@ def instantiate_selection(args_selection):
         args_selection.regularization = SoftmaxRegularization
     elif args_selection.regularization == "TopkRegularization" :
         args_selection.regularization == TopKRegularization
+    elif args_selection.regularization == "None" or args_selection.regularization == None :
+        args_selection.regularization = None
     else :
         raise ValueError("Unknown Regularization")
 
@@ -89,12 +79,14 @@ def instantiate_selection(args_selection):
         args_selection.regularization_var = SoftmaxRegularization
     elif args_selection.regularization_var == "TopkRegularization" :
         args_selection.regularization_var == TopKRegularization
+    elif args_selection.regularization_var == "None" or args_selection.regularization_var == None :
+        args_selection.regularization_var = None
     else :
         raise ValueError("Unknown Regularization")
 
     return args_selection
 
-def instantiate_distribution(args_distribution):
+def convert_distribution(args_distribution):
 
     if args_distribution.distribution_module == "REBARBernoulli_STE":
         args_distribution.distribution_module = PytorchDistributionUtils.wrappers.REBARBernoulli_STE
@@ -153,7 +145,7 @@ def instantiate_distribution(args_distribution):
     
     return args_distribution
 
-def instantiate_optim(optim,):
+def convert_optim(optim,):
     if optim == "ADAM":
         return torch.optim.Adam
     elif optim == "SGD" :
@@ -162,7 +154,7 @@ def instantiate_optim(optim,):
         raise ValueError("Distribution not found")
 
 
-def instantiate_scheduler(scheduler,) :
+def convert_scheduler(scheduler,) :
     if scheduler == None or scheduler == "None" :
         return None
     elif scheduler == "StepLR" :
@@ -170,32 +162,33 @@ def instantiate_scheduler(scheduler,) :
     else :
         raise ValueError("Scheduler")
     
-def instantiate_compiler(args_compiler):
-    args_compiler.optim_classification = instantiate_optim(args_compiler.optim_classification)  #Learning rate for classification module
-    args_compiler.optim_selection = instantiate_optim(args_compiler.optim_selection)  # Learning rate for selection module
-    args_compiler.optim_selection_var = instantiate_optim(args_compiler.optim_selection_var)  # Learning rate for the variationnal selection module used in Variationnal Training
-    args_compiler.optim_distribution_module = instantiate_optim(args_compiler.optim_distribution_module)  # Learning rate for the feature extractor if any
-    args_compiler.optim_baseline = instantiate_optim(args_compiler.optim_baseline)  # Learning rate for the baseline network
-    args_compiler.optim_autoencoder = instantiate_optim(args_compiler.optim_autoencoder) 
-    args_compiler.optim_post_hoc = instantiate_optim(args_compiler.optim_post_hoc) 
+def convert_compiler(args_compiler):
+    args_compiler.optim_classification = convert_optim(args_compiler.optim_classification)  #Learning rate for classification module
+    args_compiler.optim_selection = convert_optim(args_compiler.optim_selection)  # Learning rate for selection module
+    args_compiler.optim_selection_var = convert_optim(args_compiler.optim_selection_var)  # Learning rate for the variationnal selection module used in Variationnal Training
+    args_compiler.optim_distribution_module = convert_optim(args_compiler.optim_distribution_module)  # Learning rate for the feature extractor if any
+    args_compiler.optim_baseline = convert_optim(args_compiler.optim_baseline)  # Learning rate for the baseline network
+    args_compiler.optim_autoencoder = convert_optim(args_compiler.optim_autoencoder) 
+    args_compiler.optim_post_hoc = convert_optim(args_compiler.optim_post_hoc) 
 
-    args_compiler.scheduler_classification = instantiate_scheduler(args_compiler.scheduler_classification)  #Learning rate for classification module
-    args_compiler.scheduler_selection = instantiate_scheduler(args_compiler.scheduler_selection)  # Learning rate for selection module
-    args_compiler.scheduler_selection_var = instantiate_scheduler(args_compiler.scheduler_selection_var)  # Learning rate for the variationnal selection module used in Variationnal Training
-    args_compiler.scheduler_distribution_module = instantiate_scheduler(args_compiler.scheduler_distribution_module)  # Learning rate for the feature extractor if any
-    args_compiler.scheduler_baseline = instantiate_scheduler(args_compiler.scheduler_baseline)  # Learning rate for the baseline network
-    args_compiler.scheduler_autoencoder = instantiate_scheduler(args_compiler.scheduler_autoencoder) 
-    args_compiler.scheduler_post_hoc = instantiate_scheduler(args_compiler.scheduler_post_hoc) 
+    args_compiler.scheduler_classification = convert_scheduler(args_compiler.scheduler_classification)  #Learning rate for classification module
+    args_compiler.scheduler_selection = convert_scheduler(args_compiler.scheduler_selection)  # Learning rate for selection module
+    args_compiler.scheduler_selection_var = convert_scheduler(args_compiler.scheduler_selection_var)  # Learning rate for the variationnal selection module used in Variationnal Training
+    args_compiler.scheduler_distribution_module = convert_scheduler(args_compiler.scheduler_distribution_module)  # Learning rate for the feature extractor if any
+    args_compiler.scheduler_baseline = convert_scheduler(args_compiler.scheduler_baseline)  # Learning rate for the baseline network
+    args_compiler.scheduler_autoencoder = convert_scheduler(args_compiler.scheduler_autoencoder) 
+    args_compiler.scheduler_post_hoc = convert_scheduler(args_compiler.scheduler_post_hoc) 
 
     return args_compiler
 
 
 def convert_all(complete_args):
     complete_args_converted = copy.deepcopy(complete_args)
-    complete_args_converted.args_trainer = instantiate_trainer(complete_args_converted.args_trainer)
-    complete_args_converted.args_distribution_module = instantiate_distribution(complete_args_converted.args_distribution_module)
-    complete_args_converted.args_classification_distribution_module = instantiate_distribution(complete_args_converted.args_classification_distribution_module)
-    complete_args_converted.args_selection = instantiate_selection(complete_args_converted.args_selection)
-    complete_args_converted.args_classification = instantiate_classification(complete_args_converted.args_classification)
-    complete_args_converted.args_compiler = instantiate_compiler(complete_args_converted.args_compiler)
+    complete_args_converted.args_trainer = convert_trainer(complete_args_converted.args_trainer)
+    complete_args_converted.args_distribution_module = convert_distribution(complete_args_converted.args_distribution_module)
+    complete_args_converted.args_classification_distribution_module = convert_distribution(complete_args_converted.args_classification_distribution_module)
+    complete_args_converted.args_selection = convert_selection(complete_args_converted.args_selection)
+    complete_args_converted.args_classification = convert_classification(complete_args_converted.args_classification)
+    complete_args_converted.args_compiler = convert_compiler(complete_args_converted.args_compiler)
+    complete_args_converted.args_interpretable_module = convert_interpretable_module(complete_args_converted.args_interpretable_module)
     return complete_args_converted

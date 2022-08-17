@@ -2,15 +2,14 @@ import os
 import torch
 import torch.nn as nn
 
-from .classification_training import ordinaryTraining, EVAL_X, trueSelectionTraining
-from .interpretation_training import SELECTION_BASED_CLASSIFICATION, REALX
-from .selection_training import selectionTraining
-from .utils import MSELossLastDim, define_target, continuous_NLLLoss, fill_dic, save_dic, save_model
-from .PytorchDistributionUtils.distribution import self_regularized_distributions, RelaxedSubsetSampling, RelaxedBernoulli_thresholded_STE, RelaxedSubsetSampling_STE, L2XDistribution_STE, L2XDistribution
-from .Selection.selection_module import SelectionModule, calculate_blocks_patch
+from .utils import fill_dic, save_dic, save_model
+from .Selection import SelectionModule
 from .Prediction import PredictionModule
+from .Trainer import ordinaryPredictionTraining, trainingWithSelection, selectionTraining
+from .EpochsScheduler import classic_train_epoch, alternate_ordinary_train_epoch, alternate_fixing_train_epoch
 from .instantiate import *
 from .convert_args import *
+from .EvaluationUtils import test_epoch
 
 from torch.distributions import *
 from torch.optim import *
@@ -34,8 +33,8 @@ def save_parameters(path, complete_args):
 
 
 def experiment(dataset, loader, complete_args,):
-    if complete_args.args_dataset.train_seed is not None:
-        torch.random.manual_seed(complete_args.args_dataset.train_seed )
+    if complete_args.args_dataset.args_dataset_parameters.train_seed is not None:
+        torch.random.manual_seed(complete_args.args_dataset.args_dataset_parameters.train_seed )
     dic_list = {}
 
     ### Prepare output path :
@@ -64,11 +63,37 @@ def experiment(dataset, loader, complete_args,):
     ### Imputation :
     imputation = get_imputation_method(complete_args_converted.args_classification, dataset)
     ### Networks :
-    classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(complete_args_converted.args_classification, complete_args_converted.args_selection, complete_args_converted.args_trainer, dataset.get_dim_output())
+    classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(complete_args_converted.args_classification,
+                                                                        complete_args_converted.args_selection,
+                                                                        complete_args_converted.args_trainer,
+                                                                        complete_args_converted.args_interpretable_module,
+                                                                        dataset=dataset)
     ### Loss Function :
-    loss_function = get_loss_function(complete_args_converted.args_train, dataset.get_dim_output())
-
+    loss_function = get_loss_function(complete_args_converted.args_train.loss_function,
+                                            complete_args_converted.args_train,
+                                            dataset.get_dim_output())
+    loss_function_selection = get_loss_function(complete_args_converted.args_train.loss_function_selection,
+                                            complete_args_converted.args_train,
+                                            dataset.get_dim_output())
+    ### Complete Module :
+    prediction_module = PredictionModule(classifier, imputation=imputation)
+    selection_module =  SelectionModule(selector,
+                    activation=complete_args_converted.args_selection.activation,
+                    regularization=regularization,
+                    )
+    selection_module_var = None
+    interpretable_module = get_complete_module(complete_args_converted.args_interpretable_module.interpretable_module,
+                                                prediction_module,
+                                                selection_module,
+                                                selection_module_var,
+                                                distribution_module = distribution_module,
+                                                classification_distribution_module = classification_distribution_module,
+                                                reshape_mask_function = reshape_mask_function,
+                                                dataset = dataset,
+                                                )
     
+
+
     if not os.path.exists(final_path):
         os.makedirs(final_path)
 
@@ -82,174 +107,98 @@ def experiment(dataset, loader, complete_args,):
     if complete_args_converted.args_train.post_hoc and complete_args_converted.args_train.post_hoc_guidance is not None :
         print("Training post-hoc guidance")
         post_hoc_classifier =  complete_args_converted.args_train.post_hoc_guidance(complete_args_converted.args_selection.input_size_selector, dataset.get_dim_output())
-        post_hoc_guidance = PredictionModule(post_hoc_classifier, imputation = imputation)
+        post_hoc_guidance_prediction_module = PredictionModule(post_hoc_classifier, imputation = imputation)
+        post_hoc_guidance_complete_module = PredictionCompleteModel(post_hoc_guidance_prediction_module,)
 
-
-
-        trainer = ordinaryTraining(classification_module = post_hoc_guidance,)
+        trainer = ordinaryPredictionTraining(prediction_module = post_hoc_guidance_complete_module, loss_function = loss_function,)
         if complete_args_converted.args_train.use_cuda:
             trainer.cuda()
 
-        optim_post_hoc, scheduler_post_hoc = get_optim(post_hoc_guidance, 
+        optim_post_hoc, scheduler_post_hoc = get_optim(post_hoc_guidance_prediction_module, 
                                                     complete_args_converted.args_compiler.optim_post_hoc,
                                                     complete_args_converted.args_compiler.optim_post_hoc_param,
                                                     complete_args_converted.args_compiler.scheduler_post_hoc,
                                                     complete_args_converted.args_compiler.scheduler_post_hoc_param,)
         trainer.compile(optim_classification=optim_post_hoc, scheduler_classification = scheduler_post_hoc)
 
+        epoch_scheduler = classic_train_epoch(save_dic = True, verbose=True,)
         total_dic_train = {}
         total_dic_test = {}
         for epoch in range(complete_args_converted.args_train.nb_epoch_post_hoc):
-            dic_train = trainer.train_epoch(epoch, loader, loss_function=loss_function, save_dic = True,)
+            dic_train = epoch_scheduler(epoch, loader, trainer)
             total_dic_train = fill_dic(total_dic_train, dic_train)
 
             test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch_post_hoc)
             if test_this_epoch :
-                dic_test = trainer.test(epoch, loader, )
+                dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = [], trainer = trainer)
                 total_dic_test = fill_dic(total_dic_test, dic_test)
 
-            
-            
         save_dic(os.path.join(final_path,"train_post_hoc"), total_dic_train)
         save_dic(os.path.join(final_path,"test_post_hoc"), total_dic_test)
 
         dic_list["train_post_hoc"] = total_dic_train
         dic_list["test_post_hoc"]  = total_dic_test
-        post_hoc_guidance.eval()
+        post_hoc_guidance_prediction_module.eval()
     else :
-        post_hoc_guidance = None
+        post_hoc_guidance_prediction_module = None
 
     ##### ============ Modules initialisation for ordinary training ============:
 
-    trainer_ordinary = None
-    if (complete_args_converted.args_trainer.complete_trainer is EVAL_X) or (complete_args_converted.args_trainer.complete_trainer is REALX) :
-
-            classification_module = PredictionModule(classifier, imputation)
-
-            if  complete_args_converted.args_trainer.complete_trainer is REALX and complete_args_converted.args_train.nb_epoch_pretrain > 0 :
-                post_hoc_guidance_eval_x = None
-                post_hoc_eval_x = False
-            else :
-                post_hoc_guidance_eval_x = post_hoc_guidance 
-                post_hoc_eval_x = complete_args_converted.args_train.post_hoc
-
-
-            trainer_ordinary = EVAL_X(classification_module, 
-                            reshape_mask_function = reshape_mask_function,
-                            post_hoc_guidance = post_hoc_guidance_eval_x,
-                            post_hoc = post_hoc_eval_x,
-                            argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
-                            )
+    pretrainer_pred = None
+    if complete_args_converted.args_train.nb_epoch_pretrain > 0 :
+        if (complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION or complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION):
+            if complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION :
+                pretrainer_pred = trainingWithSelection(interpretable_module.EVALX, 
+                                post_hoc_guidance = post_hoc_guidance_prediction_module,
+                                post_hoc = complete_args_converted.args_train.post_hoc,
+                                argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
+                                loss_function = loss_function,
+                                nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo_classification,
+                                nb_sample_z_iwae = complete_args_converted.args_train.nb_sample_z_train_IWAE_classification,
+                                )
+            elif complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION :
+                pretrainer_pred = ordinaryPredictionTraining(interpretable_module,
+                                post_hoc_guidance = post_hoc_guidance_prediction_module,
+                                post_hoc = complete_args_converted.args_train.post_hoc,
+                                argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
+                                loss_function = loss_function,
+                                )
+            
             if complete_args_converted.args_train.use_cuda:
-                trainer_ordinary.cuda()
+                pretrainer_pred.cuda()
 
-            optim_classification, scheduler_classification = get_optim(classification_module,
+            optim_classification, scheduler_classification = get_optim(interpretable_module.prediction_module,
                                                             complete_args_converted.args_compiler.optim_classification,
                                                             complete_args_converted.args_compiler.optim_classification_param,
                                                             complete_args_converted.args_compiler.scheduler_classification,
                                                             complete_args_converted.args_compiler.scheduler_classification_param,)
-            trainer_ordinary.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
-            
-            if complete_args_converted.args_trainer.complete_trainer is EVAL_X :
-                nb_epoch = complete_args_converted.args_train.nb_epoch
-            else :
-                nb_epoch = complete_args_converted.args_train.nb_epoch_pretrain
+            pretrainer_pred.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
+            nb_epoch = complete_args_converted.args_train.nb_epoch_pretrain
+
+            epoch_scheduler = classic_train_epoch(save_dic = True, verbose=complete_args_converted.args_train.verbose,)
             total_dic_train = {}
             total_dic_test = {}
             for epoch in range(nb_epoch):
-                dic_train = trainer_ordinary.train_epoch(epoch, loader, nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo, loss_function = loss_function, save_dic = True, verbose=True)
+                dic_train = epoch_scheduler(epoch, loader, pretrainer_pred)
                 total_dic_train = fill_dic(total_dic_train, dic_train)
-                test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, nb_epoch)
+
+                test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch_post_hoc)
                 if test_this_epoch :
-                    dic_test = trainer_ordinary.test(epoch, loader, liste_mc = complete_args_converted.args_test.liste_mc)
+                    dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = [], trainer = pretrainer_pred)
                     total_dic_test = fill_dic(total_dic_test, dic_test)
 
-
-            dic_list["train_pretraining_eval_x"] = total_dic_train
-            dic_list["test_pretraining_eval_x"]  = total_dic_test
-
-            if complete_args_converted.args_trainer.complete_trainer is EVAL_X:
-                dic_list["train"] = total_dic_train
-                dic_list["test"]  = total_dic_test
-                save_dic(os.path.join(final_path,"train"), total_dic_train)
-                save_dic(os.path.join(final_path,"test"), total_dic_test)
-                return final_path, trainer_ordinary, loader, dic_list
-
-    else :
-        if complete_args_converted.args_trainer.complete_trainer is ordinaryTraining or complete_args_converted.args_trainer.complete_trainer is trueSelectionTraining :
-            nb_epoch = int(complete_args_converted.args_train.nb_epoch)
-            post_hoc_guidance_ordinary = post_hoc_guidance
-            post_hoc_ordinary = complete_args_converted.args_train.post_hoc
-            
-        else :
-            nb_epoch = complete_args_converted.args_train.nb_epoch_pretrain
-            post_hoc_guidance_ordinary = None
-            post_hoc_ordinary = False
-
-
-        vanilla_classification_module = PredictionModule(classifier,  imputation = imputation)
-
-        if complete_args_converted.args_trainer.complete_trainer is trueSelectionTraining :
-            trainer_ordinary = trueSelectionTraining(vanilla_classification_module, 
-                                    post_hoc_guidance = post_hoc_guidance_ordinary,
-                                    post_hoc = post_hoc_ordinary,
-                                    argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
-                                    )
-            true_selection = True
-        else :
-            trainer_ordinary = ordinaryTraining(vanilla_classification_module,
-                                    post_hoc_guidance = post_hoc_guidance_ordinary,
-                                    post_hoc = post_hoc_ordinary,
-                                    argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
-                                )
-            true_selection = False
-
-        if complete_args_converted.args_train.use_cuda:
-            trainer_ordinary.cuda()
-
-        optim_classification, scheduler_classification = get_optim(vanilla_classification_module,
-                                                                complete_args_converted.args_compiler.optim_classification,
-                                                                complete_args_converted.args_compiler.optim_classification_param,
-                                                                complete_args_converted.args_compiler.scheduler_classification,
-                                                                complete_args_converted.args_compiler.scheduler_classification_param,)
-        trainer_ordinary.compile(optim_classification=optim_classification, scheduler_classification = scheduler_classification,)
-
-
-        total_dic_train = {}
-        total_dic_test = {}
-        for epoch in range(int(nb_epoch)):
-            dic_train = trainer_ordinary.train_epoch(epoch, loader, loss_function = loss_function, save_dic = True, verbose=True)
-            total_dic_train = fill_dic(total_dic_train, dic_train)
-            test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, nb_epoch)
-            if test_this_epoch :
-                if true_selection :
-                    dic_test = trainer_ordinary.test(epoch, loader, liste_mc = complete_args_converted.args_test.liste_mc)
-                else :
-                    dic_test = trainer_ordinary.test(epoch, loader,)
-                total_dic_test = fill_dic(total_dic_test, dic_test)
-
-
-        if complete_args_converted.args_trainer.complete_trainer is ordinaryTraining or complete_args_converted.args_trainer.complete_trainer is trueSelectionTraining :
-            dic_list["train"] = total_dic_train
-            dic_list["test"]  = total_dic_test
-            save_dic(os.path.join(final_path,"train"), total_dic_train)
-            save_dic(os.path.join(final_path,"test"), total_dic_test)
-            return final_path, trainer_ordinary, loader, dic_list
-
-        else :
             dic_list["train_pretraining"] = total_dic_train
-            dic_list["test_pretaining"]  = total_dic_test
+            dic_list["test_pretraining"]  = total_dic_test
+        else :
+            print(f"Pretraining is either not implemented or not needed for this interpretable module {complete_args.args_interpretable_module.interpretable_module}")
             
+
     ##### ======================= Training in selection ==========================:
 
-    selection_module = SelectionModule(selector,
-                    activation=complete_args_converted.args_selection.activation,
-                    regularization=regularization,
-                    )
 
     if complete_args_converted.args_train.nb_epoch_pretrain_selector > 0 :
-        selection_trainer = selectionTraining(selection_module, complete_args_converted.args_train.use_regularization_pretrain_selector)
-        optim_selection, scheduler_selection = get_optim(selection_module,
+        selection_trainer = selectionTraining(interpretable_module, complete_args_converted.args_train.use_regularization_pretrain_selector)
+        optim_selection, scheduler_selection = get_optim(interpretable_module.selection_module,
                                             complete_args_converted.args_compiler.optim_selection,
                                             complete_args_converted.args_compiler.optim_selection_param,
                                             complete_args_converted.args_compiler.scheduler_selection,
@@ -272,9 +221,7 @@ def experiment(dataset, loader, complete_args,):
             test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, nb_epoch)
             if test_this_epoch :
                 dic_test = selection_trainer.test(epoch, loader, )
-                total_dic_test = fill_dic(total_dic_test, dic_test)
-
-        
+                total_dic_test = fill_dic(total_dic_test, dic_test)   
             
         dic_list["train_selection_pretraining"] = total_dic_train
         dic_list["test_selection_pretaining"]  = total_dic_test
@@ -286,29 +233,31 @@ def experiment(dataset, loader, complete_args,):
     ##### ============  Modules initialisation for complete training ===========:
    
 
-
-    classification_module = PredictionModule(classifier, imputation=imputation)
-    trainer = complete_args_converted.args_trainer.complete_trainer(
-        classification_module,
-        selection_module,
+    trainer = get_trainer(complete_args_converted.args_trainer.complete_trainer,
+        interpretable_module,
         monte_carlo_gradient_estimator = complete_args_converted.args_trainer.monte_carlo_gradient_estimator,
-        baseline = baseline,
-        distribution_module = distribution_module,
-        classification_distribution_module = classification_distribution_module,
-        reshape_mask_function = reshape_mask_function,
+        baseline = None,
         fix_classifier_parameters = complete_args_converted.args_train.fix_classifier_parameters,
         fix_selector_parameters = complete_args_converted.args_train.fix_selector_parameters,
-        post_hoc_guidance = post_hoc_guidance,
         post_hoc = complete_args_converted.args_train.post_hoc,
+        post_hoc_guidance = post_hoc_guidance_prediction_module,
         argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
+        loss_function = loss_function,
+        loss_function_selection = loss_function_selection,
+        nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo,
+        nb_sample_z_iwae = complete_args_converted.args_train.nb_sample_z_train_IWAE,
+        nb_sample_z_monte_carlo_classification = complete_args_converted.args_train.nb_sample_z_train_monte_carlo_classification,
+        nb_sample_z_iwae_classification = complete_args_converted.args_train.nb_sample_z_train_IWAE_classification,
         )
+
+
 
     if complete_args_converted.args_train.use_cuda:
         trainer.cuda()
 
     ####Optim_optim_classification :
 
-    optim_classification, scheduler_classification = get_optim(classification_module,
+    optim_classification, scheduler_classification = get_optim(prediction_module,
                                                     complete_args_converted.args_compiler.optim_classification,
                                                     complete_args_converted.args_compiler.optim_classification_param,
                                                     complete_args_converted.args_compiler.scheduler_classification,
@@ -329,7 +278,9 @@ def experiment(dataset, loader, complete_args,):
                                                                 complete_args_converted.args_compiler.scheduler_distribution_module,
                                                                 complete_args_converted.args_compiler.scheduler_distribution_module_param,)
 
-    trainer.compile(optim_classification = optim_classification,
+    trainer = compile_trainer(trainer,
+        trainer_type = complete_args_converted.args_trainer.complete_trainer,
+        optim_classification = optim_classification,
         optim_selection = optim_selection,
         scheduler_classification = scheduler_classification,
         scheduler_selection = scheduler_selection,
@@ -342,32 +293,28 @@ def experiment(dataset, loader, complete_args,):
 
 
 ###### Main module training :
-
+    # epoch_scheduler = classic_train_epoch(save_dic = True, verbose=((epoch+1) % complete_args_converted.args_train.print_every == 0),)
+    epoch_scheduler = classic_train_epoch(save_dic = True, verbose=complete_args_converted.args_train.verbose,)
     best_train_loss_in_test = float("inf")
     total_dic_train = {}
     total_dic_test = {}
     for epoch in range(complete_args_converted.args_train.nb_epoch):
-        dic_train = get_training_method(trainer, complete_args_converted.args_train, trainer_ordinary)(
-            epoch, 
-            loader,
-            save_dic = True,
-            nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo,
-            nb_sample_z_iwae = complete_args_converted.args_train.nb_sample_z_train_IWAE,
-            loss_function = loss_function,
-            verbose = ((epoch+1) % complete_args_converted.args_train.print_every == 0),
-        )
+        dic_train = epoch_scheduler(epoch, loader, trainer)
         total_dic_train = fill_dic(total_dic_train, dic_train)
 
         test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch)
         if test_this_epoch :
-            dic_test = trainer.test(epoch, loader, args = complete_args, liste_mc = complete_args_converted.args_test.liste_mc,)
+            dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = complete_args_converted.args_test.liste_mc, trainer = trainer)
+            total_dic_test = fill_dic(total_dic_test, dic_test)
             if complete_args_converted.args_output.save_weights :
                 last_train_loss_in_test = dic_test["train_loss_in_test"]
                 if last_train_loss_in_test < best_train_loss_in_test :
                     best_train_loss_in_test = last_train_loss_in_test
-                    save_model(final_path, classification_module, selection_module, distribution_module, baseline,)
-            total_dic_test = fill_dic(total_dic_test, dic_test)
+                    save_model(final_path, prediction_module, selection_module, distribution_module, baseline,suffix = "_best")
         
+        
+    save_model(final_path, prediction_module, selection_module, distribution_module, baseline,suffix = "_last")
+
     save_dic(os.path.join(final_path,"train"), total_dic_train)
     save_dic(os.path.join(final_path,"test"), total_dic_test)
 

@@ -21,26 +21,22 @@ def get_all_paths(input_dirs, dataset_name):
             first_step = os.path.join(os.path.join(input_dir, dataset), "*")
             path_finder = os.path.join(os.path.join(first_step, "*"),"interpretation.txt")
             list_all_paths[dataset].extend(glob.glob(path_finder, recursive=True))
+            print("Found {} interpretations for dataset {}".format(len(list_all_paths[dataset]), dataset))
     print("Found {} paths".format(len(list_all_paths)))
     return list_all_paths
 
-def read_interpretation(path, wanted_measure = ["accuracy", "accuracy_true_selection", "accuracy_no_selection", "auroc", "auroc_true_selection", "auroc_no_selection", "fpr2", "tpr2"]):
+def read_interpretation(path,):
     dic = {}
     with open(path, "r") as f :
         text = f.readlines()
         for line in text :
             try :
                 key, value = line.replace("\n", "").split(" : ")
-                if key in wanted_measure :
-                    dic[key] = float(value)
+                dic[key] = float(value)
             except(ValueError):
                 continue
 
-    for key in wanted_measure :
-        if key not in dic :
-            dic[key] = None
-            # if key ==   
-            # TODO @hhjs : Interesting to get the value for all the mean and pi.   
+
     return dic
 
 
@@ -85,7 +81,7 @@ def parameter_to_dic(file):
 
     dic["parameters_args_dataset_dataset"] = str(dic["parameters_args_dataset_dataset"])
     dic["parameters_args_dataset_loader"] = str(dic["parameters_args_dataset_loader"])
-
+    dic["parameters_args_test_liste_mc"] = str(dic["parameters_args_test_liste_mc"])
 
     return dic
 
@@ -149,11 +145,13 @@ def get_train_log(path,):
 
 def create_data_frame(input_dirs, dataset_name, get_output = False):
     list_all_paths = get_all_paths(input_dirs, dataset_name)
+    
     dataframe = None
     dic = {}
     k=0
-    for dataset_name in list_all_paths :
+    for dataset_name in list_all_paths.keys() :
         print("Treating {}".format(dataset_name))
+        print("{} : {}".format(dataset_name, len(list_all_paths[dataset_name])))
         for i,path in tqdm.tqdm(enumerate(list_all_paths[dataset_name])) :
             # Parameter
             dic = get_parameters(path)
@@ -221,13 +219,15 @@ if __name__ == '__main__':
     assert len(args.input_dirs) > 0, "Please provide at least one input directory"
 
     df = create_data_frame(input_dirs = args.input_dirs, dataset_name=args.dataset_name, get_output = args.get_output)
-    df_grouped = get_average_and_std(df)
 
     if not os.path.exists(args.out_dir):
         os.makedirs(args.out_dir)
 
     out_file = os.path.join(args.out_dir, args.out_path + '.csv')
     df.to_csv(out_file, sep=';')
+
+    df_grouped = get_average_and_std(df)
+
 
     out_file_grouped = os.path.join(args.out_dir, args.out_path + '_grouped.csv')
     df_grouped.to_csv(out_file_grouped, sep=';')

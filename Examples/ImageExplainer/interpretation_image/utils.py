@@ -6,6 +6,8 @@ import sklearn.metrics as metrics
 import copy
 import json
 
+from missingDataTrainingModule.EvaluationUtils import eval_selection_sample, test_epoch
+
 def show_interpretation(sample, data, target, shape = (1,28,28)):
   channels = shape[0]
   for i in range(len(sample)):
@@ -21,85 +23,117 @@ def show_interpretation(sample, data, target, shape = (1,28,28)):
         plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none', vmin=sample_reshaped[k].min().item(), vmax=sample_reshaped[k].max().item())
         plt.show()
 
-def imputation_image(trainer, loader, final_path, nb_samples_image_per_category = 3, nb_imputation = 3,):
-    trainer.eval()
-    data, target, index= next(iter(loader.test_loader))
-    output_category = loader.dataset.get_dim_output()
-    indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
-    data = data[indexes]
-    target = target[indexes]
-    total_image = len(data)
 
-    wanted_shape = loader.dataset.get_dim_input()
-    if wanted_shape[0] == 1 :
-        transpose_set = None
-        wanted_shape_transpose = (wanted_shape[1], wanted_shape[2])
-        cmap = 'gray'
-    elif wanted_shape[0] >1 :
-        transpose_set = (1,2,0)
-        wanted_shape_transpose = (wanted_shape[1], wanted_shape[2], wanted_shape[0])
-        cmap = 'viridis'
-
-    if trainer.use_cuda:
-        data, target = data.cuda(), target.cuda()
-    
-    classification_module = trainer.classification_module
-    selection_module = trainer.selection_module
-    distribution_module = trainer.distribution_module
-    classification_module.imputation.nb_imputation_mc_test = nb_imputation
-    classification_module.imputation.nb_imputation_iwae_test = 1
-
-
-
-
-    
-    log_pi_list,_ = selection_module(data)
-
-
-    pz = distribution_module(torch.exp(log_pi_list,))
-    z = distribution_module.sample((1,))
-    z = trainer.reshape(z)
-
-
-    data_imputed = classification_module.get_imputation(data, z)
-    data_imputed = data_imputed.cpu().detach().numpy().reshape(nb_imputation, total_image, *wanted_shape)
-    data = data.cpu().detach().numpy()
-    z = z.cpu().detach().numpy()
-    target = target.cpu().detach().numpy()
-
+def save_imputation(x_original, target, x_imputed, z, final_path, k, l, wanted_shape_transpose, transpose_set = None, cmap = 'gray'):
     folder_path = os.path.join(final_path, "imputation_from_sample")
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
+    if transpose_set is not None :
+        x_imputed = x_imputed.transpose(transpose_set)
+        x_original = x_original.transpose(transpose_set)
+    x_imputed = x_imputed.reshape(wanted_shape_transpose)
+    x_original = x_original.reshape(wanted_shape_transpose)
+
+    current_z = z[0].reshape(wanted_shape_transpose[:2])
+    fig, axs = plt.subplots(1,3, figsize=(15,5))
+    axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
+    axs[0].set_title(f"Original image")
+    axs[0].axis("off")
+    axs[1].imshow(current_z, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
+    axs[1].set_title(f"One Sampled Mask")
+    axs[1].axis("off")
+    axs[2].imshow(x_imputed, cmap=cmap, interpolation='none',)
+    axs[2].set_title(f"Imputed image")
+    axs[2].axis("off")
+    plt.axis('off')
+
+    plt.savefig(os.path.join(folder_path, f"{k}_target_{target}_imputation_{l}.png"))
+    plt.close(fig)
+
+
+def save_sampling_mask(x_original, z,  pi_list, target, pred, final_path, k, wanted_shape_transpose, transpose_set = None, cmap = 'gray', prefix = "",):
+    folder_path = os.path.join(final_path, "output_sample")
+    target_path = os.path.join(folder_path, f"target_{target}")
+    if not os.path.exists(target_path):
+        os.makedirs(target_path)
+
+    if transpose_set is not None :
+        x_original = x_original.transpose(transpose_set)
+    x_original = x_original.reshape(wanted_shape_transpose)
+
+    current_z = z.reshape(wanted_shape_transpose[:2])
+    current_pi_list = pi_list.reshape(wanted_shape_transpose[:2])
     
-    for k in range(total_image):
-        for l in range(nb_imputation):
-            x_imputed = data_imputed[l][k]
-            x_original = data[k]
-            if transpose_set is not None :
-                x_imputed = x_imputed.transpose(transpose_set)
-                x_original = x_original.transpose(transpose_set)
-            x_imputed = x_imputed.reshape(wanted_shape_transpose)
-            x_original = x_original.reshape(wanted_shape_transpose)
+    fig, axs = plt.subplots(1,4, figsize=(20,5))
+    axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
+    axs[0].set_title(f"Original image")
+    axs[0].axis("off")
+    axs[1].imshow(current_z, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
+    axs[1].set_title(f"One sample")
+    axs[1].axis("off")
+    axs[2].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
+    axs[2].set_title(f"Sample averaged")
+    axs[2].axis("off")
+    axs[3].bar(np.arange(len(pred[k])), pred[k])
+    axs[3].set_title(f"Prediction using the one sample")
+    axs[3].axis("off")
+    plt.axis("off")
+    plt.savefig(os.path.join(target_path, f"{k}.png"))
+    plt.close(fig)
 
-            current_z = z[k,0].reshape(wanted_shape_transpose[:2])
-            fig, axs = plt.subplots(1,3, figsize=(15,5))
-            axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
-            axs[1].imshow(current_z, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
-            axs[2].imshow(x_imputed, cmap=cmap, interpolation='none',)
-            plt.savefig(os.path.join(folder_path, f"{k}_target_{target[k]}_imputation_{l}.png"))
-            plt.close(fig)
 
 
+def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_transpose, transpose_set = None, cmap = 'gray'):
+    folder_path = os.path.join(final_path, "f1_score")
+
+    target_path = os.path.join(folder_path, f"target_{target}")
+    if not os.path.exists(target_path):
+        os.makedirs(target_path)
+
+    x_original = data
+    if transpose_set is not None :
+        x_original = x_original.transpose(transpose_set)
+    x_original = x_original.reshape(wanted_shape_transpose)
     
-def interpretation_sampled(trainer, loader, final_path, nb_samples_image_per_category = 3):
-    trainer.eval()
+    current_quadrant = quadrant.reshape(wanted_shape_transpose[:2])
+    current_pi_list = pi_list.reshape(wanted_shape_transpose[:2]) 
+    fig, axs = plt.subplots(1,3, figsize=(15,5))
+    axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
+    axs[0].set_title(f"Original image")
+    axs[0].axis("off")
+    axs[1].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
+    axs[1].set_title(f"Average z sampled")
+    axs[1].axis("off")
+    axs[2].imshow(current_quadrant, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
+    axs[2].set_title(f"True selection")
+    axs[2].axis("off")
+    plt.axis("off")
+    try :
+        f1_score = metrics.f1_score(current_quadrant.flatten(), current_pi_list.flatten(),)
+        plt.title(f"F1_score {f1_score:.5f}")
+    except ValueError:
+        f1_score = None
+    
+    plt.savefig(os.path.join(target_path, f"{k}.png"))
+    plt.close(fig)
+    
+    
+def interpretation_image(interpretable_module, loader, final_path, nb_samples_image_per_category = 3, nb_imputation = 3,):
+    interpretable_module.eval()
     data, target, index= next(iter(loader.test_loader))
+
 
     output_category = loader.dataset.get_dim_output()
     indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
     data = data[indexes]
-    target = target[indexes]
+    target =  target[indexes]
+    if hasattr(loader.dataset, "optimal_S_test"):
+        quadrant = loader.dataset.optimal_S_test[indexes]
+    total_image = len(data)
+
+    # data = loader.dataset.data_test[indexes]
+    # target = loader.dataset.target_test[indexes]
     wanted_shape = loader.dataset.get_dim_input()
     if wanted_shape[0] == 1 :
         transpose_set = None
@@ -111,212 +145,72 @@ def interpretation_sampled(trainer, loader, final_path, nb_samples_image_per_cat
         cmap = 'viridis'
 
     
-    classification_module = trainer.classification_module
-    selection_module = trainer.selection_module
-    distribution_module = trainer.distribution_module
 
-    if trainer.use_cuda:
+
+    prediction_module = interpretable_module.prediction_module
+    selection_module = interpretable_module.selection_module
+    distribution_module = interpretable_module.distribution_module
+
+    prediction_module.imputation.nb_imputation_mc_test = nb_imputation
+    prediction_module.imputation.nb_imputation_iwae_test = 1
+
+    if next(interpretable_module.parameters()).is_cuda:
         data, target = data.cuda(), target.cuda()
     
     
     log_pi_list,_ = selection_module(data)
+    pi_list = torch.exp(log_pi_list)
+    pi_list = interpretable_module.reshape(pi_list[None, :, None])
+
+    
 
     pz = distribution_module(torch.exp(log_pi_list))
+    z = distribution_module.sample((100,))
+    pi_list_sampled = z.mean(dim=0)[None,]
+    pi_list_sampled = interpretable_module.reshape(pi_list_sampled)
+    
+
     z = distribution_module.sample((1,))
-    z = trainer.reshape(z)
-    pi_list = trainer.reshape(torch.exp(log_pi_list))
-    pred, _ = classification_module(data, z)
+    z = interpretable_module.reshape(z)
+
+    data_imputed = prediction_module.get_imputation(data, z)
+    data_imputed = data_imputed.reshape(nb_imputation, total_image, *wanted_shape)
+
+    prediction_module.imputation.nb_imputation_mc_test = 1
+    pred, _ = prediction_module(data, z)
 
     data = data.cpu().detach().numpy()
     z = z.cpu().detach().numpy()
     target = target.cpu().detach().numpy()
     pred = torch.exp(pred).cpu().detach().numpy()
+    pi_list_sampled = pi_list_sampled.cpu().detach().numpy()
     pi_list = pi_list.cpu().detach().numpy()
+    data_imputed = data_imputed.cpu().detach().numpy()
+    quadrant = quadrant.cpu().detach().numpy() if hasattr(loader.dataset, "optimal_S_test") else None
 
-    folder_path = os.path.join(final_path, "output_sample")
     for k in range(len(data)):
-        target_path = os.path.join(folder_path, f"target_{target[k]}")
-        if not os.path.exists(target_path):
-            os.makedirs(target_path)
-
-        x_original = data[k]
-        if transpose_set is not None :
-            x_original = x_original.transpose(transpose_set)
-        x_original = x_original.reshape(wanted_shape_transpose)
-
-        current_z = z[k, 0].reshape(wanted_shape_transpose[:2])
-        current_pi_list = pi_list[k, 0].reshape(wanted_shape_transpose[:2])
-        fig, axs = plt.subplots(1,4, figsize=(20,5))
-        axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
-        axs[1].imshow(current_z, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
-        axs[2].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
-        axs[3].bar(np.arange(len(pred[k])), pred[k])
-        plt.savefig(os.path.join(target_path, f"{k}.png"))
-        plt.close(fig)
-
-    
-def image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = 3):
-    trainer.eval()
-    data, target, _ = next(iter(loader.test_loader))
-    output_category = loader.dataset.get_dim_output()
-    indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
-    data = data[indexes]
-    target = target[indexes]
-    if not hasattr(loader.dataset, "optimal_S_test"):
-        return None
-
-    quadrant = loader.dataset.optimal_S_test[indexes]
-    wanted_shape = loader.dataset.get_dim_input()
-    if wanted_shape[0] == 1 :
-        transpose_set = None
-        wanted_shape_transpose = (wanted_shape[1], wanted_shape[2])
-        cmap = 'gray'
-    elif wanted_shape[0] >1 :
-        transpose_set = (1, 2, 0)
-        wanted_shape_transpose = (wanted_shape[1], wanted_shape[2], wanted_shape[0])
-        cmap = 'viridis'
-
-    
-    classification_module = trainer.classification_module
-    selection_module = trainer.selection_module
-    distribution_module = trainer.distribution_module
-
-    if trainer.use_cuda:
-        data, target = data.cuda(), target.cuda()
-    
-    
-    log_pi_list,_ = selection_module(data)
-
-    
-
-    if hasattr(trainer.distribution_module.distribution, "keywords") :
-        if "rate" in trainer.distribution_module.distribution.keywords :
-            rate = trainer.distribution_module.distribution.keywords["rate"]
-        elif "k" in trainer.distribution_module.distribution.keywords :
-            rate = trainer.distribution_module.distribution.keywords["k"] / np.prod(loader.dataset.get_dim_input(), dtype=np.float32)
-    elif hasattr(trainer.selection_module, "regularization") and hasattr(trainer.selection_module.regularization, "rate"):
-        rate = trainer.selection_module.regularization.rate
-    else :
-        rate = 0.
-
-    if rate == 0 :
-        round_pi_list = np.round(np.exp(log_pi_list.cpu().detach().numpy())).astype(int)
-    else :
-        dim_pi_list = np.prod(trainer.selection_module.selector.output_size)
-        k = max(int(dim_pi_list * rate),1)
-        to_sel = torch.topk(log_pi_list.flatten(1), k, dim = 1)[1]
-        round_pi_list = torch.zeros_like(log_pi_list).scatter(1, to_sel, 1).detach().cpu().numpy().astype(int).reshape(-1) 
-
-    data = data.cpu().detach().numpy()
-    target = target.cpu().detach().numpy()
-
-    folder_path = os.path.join(final_path, "output_quadrant_from_pi_list")
-    for k in range(len(data)):
-        target_path = os.path.join(folder_path, f"target_{target[k]}")
-        if not os.path.exists(target_path):
-            os.makedirs(target_path)
-
-        x_original = data[k]
-        if transpose_set is not None :
-            x_original = x_original.transpose(transpose_set)
-        x_original = x_original.reshape(wanted_shape_transpose)
-        
-        current_quadrant = quadrant[k].reshape(wanted_shape_transpose[:2])
-        current_pi_list = round_pi_list[k].reshape(wanted_shape_transpose[:2]) 
-        fig, axs = plt.subplots(1,3, figsize=(15,5))
-        axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
-        axs[1].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
-        axs[2].imshow(current_quadrant, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
-        f1_score = metrics.f1_score(current_quadrant.flatten(), current_pi_list.flatten(),)
-        plt.title(f"F1_score {f1_score:.5f}")
-        plt.savefig(os.path.join(target_path, f"{k}.png"))
-        plt.close(fig)
-    
+        save_sampling_mask(data[k], z[k, 0], pi_list_sampled[k, 0], target[k], pred, final_path, k, wanted_shape_transpose, transpose_set, cmap,)
+        if hasattr(loader.dataset, "optimal_S_test"):
+            save_f1score(data[k], target[k], quadrant[k], pi_list[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap,)
+        for l in range(nb_imputation):
+            save_imputation(data[k], target[k], data_imputed[l][k], z[k], final_path, k, l, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap)
 
 
-def accuracy_output(trainer, loader, final_path, batch_size = 100):
-    trainer.eval()
-    if not hasattr(loader.dataset, "optimal_S_test"):
-        return None
-    selection_module = trainer.selection_module
-    f1_score_avg = 0
-    complete_size = 0
-    
 
-    for aux in iter(loader.test_loader):
-        data, target, index=aux
-        wanted_shape = data[0].shape
-        optimal_S_test = loader.dataset.optimal_S_test[index]
-
-        if trainer.use_cuda:
-            data, target, = data.cuda(), target.cuda()
-
-        batch_size = data.shape[0]
-    
-        log_pi_list,_ = selection_module(data)
-        pi_list = torch.exp(trainer.reshape(log_pi_list))[:,0]
-    
-        data = data.cpu().detach().numpy()
-        pi_list = pi_list.cpu().detach().numpy().reshape(batch_size, -1)
-        optimal_S_test = optimal_S_test.cpu().detach().numpy().reshape(batch_size, -1)
-        argmax_pi_list = np.round(pi_list).astype(int)
-
-        accuracy = np.sum(np.abs(optimal_S_test - pi_list).reshape(-1))
-        for pi,current_quadrant in zip(argmax_pi_list, optimal_S_test):
-            f1_score_avg += metrics.f1_score(current_quadrant, pi,)
-        target = target.cpu().detach().numpy()
-        complete_size += batch_size
-
-    mean_accuracy = accuracy/complete_size/np.prod(wanted_shape)
-    f1_score_avg = f1_score_avg/complete_size
-    with open(os.path.join(final_path, "accuracy_output.txt"), "w") as f:
-        f.write(f"mean accuracy: {mean_accuracy}\n")
-        f.write(f"f1 score: {f1_score_avg}")
-        
        
-def complete_analysis_image(trainer, loader, final_path, batch_size = 100, nb_samples_image_per_category = 3, only_loader = False, loader_folder = None):
-    if loader_folder is None :
-        loader_folder = final_path
-    try :
-        if not only_loader :
-            imputation_image(trainer, loader, final_path)
-            interpretation_sampled(trainer, loader, final_path)
-            image_f1_score(trainer, loader, final_path, nb_samples_image_per_category = nb_samples_image_per_category)
-            accuracy_output(trainer, loader, final_path, batch_size = batch_size,)
+def complete_analysis_image(interpretable_module, loader, trainer, args, batch_size = 100, nb_samples_image_per_category = 1, nb_imputation = 1,):
+    print("Starting analysis")
+    interpretable_module.eval()
+    interpretation_image(interpretable_module, loader, args.args_output.path, nb_samples_image_per_category = nb_samples_image_per_category, nb_imputation = nb_imputation,)
 
-        aux_final_path = os.path.join(final_path, "at_best_iter")
-        if not os.path.exists(aux_final_path):
-            os.makedirs(aux_final_path)
+    interpretable_module.prediction_module.imputation.nb_imputation_mc_test = args.args_classification.nb_imputation_mc_test
+    interpretable_module.prediction_module.imputation.nb_imputation_iwae_test = args.args_classification.nb_imputation_iwae_test
 
-        if os.path.exists(os.path.join(loader_folder, "classification_module.pt")):
-            trainer.load_best_iter_dict(loader_folder)
-            
-        imputation_image(trainer, loader, aux_final_path)
-        interpretation_sampled(trainer, loader, aux_final_path)
-        image_f1_score(trainer, loader, aux_final_path, nb_samples_image_per_category = nb_samples_image_per_category)
-        accuracy_output(trainer, loader, aux_final_path, batch_size = batch_size)
+    dic = eval_selection_sample(interpretable_module, loader,)
 
-        # dic_test = trainer.test(-1, loader, liste_mc = [(1,1,1,1),])
-        # with open(os.path.join(aux_final_path, "test_dict.txt"), "w") as f :
-            # f.write(str(dic_test))
-        
-    except AttributeError as e :
-        print("Could not save image for attribute")
-        print(e)
+    for key in list(dic.keys()) :
+        dic["sampled_" +key] = dic[key]
 
-
-def just_eval_selection(trainer, loader, final_path):
-    loader_folder = final_path.replace("_interpretation", "")
-    aux_final_path = os.path.join(final_path, "at_best_iter")
-    if not os.path.exists(aux_final_path):
-        os.makedirs(aux_final_path)
-
-    print(os.path.join(loader_folder, "classification_module.pt"))
-    if os.path.exists(os.path.join(loader_folder, "classification_module.pt")):
-        print("Loading best iteration")
-        trainer.load_best_iter_dict(loader_folder)
-        print("Loaded")
-
-    dic_test = trainer.eval_selection(-1, loader,)
-    with open(os.path.join(final_path, "selection_analysis.txt"), "w") as f :
-        f.write(str(dic_test))
+    dic.update(test_epoch(interpretable_module, "Analysis", loader, args, liste_mc = [(1,1,1,1),], trainer = trainer,))
+    
+    return dic
