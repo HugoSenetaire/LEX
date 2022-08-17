@@ -13,6 +13,7 @@ class args_object():
 class args_output():
     def __init__(self):
         self.path = None # Path to results
+        self.folder = None
         self.save_weights = None
         self.experiment_name = None
 
@@ -45,6 +46,7 @@ class args_classification():
         self.sigma_noise_imputation = None
         self.add_mask = None
         self.module_imputation = None
+        self.module_imputation_parameters = None
         self.nb_imputation_iwae = None
         self.nb_imputation_iwae_test = None #If none is given, turn to 1
         self.nb_imputation_mc = None

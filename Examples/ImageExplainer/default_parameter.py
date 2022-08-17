@@ -5,6 +5,7 @@ while(not current_file_path.endswith("MissingDataTraining")):
     current_file_path = os.path.dirname(current_file_path)
 sys.path.append(current_file_path)
 
+import missingDataTrainingModule
 from missingDataTrainingModule import *
 from torch.distributions import *
 from torch.optim import *
@@ -19,8 +20,11 @@ from args_class import CompleteArgs
 def get_default():
     args = CompleteArgs()
 
-    args.args_output.path = "C:\\Users\\hhjs\\Documents\\FirstProject\\MissingDataTraining\\Experiments" # Path to results
+    args.args_output.path = os.path.join(os.path.dirname(missingDataTrainingModule.__path__[0]), "Experiments") # Path to results 
+    args.args_output.folder = os.path.join(os.path.dirname(missingDataTrainingModule.__path__[0]), "Experiments") # Path to results
     # args.args_output.path = "/scratch/hhjs" # Path to results
+    # args.args_output.folder = "/scratch/hhjs" # Path to results
+
     args.args_output.save_weights = True
     args.args_output.experiment_name = "REBAR"
 
@@ -53,7 +57,8 @@ def get_default():
     args.args_classification.cste_imputation = 0
     args.args_classification.sigma_noise_imputation = 1.0
     args.args_classification.add_mask = False
-    args.args_classification.module_imputation = None # Path to the weights of the network to use for post processing)
+    args.args_classification.module_imputation = None # Type of module parameters that one might want
+    args.args_classification.module_imputation_parameters = None # Parameters of the network to use for post processing)
     args.args_classification.nb_imputation_iwae = 1
     args.args_classification.nb_imputation_iwae_test = 1 #If none is given, turn to 1
     args.args_classification.nb_imputation_mc = 1

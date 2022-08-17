@@ -21,6 +21,7 @@ def get_default(args = None):
         args = CompleteArgs()
 
     args.args_output.path = os.path.join(os.path.dirname(missingDataTrainingModule.__path__[0]), "Experiments") # Path to results
+    args.args_output.folder = os.path.join(os.path.dirname(missingDataTrainingModule.__path__[0]), "Experiments")
     args.args_output.save_weights = True
     args.args_output.experiment_name = "REINFORCE"
 
@@ -63,6 +64,7 @@ def get_default(args = None):
     args.args_classification.sigma_noise_imputation = 1.0
     args.args_classification.add_mask = False
     args.args_classification.module_imputation = None
+    args.args_classification.module_imputation_parameters = None
     args.args_classification.nb_imputation_iwae = 1
     args.args_classification.nb_imputation_iwae_test = None #If none is given, turn to 1
     args.args_classification.nb_imputation_mc = 1
