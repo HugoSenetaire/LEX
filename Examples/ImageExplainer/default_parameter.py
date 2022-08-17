@@ -82,7 +82,7 @@ def get_default():
     args.args_selection.output_size_selector = (1,28,28)
     args.args_selection.kernel_size = (1,1)
     args.args_selection.kernel_stride = (1,1)
-    args.args_selection.selector = "SelectorLVL3"
+    args.args_selection.selector = "SelectorUNET"
     args.args_selection.selector_var = None #selectorSimilarVar
     args.args_selection.activation = "LogSigmoid"
     # args.args_selection.activation = torch.nn.LogSoftmax(dim=-1)

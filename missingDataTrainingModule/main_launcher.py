@@ -16,6 +16,7 @@ from torch.optim import *
 import numpy as np
 from functools import partial
 import pickle as pkl
+from utils import *
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -28,6 +29,9 @@ def save_parameters(path, complete_args):
     with open(os.path.join(complete_path,"parameters.pkl"), "wb") as f:
         pkl.dump(complete_args, f)
 
+    with open(os.path.join(complete_path,"parameters.txt"), "w") as f:
+        dic = from_args_to_dictionary(complete_args, to_str = False)
+        f.write(dic_to_line_str(dic,))
 
 
 
