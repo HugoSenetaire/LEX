@@ -165,7 +165,7 @@ def save_model(final_path, prediction_module, selection_module, distribution_mod
 import torch
 import gc
 
-def memory_manager(print=True, save_path = None,):
+def memory_manager(save_path = None,):
     if save_path is not None:
         txt = "Memory used: {}\n".format(torch.cuda.memory_allocated())
     for obj in gc.get_objects():
