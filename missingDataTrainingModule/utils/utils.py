@@ -176,3 +176,5 @@ def memory_manager(print=True, save_path = None,):
                     txt += "Type {}, Memory used: {}\n".format(type(obj), obj.size())
         except:
             pass
+    with open(save_path, "a") as f:
+        f.write(txt)
