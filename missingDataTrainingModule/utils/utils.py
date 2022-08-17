@@ -160,3 +160,19 @@ def save_model(final_path, prediction_module, selection_module, distribution_mod
     if baseline is not None:
         path = os.path.join(final_path, f"baseline{suffix}.pt")
         torch.save(baseline.state_dict(), path)
+
+
+import torch
+import gc
+
+def memory_manager(print=True, save_path = None,):
+    if save_path is not None:
+        txt = "Memory used: {}\n".format(torch.cuda.memory_allocated())
+    for obj in gc.get_objects():
+        try:
+            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                print(type(obj), obj.size())
+                if save_path is not None:
+                    txt += "Type {}, Memory used: {}\n".format(type(obj), obj.size())
+        except:
+            pass
