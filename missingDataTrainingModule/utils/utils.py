@@ -171,9 +171,9 @@ def memory_manager(print=True, save_path = None,):
     for obj in gc.get_objects():
         try:
             if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-                print(type(obj), obj.size())
+                print(type(obj), obj.size(), obj.device)
                 if save_path is not None:
-                    txt += "Type {}, Memory used: {}\n".format(type(obj), obj.size())
+                    txt += "Type {}, Size: {} Device: {} \n".format(type(obj), obj.size(), obj.device)
         except:
             pass
     with open(save_path, "a") as f:
