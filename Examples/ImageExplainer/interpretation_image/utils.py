@@ -39,10 +39,13 @@ def save_imputation(x_original, target, x_imputed, z, final_path, k, l, wanted_s
     fig, axs = plt.subplots(1,3, figsize=(15,5))
     axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
     axs[0].set_title(f"Original image")
+    axs[0].axis("off")
     axs[1].imshow(current_z, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
     axs[1].set_title(f"One Sampled Mask")
+    axs[1].axis("off")
     axs[2].imshow(x_imputed, cmap=cmap, interpolation='none',)
     axs[2].set_title(f"Imputed image")
+    axs[2].axis("off")
     plt.axis('off')
 
     plt.savefig(os.path.join(folder_path, f"{k}_target_{target}_imputation_{l}.png"))
@@ -65,12 +68,16 @@ def save_sampling_mask(x_original, z,  pi_list, target, pred, final_path, k, wan
     fig, axs = plt.subplots(1,4, figsize=(20,5))
     axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
     axs[0].set_title(f"Original image")
+    axs[0].axis("off")
     axs[1].imshow(current_z, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
     axs[1].set_title(f"One sample")
+    axs[1].axis("off")
     axs[2].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
     axs[2].set_title(f"Sample averaged")
+    axs[2].axis("off")
     axs[3].bar(np.arange(len(pred[k])), pred[k])
     axs[3].set_title(f"Prediction using the one sample")
+    axs[3].axis("off")
     plt.axis("off")
     plt.savefig(os.path.join(target_path, f"{k}.png"))
     plt.close(fig)
@@ -94,10 +101,13 @@ def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_tr
     fig, axs = plt.subplots(1,3, figsize=(15,5))
     axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
     axs[0].set_title(f"Original image")
+    axs[0].axis("off")
     axs[1].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
     axs[1].set_title(f"Average z sampled")
+    axs[1].axis("off")
     axs[2].imshow(current_quadrant, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
     axs[2].set_title(f"True selection")
+    axs[2].axis("off")
     plt.axis("off")
     try :
         f1_score = metrics.f1_score(current_quadrant.flatten(), current_pi_list.flatten(),)
@@ -178,16 +188,6 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     data_imputed = data_imputed.cpu().detach().numpy()
     quadrant = quadrant.cpu().detach().numpy() if hasattr(loader.dataset, "optimal_S_test") else None
 
-    # print("data shape", data.shape)
-    # print("z shape", z.shape)
-    # print("target shape", target.shape)
-    # print("pred shape", pred.shape)
-    # print("pi_list_sampled shape", pi_list_sampled.shape)
-    # print("pi_list shape", pi_list.shape)
-    # print("data_imputed shape", data_imputed.shape)
-    # print("quadrant shape", quadrant.shape) if hasattr(loader.dataset, "optimal_S_test") else None
-
-
     for k in range(len(data)):
         save_sampling_mask(data[k], z[k, 0], pi_list_sampled[k, 0], target[k], pred, final_path, k, wanted_shape_transpose, transpose_set, cmap,)
         if hasattr(loader.dataset, "optimal_S_test"):
@@ -212,4 +212,5 @@ def complete_analysis_image(interpretable_module, loader, trainer, args, batch_s
         dic["sampled_" +key] = dic[key]
 
     dic.update(test_epoch(interpretable_module, "Analysis", loader, args, liste_mc = [(1,1,1,1),], trainer = trainer,))
+    
     return dic
