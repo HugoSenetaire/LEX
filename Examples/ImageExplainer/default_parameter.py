@@ -40,8 +40,8 @@ def get_default():
     args.args_dataset.dataset = "MnistDataset"
     args.args_dataset.loader = "LoaderEncapsulation"
     args.args_dataset.args_dataset_parameters.root_dir = os.path.join(args.args_output.path, "datasets")
-    args.args_dataset.args_dataset_parameters.batch_size_train = 1000
-    args.args_dataset.args_dataset_parameters.batch_size_test = 1000
+    args.args_dataset.args_dataset_parameters.batch_size_train = 100
+    args.args_dataset.args_dataset_parameters.batch_size_test = 100
     args.args_dataset.args_dataset_parameters.noise_function = None
     args.args_dataset.args_dataset_parameters.download = True
     args.args_dataset.args_dataset_parameters.train_seed = 0

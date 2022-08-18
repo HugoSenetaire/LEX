@@ -28,8 +28,8 @@ def multiple_experiment(count,
                         loader,
                         complete_args,
                         name_modification = True,
-                        nb_samples_image_per_category = 1,
-                        nb_imputation = 1,
+                        nb_samples_image_per_category = 3,
+                        nb_imputation = 3,
                         batch_size_test = 100,):
 
     default_args = CompleteArgs()
