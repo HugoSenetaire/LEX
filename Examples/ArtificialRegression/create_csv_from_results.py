@@ -20,7 +20,10 @@ def get_all_paths(input_dirs, dataset_name):
                 list_all_paths[dataset] = []
             first_step = os.path.join(os.path.join(input_dir, dataset), "*")
             path_finder = os.path.join(os.path.join(first_step, "*"),"interpretation.txt")
+            second_step = os.path.join(first_step, "*")
+            path_finder_2 = os.path.join(os.path.join(second_step, "*"),"interpretation.pkl")
             list_all_paths[dataset].extend(glob.glob(path_finder, recursive=True))
+            list_all_paths[dataset].extend(glob.glob(path_finder_2, recursive=True))
             print("Found {} interpretations for dataset {}".format(len(list_all_paths[dataset]), dataset))
     print("Found {} paths".format(len(list_all_paths)))
     return list_all_paths
@@ -180,7 +183,7 @@ def get_average_and_std(df):
     list_measure = []
     for key in list_keys :
         if key.startswith("parameters_") :
-            if key.startswith("parameters_args_dataset_") :
+            if key.startswith("parameters_args_dataset_") and (not key.startswith("parameters_args_dataset_dataset")) :
                 continue
             elif key.startswith("parameters_args_output_") :
                 continue
