@@ -21,7 +21,7 @@ def get_all_paths(input_dirs, dataset_name):
             first_step = os.path.join(os.path.join(input_dir, dataset), "*")
             path_finder = os.path.join(os.path.join(first_step, "*"),"interpretation.txt")
             second_step = os.path.join(first_step, "*")
-            path_finder_2 = os.path.join(os.path.join(second_step, "*"),"interpretation.pkl")
+            path_finder_2 = os.path.join(os.path.join(second_step, "*"),"interpretation.txt")
             list_all_paths[dataset].extend(glob.glob(path_finder, recursive=True))
             list_all_paths[dataset].extend(glob.glob(path_finder_2, recursive=True))
             print("Found {} interpretations for dataset {}".format(len(list_all_paths[dataset]), dataset))
