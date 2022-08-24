@@ -1,4 +1,10 @@
 import os
+import sys
+current_file_path = os.path.abspath(__file__)
+while(not current_file_path.endswith("MissingDataTraining")):
+    current_file_path = os.path.dirname(current_file_path)
+sys.path.append(current_file_path)
+
 import argparse
 import glob
 import pandas as pd
