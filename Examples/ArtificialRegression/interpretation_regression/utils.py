@@ -10,7 +10,7 @@ import numpy as np
 import sklearn
 from itertools import cycle, islice
 
-from missingDataTrainingModule.EvaluationUtils import eval_selection_sample, test_epoch
+from missingDataTrainingModule.EvaluationUtils import eval_selection_sample, test_epoch, eval_selection
 
 colors = np.array(['#377eb8', '#ff7f00', '#4daf4a',
                   '#f781bf', '#a65628', '#984ea3',
@@ -248,6 +248,7 @@ def calculate_score(interpretable_module, loader, trainer, args, CFindex = None)
   for key in list(dic.keys()) :
     dic["sampled_" +key] = dic[key]
 
+  dic.update(eval_selection(interpretable_module, loader, args))
   dic.update(test_epoch(interpretable_module, None, loader, args, liste_mc = [(1,1,1,1),], trainer = trainer,))
 
   return dic

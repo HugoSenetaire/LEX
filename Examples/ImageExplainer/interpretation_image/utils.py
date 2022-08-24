@@ -6,7 +6,7 @@ import sklearn.metrics as metrics
 import copy
 import json
 
-from missingDataTrainingModule.EvaluationUtils import eval_selection_sample, test_epoch, get_sel_pred
+from missingDataTrainingModule.EvaluationUtils import eval_selection_sample, test_epoch, get_sel_pred, eval_selection
 
 
 
@@ -214,6 +214,7 @@ def complete_analysis_image(interpretable_module, loader, trainer, args, batch_s
     for key in list(dic.keys()) :
         dic["sampled_" +key] = dic[key]
 
+    dic.update(eval_selection(interpretable_module, loader,args))
     dic.update(test_epoch(interpretable_module, "Analysis", loader, args, liste_mc = [(1,1,1,1),], trainer = trainer,))
     
     return dic
