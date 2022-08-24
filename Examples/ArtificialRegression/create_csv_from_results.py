@@ -33,6 +33,9 @@ def read_interpretation(path,):
     if os.path.exists(os.path.join(folder_path, "interpretation.pkl")) :
         with open(os.path.join(folder_path, "interpretation.pkl"), "rb") as f :
             dic = pkl.load(f)
+        for key in list(dic.keys()):
+            if "matrix" in key :
+                del dic[key]
     else :
         dic = {}
         with open(path, "r") as f :
