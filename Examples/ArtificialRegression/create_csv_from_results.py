@@ -29,17 +29,20 @@ def get_all_paths(input_dirs, dataset_name):
     return list_all_paths
 
 def read_interpretation(path,):
-    dic = {}
-    with open(path, "r") as f :
-        text = f.readlines()
-        for line in text :
-            try :
-                key, value = line.replace("\n", "").split(" : ")
-                dic[key] = float(value)
-            except(ValueError):
-                continue
-
-
+    folder_path = os.path.dirname(path)
+    if os.path.exists(os.path.join(folder_path, "interpretation.pkl")) :
+        with open(os.path.join(folder_path, "interpretation.pkl"), "rb") as f :
+            dic = pkl.load(f)
+    else :
+        dic = {}
+        with open(path, "r") as f :
+            text = f.readlines()
+            for line in text :
+                try :
+                    key, value = line.replace("\n", "").split(" : ")
+                    dic[key] = float(value)
+                except(ValueError):
+                    continue
     return dic
 
 
