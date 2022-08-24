@@ -66,8 +66,9 @@ def parameter_to_dic(file):
         aux = vars(getattr(complete_args, element_key))
         aux_dic = {"parameters_" + element_key + "_" + key : val for key, val in aux.items() if not key.endswith("parameters")}
         for second_element_key in aux.keys() :
-            aux_sqrd = vars(getattr(getattr(complete_args, element_key), second_element_key))
-            aux_dic.update({"parameters_" + element_key + "_" + second_element_key + "_" + key : val for key, val in aux_sqrd.items()})
+            if key.endswith("parameters") :
+                aux_sqrd = vars(getattr(getattr(complete_args, element_key), second_element_key))
+                aux_dic.update({"parameters_" + element_key + "_" + second_element_key + "_" + key : val for key, val in aux_sqrd.items()})
 
         dic.update(aux_dic)
         # dic.update(vars(getattr(complete_args, element_key)))
