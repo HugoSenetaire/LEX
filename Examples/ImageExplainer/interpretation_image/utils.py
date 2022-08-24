@@ -6,7 +6,9 @@ import sklearn.metrics as metrics
 import copy
 import json
 
-from missingDataTrainingModule.EvaluationUtils import eval_selection_sample, test_epoch
+from missingDataTrainingModule.EvaluationUtils import eval_selection_sample, test_epoch, get_sel_pred
+
+
 
 def show_interpretation(sample, data, target, shape = (1,28,28)):
   channels = shape[0]
@@ -77,15 +79,13 @@ def save_sampling_mask(x_original, z,  pi_list, target, pred, final_path, k, wan
     axs[2].axis("off")
     axs[3].bar(np.arange(len(pred[k])), pred[k])
     axs[3].set_title(f"Prediction using the one sample")
-    axs[3].axis("off")
-    plt.axis("off")
     plt.savefig(os.path.join(target_path, f"{k}.png"))
     plt.close(fig)
 
 
 
-def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_transpose, transpose_set = None, cmap = 'gray'):
-    folder_path = os.path.join(final_path, "f1_score")
+def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_transpose, transpose_set = None, cmap = 'gray', pi_list_estimation = "Undefined"):
+    folder_path = os.path.join(final_path, f"f1_score_{pi_list_estimation}")
 
     target_path = os.path.join(folder_path, f"target_{target}")
     if not os.path.exists(target_path):
@@ -103,7 +103,7 @@ def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_tr
     axs[0].set_title(f"Original image")
     axs[0].axis("off")
     axs[1].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
-    axs[1].set_title(f"Average z sampled")
+    axs[1].set_title(f"Pi list estimated with {pi_list_estimation}")
     axs[1].axis("off")
     axs[2].imshow(current_quadrant, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
     axs[2].set_title(f"True selection")
@@ -119,7 +119,7 @@ def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_tr
     plt.close(fig)
     
     
-def interpretation_image(interpretable_module, loader, final_path, nb_samples_image_per_category = 3, nb_imputation = 3,):
+def interpretation_image(interpretable_module, loader, final_path, nb_samples_image_per_category = 3, nb_imputation = 3, rate = None):
     interpretable_module.eval()
     data, target, index= next(iter(loader.test_loader))
 
@@ -161,7 +161,7 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     log_pi_list,_ = selection_module(data)
     pi_list = torch.exp(log_pi_list)
     pi_list = interpretable_module.reshape(pi_list[None, :, None])
-
+    
     
 
     pz = distribution_module(torch.exp(log_pi_list))
@@ -169,6 +169,7 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     pi_list_sampled = z.mean(dim=0)[None,]
     pi_list_sampled = interpretable_module.reshape(pi_list_sampled)
     
+    pi_list_selected = get_sel_pred(interpretable_module, pi_list, rate = rate)
 
     z = distribution_module.sample((1,))
     z = interpretable_module.reshape(z)
@@ -185,13 +186,15 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     pred = torch.exp(pred).cpu().detach().numpy()
     pi_list_sampled = pi_list_sampled.cpu().detach().numpy()
     pi_list = pi_list.cpu().detach().numpy()
+    pi_list_selected = pi_list_selected.cpu().detach().numpy()
     data_imputed = data_imputed.cpu().detach().numpy()
     quadrant = quadrant.cpu().detach().numpy() if hasattr(loader.dataset, "optimal_S_test") else None
 
     for k in range(len(data)):
         save_sampling_mask(data[k], z[k, 0], pi_list_sampled[k, 0], target[k], pred, final_path, k, wanted_shape_transpose, transpose_set, cmap,)
         if hasattr(loader.dataset, "optimal_S_test"):
-            save_f1score(data[k], target[k], quadrant[k], pi_list[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap,)
+            save_f1score(data[k], target[k], quadrant[k], pi_list[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap, pi_list_estimation = "straight_pi_list")
+            save_f1score(data[k], target[k], quadrant[k], pi_list_selected[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap, pi_list_estimation = "selected_pi_list")
         for l in range(nb_imputation):
             save_imputation(data[k], target[k], data_imputed[l][k], z[k], final_path, k, l, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap)
 
@@ -201,7 +204,7 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
 def complete_analysis_image(interpretable_module, loader, trainer, args, batch_size = 100, nb_samples_image_per_category = 1, nb_imputation = 1,):
     print("Starting analysis")
     interpretable_module.eval()
-    interpretation_image(interpretable_module, loader, args.args_output.path, nb_samples_image_per_category = nb_samples_image_per_category, nb_imputation = nb_imputation,)
+    interpretation_image(interpretable_module, loader, args.args_output.path, nb_samples_image_per_category = nb_samples_image_per_category, nb_imputation = nb_imputation, rate = args.args_selection.rate)
 
     interpretable_module.prediction_module.imputation.nb_imputation_mc_test = args.args_classification.nb_imputation_mc_test
     interpretable_module.prediction_module.imputation.nb_imputation_iwae_test = args.args_classification.nb_imputation_iwae_test
