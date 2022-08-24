@@ -27,10 +27,12 @@ def get_sel_pred(interpretable_module, pi_list, rate = None):
     if rate is None or rate == 0.0 :
         return  pi_list>0.5
     else :
+        original_shape = pi_list.shape
         dim_pi_list = np.prod(interpretable_module.selection_module.selector.output_size)
         k = max(int(dim_pi_list * rate),1)
-        _, to_sel = torch.topk(pi_list.flatten(1), k, dim = 1)
-        sel_pred = torch.zeros_like(pi_list).scatter(1, to_sel, 1)
+
+        _, to_sel = torch.topk(pi_list.reshape(-1, dim_pi_list), k, dim = 1)
+        sel_pred = torch.zeros_like(pi_list.reshape(-1, dim_pi_list)).scatter(1, to_sel, 1).reshape(original_shape)
         return sel_pred
 
 
