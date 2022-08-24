@@ -1,2 +1,0 @@
-On SYn6 use more constant with the true rate
-Same training using either the true predictor, and true selection
