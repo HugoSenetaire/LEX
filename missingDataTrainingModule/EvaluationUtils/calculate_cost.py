@@ -22,7 +22,9 @@ def calculate_cost(mask_expanded,
         Standardized loss calculation to handle IWAE and MC imputation and masks.
         This can be used for training or testing.
         """
-
+        if mask_expanded is not None :
+            print(mask_expanded.shape)
+            print(mask_expanded.sum(dim=-1))
         if log_y_hat is None :
             mask_expanded = interpretable_module.reshape(mask_expanded)
             if index_expanded is not None :

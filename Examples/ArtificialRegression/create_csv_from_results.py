@@ -93,7 +93,10 @@ def parameter_to_dic(file):
                 dic[key] = str(dic[key])
         except TypeError as e :
             continue
-
+    try :
+        dic["args_args_classification_module_imputation"] = str(dic["args_args_classification_module_imputation"])
+    except KeyError as e :
+        print("No imputation")
     dic["parameters_args_dataset_dataset"] = str(dic["parameters_args_dataset_dataset"])
     dic["parameters_args_dataset_loader"] = str(dic["parameters_args_dataset_loader"])
     dic["parameters_args_test_liste_mc"] = str(dic["parameters_args_test_liste_mc"])
