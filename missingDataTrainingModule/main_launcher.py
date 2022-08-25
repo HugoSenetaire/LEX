@@ -96,7 +96,9 @@ def experiment(dataset, loader, complete_args,):
                                                 dataset = dataset,
                                                 )
     
-
+    if complete_args_converted.args_train.use_cuda:
+        interpretable_module.cuda()
+        
 
     if not os.path.exists(final_path):
         os.makedirs(final_path)
