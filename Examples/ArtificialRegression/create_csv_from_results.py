@@ -61,19 +61,16 @@ def parameter_to_dic(file):
     with open(file, "rb") as f :
         complete_args = pkl.load(f)
 
-    for element_key in vars(complete_args).keys() :
-        aux = vars(getattr(complete_args, element_key))
-        aux_dic = {"parameters_" + element_key + "_" + key : val for key, val in aux.items() if not (key.endswith("_parameters") and (not "fix" in key))}
-        for second_element_key in aux.keys() :
-            if second_element_key.endswith("_parameters") and (not "fix" in second_element_key) :
-                aux_sqrd = getattr(getattr(complete_args, element_key), second_element_key)
-                if aux_sqrd is not None :
-                    aux_dic.update({"parameters_" + element_key + "_" + second_element_key + "_" + key : str(val) for key, val in aux_sqrd.items()})
-        dic.update(aux_dic)
 
+    # aux = list(vars(complete_args))
+    aux = [("parameters_" + key,value) for key, value in vars(complete_args).items()]
+    while len(aux)>0 :
+        key, value = aux.pop(0)
+        if hasattr(value,"__dict__"):
+            aux.extend([(key + "_" + k,v) for k,v in vars(value).items()])
+        else :
+            dic[key] = value
 
-        dic.update(aux_dic)
-        # dic.update(vars(getattr(complete_args, element_key)))
 
     current_keys = list(dic.keys())
     for element_key in current_keys :
