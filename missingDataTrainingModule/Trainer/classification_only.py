@@ -40,6 +40,8 @@ class ordinaryPredictionTraining():
         else :
             self.interpretable_module.cuda()
             self.use_cuda = True
+            if self.post_hoc_guidance is not None :
+                self.post_hoc_guidance.cuda()
        
 
     def _create_dic(self, loss, loss_no_selection = None, ):
@@ -100,7 +102,8 @@ class trainingWithSelection(ordinaryPredictionTraining):
 
     def reshape(self, mask):
         return mask
-    
+
+
     def _train_step(self, data, target, dataset, index=None, need_dic =False, ):
 
         assert self.compiled, "You need to compile the training module before training"

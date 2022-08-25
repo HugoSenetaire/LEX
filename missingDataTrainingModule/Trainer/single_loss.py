@@ -55,6 +55,10 @@ class SINGLE_LOSS():
         if torch.cuda.is_available():
             self.use_cuda = True
             self.interpretable_module.cuda()
+            if self.post_hoc_guidance is not None :
+                self.post_hoc_guidance.cuda()
+            if self.baseline is not None :
+                self.baseline.cuda()
 
     def define_input(self, data, target, index, dataset, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,):
         batch_size = data.shape[0]
