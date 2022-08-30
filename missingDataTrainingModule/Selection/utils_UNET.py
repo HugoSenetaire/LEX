@@ -83,42 +83,50 @@ class OutConv(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, n_classes, bilinear=True, nb_block = 4):
+    def __init__(self, n_classes, bilinear=True, nb_block = 4, log2_min_channel = 6):
         super(UNet, self).__init__()
         self.n_classes = n_classes
         self.bilinear = bilinear
         self.nb_block = nb_block
+        self.log2_min_channel = log2_min_channel
 
         self.down_first = []
         for k in range(nb_block-1):
-          self.down_first.append(Down(2**(6+k), 2**(6+k+1)))
+          self.down_first.append(Down(2**(self.log2_min_channel+k), 2**(self.log2_min_channel+k+1)))
         self.down_first = nn.ModuleList(self.down_first)
 
         factor = 2 if bilinear else 1
-        self.down_last = Down(2**(6+nb_block-1), 2**(6+nb_block)//factor)
+        self.down_last = Down(2**(self.log2_min_channel+nb_block-1), 2**(self.log2_min_channel+nb_block)//factor)
 
         self.up = []
         for k in range(nb_block-1):
-          self.up.append(Up(2**(6+nb_block-k), 2**(6+nb_block-k-1)//factor, bilinear))
+          self.up.append(Up(2**(self.log2_min_channel+nb_block-k), 2**(self.log2_min_channel+nb_block-k-1)//factor, bilinear))
 
-        self.up.append(Up(2**7, 2**6, bilinear))
+        self.up.append(Up(2**(self.log2_min_channel+1), 2**self.log2_min_channel, bilinear))
         self.up = nn.ModuleList(self.up)
-        self.outc = OutConv(64, n_classes)
+        self.outc = OutConv(2**self.log2_min_channel, n_classes)
+        self.list_x = None
+
+    def encode(self, x):
+        self.list_x = [x]
+        for k in range(self.nb_block-1):
+          self.list_x.append(self.down_first[k](self.list_x[-1]))
+        self.list_x.append(self.down_last(self.list_x[-1]))
+
+        return self.list_x[-1]
+       
+    def decode(self, x):
+        x = self.up[0](x, self.list_x[-2])
+        for k in range(1, self.nb_block):
+            x = self.up[k](x, self.list_x[self.nb_block-k-1])
+        x = self.outc(x)
+        return x
 
     def forward(self, x):
-        # x1 = self.inc(x)
-
-        list_x = [x]
-        for k in range(self.nb_block-1):
-          list_x.append(self.down_first[k](list_x[-1]))
-        list_x.append(self.down_last(list_x[-1]))
-        x = self.up[0](list_x[-1],list_x[-2])
-        for k in range(1,self.nb_block):
-          x = self.up[k](x, list_x[self.nb_block-k-1])
-          
-        logits = self.outc(x)
-        return logits
-
+        x = self.encode(x)
+        x = self.decode(x)
+        return x
+        
 
 ####### SAME THING BUT 1D ##############
 

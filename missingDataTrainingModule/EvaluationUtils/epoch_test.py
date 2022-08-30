@@ -18,6 +18,11 @@ def test_epoch(interpretable_module, epoch, loader, args, liste_mc = [(1,1,1,1),
     total_dic = {}
     if epoch is not None :
         total_dic["epoch"] = epoch
+    problem_type = class_or_reg(loader.dataset.get_dim_output())
+    if problem_type == "classification" :
+        multiple_test = multiple_test_classification
+    else :
+        multiple_test = multiple_test_regression
 
     total_dic.update(multiple_test(interpretable_module= interpretable_module, loader = loader,))
 

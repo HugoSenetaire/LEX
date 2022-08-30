@@ -1,6 +1,7 @@
 from .SupervizedLearningWithMissingData import *
 from .classification_network import *
 from .dataset_based_classifier import *
+from .autoencoder_wrapper import *
 
 
 classifiers_list = {
@@ -14,6 +15,7 @@ classifiers_list = {
     "ClassifierLvl3" : ClassifierLVL3,
     "RealXClassifier" : RealXClassifier,
     "DatasetBasedClassifier" : DatasetBasedClassifier,
+    "AutoEncoderWrapper": AutoEncoderWrapper,
 }
 
 

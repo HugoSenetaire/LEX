@@ -25,18 +25,14 @@ def get_item(tensor):
     else :
         return None
 
-def prepare_data(data, target, index = None, num_classes=10, use_cuda = False):
+def prepare_data(data, target, index = None, use_cuda = False):
     if use_cuda:
         data =data.cuda()
         target = target.cuda()
         if index is not None :
             index = index.cuda()
-    if target is not None and num_classes > 1:
-        one_hot_target = torch.nn.functional.one_hot(target, num_classes = num_classes)
-    else :
-        one_hot_target = None
 
-    return data, target, one_hot_target, index
+    return data, target, index
 
 
 
@@ -67,6 +63,20 @@ def get_one_hot(target, num_classes = 10):
 
     return one_hot_target
 
+def class_or_reg(output_dim):
+    if type(output_dim) == int :
+        if output_dim == 1 :
+            problem_type = "regression"
+        else :
+            problem_type = "classification"
+    elif len(output_dim) == 1 :
+        if np.prod(output_dim) == 1 :
+            problem_type = "regression"
+        else :
+            problem_type = "classification"
+    else :
+        problem_type = "regression"
+    return problem_type
 
 def extend_input(input, mc_part = 1, iwae_part = 1,):
     shape = input.shape
@@ -76,16 +86,12 @@ def extend_input(input, mc_part = 1, iwae_part = 1,):
     return input_expanded
      
 
-def sampling_augmentation(data, target = None, index=None, one_hot_target = None, mc_part = 1, iwae_part = 1,):
+def sampling_augmentation(data, target = None, index=None, mc_part = 1, iwae_part = 1,):
     if index is not None :
         index_expanded = extend_input(index, mc_part = mc_part, iwae_part = iwae_part,)
     else :
         index_expanded = None
 
-    if one_hot_target is not None :
-        one_hot_target_expanded = extend_input(one_hot_target, mc_part = mc_part, iwae_part = iwae_part,)
-    else :
-        one_hot_target_expanded = None
 
     if target is not None :
         target_expanded = extend_input(target, mc_part = mc_part, iwae_part = iwae_part,)
@@ -94,7 +100,7 @@ def sampling_augmentation(data, target = None, index=None, one_hot_target = None
 
     data_expanded = extend_input(data, mc_part = mc_part, iwae_part = iwae_part,)
      
-    return data_expanded, target_expanded, index_expanded, one_hot_target_expanded
+    return data_expanded, target_expanded, index_expanded
 
 
 def print_dic(epoch, batch_idx, dic, loader):

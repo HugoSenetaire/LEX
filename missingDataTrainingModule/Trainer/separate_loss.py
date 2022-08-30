@@ -79,22 +79,26 @@ class SEPARATE_LOSS(SINGLE_LOSS):
         batch_size = data.shape[0]
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
-        one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
-        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
+        target = define_target(data,
+                                index,
+                                target,
+                                dim_output= dataset.get_dim_output(),
+                                post_hoc = self.post_hoc,
+                                post_hoc_guidance = self.post_hoc_guidance,
+                                argmax_post_hoc = self.argmax_post_hoc,
+                            )
         
-        data_expanded_classification, target_expanded_classification, index_expanded_classification, one_hot_target_expanded_classification = sampling_augmentation(data,
+        data_expanded_classification, target_expanded_classification, index_expanded_classification = sampling_augmentation(data,
                                                                                                 target = target,
                                                                                                 index=index,
-                                                                                                one_hot_target = one_hot_target,
                                                                                                 mc_part = self.nb_sample_z_monte_carlo_classification,
                                                                                                 iwae_part = self.nb_sample_z_iwae_classification,
                                                                                                 )
 
 
-        data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
+        data_expanded, target_expanded, index_expanded = sampling_augmentation(data,
                                                                                                 target = target,
                                                                                                 index=index,
-                                                                                                one_hot_target = one_hot_target,
                                                                                                 mc_part = self.nb_sample_z_monte_carlo,
                                                                                                 iwae_part = self.nb_sample_z_iwae,
                                                                                                 )
@@ -122,7 +126,6 @@ class SEPARATE_LOSS(SINGLE_LOSS):
                         data_expanded = data_expanded_classification,
                         target_expanded = target_expanded_classification,
                         index_expanded = index_expanded_classification,
-                        one_hot_target_expanded = one_hot_target_expanded_classification,
                         dim_output = dataset.get_dim_output(),
                         loss_function = self.loss_function,
                         )
@@ -141,7 +144,6 @@ class SEPARATE_LOSS(SINGLE_LOSS):
                         data_expanded = data_expanded,
                         target_expanded = target_expanded,
                         index_expanded = index_expanded,
-                        one_hot_target_expanded = one_hot_target_expanded,
                         dim_output = dataset.get_dim_output(),
                         loss_function = self.loss_function_selection,
                         )

@@ -3,6 +3,7 @@ from .PytorchDistributionUtils import *
 from .Selection import *
 from .EvaluationUtils import *
 from .InterpretableModel import *
+from .utils import class_or_reg
 from .Trainer import SINGLE_LOSS, SEPARATE_LOSS, trainingWithSelection, ordinaryPredictionTraining
 from functools import partial
 
@@ -55,10 +56,15 @@ def get_imputation_method(args_classification, dataset):
 
 
 def get_loss_function(loss_function, args_train, output_dim):
+    problem_type = class_or_reg(output_dim)
+    
     if loss_function== "MSE" :
-        loss_function = MSELossLastDim(reduction='none')
+        if problem_type =="regression" :
+            loss_function = MSE_Regression(reduction='none')
+        else :
+            loss_function = BrierScore(reduction='none')
     elif loss_function== "NLL" :
-        if output_dim == 1 :
+        if problem_type == "regression" :
             raise ValueError("NLL loss is not defined for a regression problem")
         if args_train.post_hoc and (not args_train.argmax_post_hoc):
             loss_function = continuous_NLLLoss(reduction='none')
@@ -91,17 +97,17 @@ def get_optim(module, args_optimizer, args_optimizer_param, args_scheduler, args
     return optimizer, scheduler
 
 def get_networks(args_classification, args_selection, args_trainer, args_interpretable_module, dataset):
-
-    output_category = dataset.get_dim_output()
+    
+    dim_output = dataset.get_dim_output()
     input_size_classifier = args_classification.input_size_prediction_module
     input_size_baseline = args_classification.input_size_prediction_module
     if args_classification.classifier is DatasetBasedClassifier :
         classifier = args_classification.classifier(dataset)
     else :
-        classifier =  args_classification.classifier(input_size_classifier, output_category)
+        classifier =  args_classification.classifier(input_size_classifier, dim_output)
 
     if args_trainer.baseline is not None :
-        baseline = args_trainer.baseline(input_size_baseline, output_category)
+        baseline = args_trainer.baseline(input_size_baseline, dim_output)
     else :
         baseline = None
 

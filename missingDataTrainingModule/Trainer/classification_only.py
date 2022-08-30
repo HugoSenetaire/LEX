@@ -56,26 +56,32 @@ class ordinaryPredictionTraining():
         batch_size = data.shape[0]
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
-        one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
-        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
+        target = define_target(data,
+                        index,
+                        target,
+                        dim_output= dataset.get_dim_output(),
+                        post_hoc = self.post_hoc,
+                        post_hoc_guidance = self.post_hoc_guidance,
+                        argmax_post_hoc = self.argmax_post_hoc,
+                        )
 
-        data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
-                                                                                                        target = target,
-                                                                                                        index=index,
-                                                                                                        one_hot_target = one_hot_target,
-                                                                                                        mc_part = nb_sample_z_monte_carlo,
-                                                                                                        iwae_part= nb_sample_z_iwae,
-                                                                                                        )
+        data_expanded, target_expanded, index_expanded = sampling_augmentation(data,
+                                                                            target = target,
+                                                                            index=index,
+                                                                            mc_part = nb_sample_z_monte_carlo,
+                                                                            iwae_part= nb_sample_z_iwae,
+                                                                            )
 
-        return data, target, index, one_hot_target, data_expanded, target_expanded, index_expanded, one_hot_target_expanded, batch_size
+        return data, target, index, data_expanded, target_expanded, index_expanded, batch_size
 
+    
 
     def _train_step(self, data, target, dataset, index = None, need_dic = False, ):
         self.interpretable_module.zero_grad()
-        data, target, index, one_hot_target, data_expanded, target_expanded, index_expanded, one_hot_target_expanded, batch_size = self.define_input(data, target, index, dataset,)
+        data, target, index, data_expanded, target_expanded, index_expanded, batch_size = self.define_input(data, target, index, dataset,)
         log_y_hat, regul_classification = self.interpretable_module.prediction_module(data, index= index)
 
-        out_loss = self.loss_function.eval(input = log_y_hat, target = target, one_hot_target = one_hot_target)
+        out_loss = self.loss_function.eval(input = log_y_hat, target = target,)
         total_loss = out_loss
         if regul_classification is not None :
             total_loss += regul_classification
@@ -109,19 +115,22 @@ class trainingWithSelection(ordinaryPredictionTraining):
         assert self.compiled, "You need to compile the training module before training"
 
         self.interpretable_module.zero_grad()
-        data, target, one_hot_target, index = prepare_data(data, target, index, num_classes=dataset.get_dim_output(), use_cuda=self.use_cuda)
-        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
+        data, target, index = prepare_data(data, target, index, use_cuda=self.use_cuda)
+        target = define_target(data,
+                index,
+                target,
+                dim_output= dataset.get_dim_output(),
+                post_hoc = self.post_hoc,
+                post_hoc_guidance = self.post_hoc_guidance,
+                argmax_post_hoc = self.argmax_post_hoc,
+                )
 
-        data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
-                                                                                                        target = target,
-                                                                                                        index=index,
-                                                                                                        one_hot_target = one_hot_target,
-                                                                                                        mc_part = self.nb_sample_z_monte_carlo,
-                                                                                                        iwae_part = self.nb_sample_z_iwae,
-                                                                                                        )
-
-       
-
+        data_expanded, target_expanded, index_expanded = sampling_augmentation(data,
+                                                                            target = target,
+                                                                            index=index,
+                                                                            mc_part = self.nb_sample_z_monte_carlo,
+                                                                            iwae_part = self.nb_sample_z_iwae,
+                                                                            )
 
         log_y_hat, regul_classification, mask_expanded, regul_sel, p_z = self.interpretable_module(data, index= index, nb_sample_z_monte_carlo = self.nb_sample_z_monte_carlo, nb_sample_z_iwae = self.nb_sample_z_iwae, )
             
@@ -132,7 +141,6 @@ class trainingWithSelection(ordinaryPredictionTraining):
                     data_expanded = data_expanded,
                     target_expanded = target_expanded,
                     index_expanded = index_expanded,
-                    one_hot_target_expanded = one_hot_target_expanded,
                     dim_output = dataset.get_dim_output(),
                     loss_function = self.loss_function,
                     )
@@ -154,5 +162,3 @@ class trainingWithSelection(ordinaryPredictionTraining):
         total_loss.backward()
         self.optim_classification.step()
         return dic
-
-    

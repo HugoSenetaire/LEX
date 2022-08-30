@@ -64,18 +64,23 @@ class SINGLE_LOSS():
         batch_size = data.shape[0]
         if self.use_cuda :
             data, target, index = on_cuda(data, target = target, index = index,)
-        one_hot_target = get_one_hot(target, num_classes = dataset.get_dim_output())
-        target, one_hot_target = define_target(data, index, target, one_hot_target = one_hot_target, post_hoc = self.post_hoc, post_hoc_guidance = self.post_hoc_guidance, argmax_post_hoc = self.argmax_post_hoc, dim_output= dataset.get_dim_output(),)
+        target = define_target(data,
+                                index,
+                                target,
+                                dim_output= dataset.get_dim_output(),
+                                post_hoc = self.post_hoc,
+                                post_hoc_guidance = self.post_hoc_guidance,
+                                argmax_post_hoc = self.argmax_post_hoc,
+                            )
 
-        data_expanded, target_expanded, index_expanded, one_hot_target_expanded = sampling_augmentation(data,
-                                                                                                        target = target,
-                                                                                                        index=index,
-                                                                                                        one_hot_target = one_hot_target,
-                                                                                                        mc_part = nb_sample_z_monte_carlo,
-                                                                                                        iwae_part= nb_sample_z_iwae,
+        data_expanded, target_expanded, index_expanded = sampling_augmentation(data,
+                                                                            target = target,
+                                                                            index=index,
+                                                                            mc_part = nb_sample_z_monte_carlo,
+                                                                            iwae_part= nb_sample_z_iwae,
                                                                                                         )
 
-        return data, target, index, one_hot_target, data_expanded, target_expanded, index_expanded, one_hot_target_expanded, batch_size
+        return data, target, index, data_expanded, target_expanded, index_expanded, batch_size
 
     def compile(self, optim_classification, optim_selection, scheduler_classification = None, scheduler_selection = None, optim_baseline = None, scheduler_baseline = None, optim_distribution_module = None, scheduler_distribution_module = None, **kwargs):
         self.optim_classification = optim_classification
@@ -137,13 +142,13 @@ class SINGLE_LOSS():
         if self.monte_carlo_gradient_estimator.fix_n_mc : # If we fix number of samples to all samples
             self.nb_sample_z_monte_carlo = 2**(np.prod(data.shape[1:])*self.nb_sample_z_iwae)
 
-        data, target, index, one_hot_target, data_expanded, target_expanded, index_expanded, one_hot_target_expanded, batch_size = self.define_input(data,
-                                                                                                                                                target,
-                                                                                                                                                index,
-                                                                                                                                                dataset,
-                                                                                                                                                nb_sample_z_monte_carlo = self.nb_sample_z_monte_carlo,
-                                                                                                                                                nb_sample_z_iwae = self.nb_sample_z_iwae,
-                                                                                                                                            )
+        data, target, index, data_expanded, target_expanded, index_expanded, batch_size = self.define_input(data,
+                                                                                                            target,
+                                                                                                            index,
+                                                                                                            dataset,
+                                                                                                            nb_sample_z_monte_carlo = self.nb_sample_z_monte_carlo,
+                                                                                                            nb_sample_z_iwae = self.nb_sample_z_iwae,
+                                                                                                        )
         
         # Selection Module :
         log_pi_list, loss_reg = self.interpretable_module.selection_module(data)
@@ -154,7 +159,6 @@ class SINGLE_LOSS():
                         data_expanded = data_expanded,
                         target_expanded = target_expanded,
                         index_expanded = index_expanded,
-                        one_hot_target_expanded = one_hot_target_expanded,
                         dim_output = dataset.get_dim_output(),
                         loss_function = self.loss_function,
                         )

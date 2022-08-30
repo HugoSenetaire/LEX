@@ -1,7 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# print(sys.path)
 from .utils_UNET import *
 
 import math
@@ -155,27 +151,35 @@ def calculate_blocks_patch(input_size, kernel_size, kernel_stride):
 
 
 class SelectorUNET(AbstractSelector):
-    def __init__(self,  input_size = (1,28,28), output_size= (1, 28, 28), kernel_size = (1,1), kernel_stride = (1,1), bilinear = True):
+    def __init__(self,  input_size = (1,28,28), output_size= (1, 28, 28), kernel_size = (1,1), kernel_stride = (1,1), bilinear = True, log2_min_channel = 6):
 
       aux_output_size = calculate_blocks_patch(input_size, kernel_size, kernel_stride)
       assert aux_output_size == output_size, "Output size of the selector must be the same as the output size of the unet."
       super().__init__(input_size = input_size, output_size = output_size)
+      self.input_size = input_size
+      self.output_size = output_size
       self.channels = self.input_size[0]
+      self.out_channel = self.output_size[0]
       self.w = self.input_size[1]
       self.h = self.input_size[2]
       self.bilinear = bilinear
+      self.log2_min_channel = log2_min_channel
+      self.factor = 2 if self.bilinear else 1
+
 
     
       self.nb_block = int(math.log(min(self.output_size[1], self.output_size[2]), 2)//2)
+      self.dim_latent = (2**(self.log2_min_channel+self.nb_block)/self.factor, self.w / (2**self.nb_block), self.h/(2**self.nb_block))
       self.getconfiguration = nn.Sequential(*[
-        nn.Conv2d(self.channels, 64, kernel_size = kernel_size, stride = kernel_stride),
+        nn.Conv2d(self.channels, 2**self.log2_min_channel, kernel_size = kernel_size, stride = kernel_stride),
         nn.ReLU(inplace = False),
-        nn.Conv2d(64, 64, kernel_size = 3, padding=1),
-        nn.BatchNorm2d(64),
+        nn.Conv2d(2**self.log2_min_channel, 2**self.log2_min_channel, kernel_size = 3, padding=1),
+        nn.BatchNorm2d(2**self.log2_min_channel),
         nn.ReLU(inplace = False),
       ])
 
-      self.UNET = UNet(1, bilinear = self.bilinear, nb_block = self.nb_block)
+      self.UNET = UNet(1, bilinear = self.bilinear, nb_block = self.nb_block, log2_min_channel=self.log2_min_channel)
+
 
 
     def __call__(self, x):

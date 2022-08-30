@@ -17,10 +17,16 @@ from torchvision.utils import save_image
 from torchvision import models
 
 class PredictorAbstract(nn.Module):
-    def __init__(self, input_size, output):
+    def __init__(self, input_size, output_size):
         super(PredictorAbstract, self).__init__()
         self.input_size = input_size
-        self.output = output
+        self.output_size = output_size
+        if type(self.output_size) == int:
+            self.output = output_size
+        else:
+            self.output = np.prod(self.output_size)
+            if len(self.output_size) >1:
+                raise NotImplementedError
         if self.output > 1:
             self.activation = nn.LogSoftmax(-1)
         else :
@@ -29,10 +35,10 @@ class PredictorAbstract(nn.Module):
         raise NotImplementedError
     
 class ClassifierLinear(PredictorAbstract):
-    def __init__(self,input_size = (1,28,28), output = 10, middle_size = 50):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self,input_size = (1,28,28), output_size = 10, middle_size = 50):
+        super().__init__(input_size=input_size, output_size=output_size)
         self.input_size = input_size
-        self.fc1 = nn.Linear(np.prod(input_size), output)
+        self.fc1 = nn.Linear(np.prod(input_size), self.output)
     
     def __call__(self, x):
         x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
@@ -40,11 +46,11 @@ class ClassifierLinear(PredictorAbstract):
         return self.activation(x) #N_expectation * Batch_size, Category
 
 class ClassifierLVL1(PredictorAbstract):
-    def __init__(self,input_size = (1,28,28), output = 10, middle_size = 50):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self,input_size = (1,28,28), output_size = 10, middle_size = 50):
+        super().__init__(input_size=input_size, output_size=output_size)
         self.input_size = input_size
         self.fc1 = nn.Linear(np.prod(input_size), middle_size)
-        self.fc2 = nn.Linear(middle_size, output)
+        self.fc2 = nn.Linear(middle_size, self.output)
     
     def __call__(self, x):
 
@@ -54,12 +60,12 @@ class ClassifierLVL1(PredictorAbstract):
         return self.activation(x) #N_expectation * Batch_size, Category
 
 class ClassifierLVL2(PredictorAbstract):
-    def __init__(self,input_size = (1,28,28), output = 10, middle_size = 50):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self,input_size = (1,28,28), output_size = 10, middle_size = 50):
+        super().__init__(input_size=input_size, output_size=output_size)
         self.input_size = input_size
         self.fc1 = nn.Linear(np.prod(input_size), middle_size)
         self.fc2 = nn.Linear(middle_size, middle_size)
-        self.fc3 = nn.Linear(middle_size, output)
+        self.fc3 = nn.Linear(middle_size, self.output)
     
     def __call__(self, x):
 
@@ -71,14 +77,14 @@ class ClassifierLVL2(PredictorAbstract):
 
 
 class ClassifierLVL3(PredictorAbstract):
-    def __init__(self,input_size = (1,28,28), output = 10, middle_size = 50):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self,input_size = (1,28,28), output_size = 10, middle_size = 50):
+        super().__init__(input_size=input_size, output_size=output_size)
         self.input_size = input_size
         self.fc1 = nn.Linear(np.prod(input_size), middle_size)
         self.fc2 = nn.Linear(middle_size, middle_size)
         self.fc3 = nn.Linear(middle_size, middle_size)
         self.fc4 = nn.Linear(middle_size, middle_size)
-        self.fc5 = nn.Linear(middle_size, output)
+        self.fc5 = nn.Linear(middle_size, self.output)
         
     
     def __call__(self, x):
@@ -93,7 +99,7 @@ class ClassifierLVL3(PredictorAbstract):
 
 # class RealXClassifier(PredictorAbstract):
 #     def __init__(self, input_size, output, middle_size=200):
-#         super().__init__(input_size=input_size, output=output)
+#         super().__init__(input_size=input_size, output_size=output_size)
 #         self.input_size = input_size
 #         self.fc1 = nn.Linear(np.prod(input_size), 200)
 #         self.bn1 = nn.BatchNorm1d(200)
@@ -119,12 +125,12 @@ def init_weights(m):
         m.bias.data.fill_(0.01)
 
 class RealXClassifier(PredictorAbstract):
-    def __init__(self, input_size, output, middle_size=200):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self, input_size, output_size, middle_size=200):
+        super().__init__(input_size=input_size, output_size=output_size)
         self.input_size = input_size
         self.fc1 = nn.Linear(np.prod(input_size), 200)
         self.fc2 = nn.Linear(200, 200)
-        self.fc3 = nn.Linear(200, output)
+        self.fc3 = nn.Linear(200, self.output)
 
         self.fc1.apply(init_weights)
         self.fc2.apply(init_weights)
@@ -139,11 +145,11 @@ class RealXClassifier(PredictorAbstract):
         return self.activation(x)
 
 class StupidClassifier(PredictorAbstract):
-    def __init__(self, input_size = (1,28,28),output = 10, bias = True):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self, input_size = (1,28,28),output_size = 10, bias = True):
+        super().__init__(input_size=input_size, output_size=output_size)
         self.bias = bias
         self.input_size = input_size
-        self.fc1 = nn.Linear(np.prod(input_size), output, bias = bias)
+        self.fc1 = nn.Linear(np.prod(input_size), self.output, bias = bias)
         
         self.elu = nn.ELU()
 
@@ -154,8 +160,8 @@ class StupidClassifier(PredictorAbstract):
 
 
 class PretrainedVGGPytorch(PredictorAbstract):
-    def __init__(self, input_size = (3, 224, 224), output = 2, model_type = "vgg11", pretrained= True, retrain = False):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self, input_size = (3, 224, 224), output_size = 2, model_type = "vgg11", pretrained= True, retrain = False):
+        super().__init__(input_size=input_size, output_size=output_size)
         assert(model_type.startswith("vgg"))
         self.model = torch.hub.load('pytorch/vision:v0.9.0', model_type, pretrained=True)
         self.model.requires_grad_(False)
@@ -167,7 +173,7 @@ class PretrainedVGGPytorch(PredictorAbstract):
                                 nn.Linear(4096,4096),
                                 nn.ReLU(True),
                                 nn.Dropout(),
-                                nn.Linear(4096, output),
+                                nn.Linear(4096, self.output),
                             )
         self.elu = nn.ELU()
 
@@ -181,8 +187,8 @@ class PretrainedVGGPytorch(PredictorAbstract):
 
 
 class VGGSimilar(PredictorAbstract):
-    def __init__(self, input_size = (3,224, 224), output = 2):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self, input_size = (3,224, 224), output_size = 2):
+        super().__init__(input_size=input_size, output_size=output_size)
         self.input_size = input_size
         assert(len(input_size)==3)
         w = input_size[1]
@@ -212,7 +218,7 @@ class VGGSimilar(PredictorAbstract):
                                 nn.Linear(4096,4096),
                                 nn.ReLU(True),
                                 nn.Dropout(),
-                                nn.Linear(4096, output)
+                                nn.Linear(4096, self.output)
                             )
         self.elu = nn.ELU()
 
@@ -227,13 +233,13 @@ class VGGSimilar(PredictorAbstract):
 
 
 class ConvClassifier(PredictorAbstract):
-    def __init__(self, input_size = (1,28,28), output = 10):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self, input_size = (1,28,28), output_size = 10):
+        super().__init__(input_size=input_size, output_size=output_size)
         self.conv1 = nn.Conv2d(input_size[0], 10, 3, stride=1, padding=1)
         self.maxpool1 = nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
         self.conv2 = nn.Conv2d(10, 1, 3, stride=1, padding=1)
         self.maxpool2 = nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
-        self.fc = nn.Linear(int(np.prod(input_size[1:])/16),output)
+        self.fc = nn.Linear(int(np.prod(input_size[1:])/16),self.output)
         self.elu = nn.ELU()
     
     def __call__(self, x):
@@ -247,13 +253,13 @@ class ConvClassifier(PredictorAbstract):
 
 
 class ConvClassifier2(PredictorAbstract):
-    def __init__(self, input_size = (1,28,28), output = 10):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self, input_size = (1,28,28), output_size = 10):
+        super().__init__(input_size=input_size, output_size=output_size)
         self.conv1 = nn.Conv2d(input_size[0], 6, 5, stride=1, padding=0)
         self.maxpool1 = nn.AvgPool2d(kernel_size=(2,2),stride=1,padding = 0) # 23 23
         self.conv2 = nn.Conv2d(6, 16, 5, stride=1, padding=0) # 23 23
         self.maxpool2 = nn.AvgPool2d(kernel_size=(2,2),stride=1,padding = 0) # 18 18
-        self.fc = nn.Linear(18*18*16,output) # 18 18
+        self.fc = nn.Linear(18*18*16,self.output) # 18 18
         self.elu = nn.ELU()
     
     def __call__(self, x):
@@ -268,10 +274,9 @@ class ConvClassifier2(PredictorAbstract):
 
 
 class ProteinCNN(PredictorAbstract):
-    def __init__(self, input_size = (21,19), output = 8):
-        super().__init__(input_size=input_size, output=output)
+    def __init__(self, input_size = (21,19), output_size = 8):
+        super().__init__(input_size=input_size, output_size=output_size)
         self.input_size = input_size
-        self.output = output
         self.dropout_rate = 0.38 # In the original implementation https://github.com/LucaAngioloni/ProteinSecondaryStructure-CNN/
 
         self.cnns = nn.Sequential(
@@ -296,7 +301,7 @@ class ProteinCNN(PredictorAbstract):
             nn.ReLU(), 
             nn.Linear(128, 32),
             nn.ReLU(),
-            nn.Linear(32, output),
+            nn.Linear(32, self.output),
             nn.LogSoftmax(-1),
         )
     def __call__(self, x):
