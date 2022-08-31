@@ -52,7 +52,8 @@ def get_default_autoencoder():
     args.args_classification.imputation = "ConstantImputation"
     args.args_classification.cste_imputation = 0
     args.args_classification.sigma_noise_imputation = 1.0
-    args.args_classification.add_mask = False
+    # args.args_classification.add_mask = False
+    args.args_classification.add_mask = True
     args.args_classification.module_imputation = None # Type of module parameters that one might want
     args.args_classification.module_imputation_parameters = None # Parameters of the network to use for post processing)
     args.args_classification.nb_imputation_iwae = 1
@@ -61,9 +62,9 @@ def get_default_autoencoder():
     args.args_classification.nb_imputation_mc_test = 1 #If none is given, turn to 1
 
 
-    args.args_classification.reconstruction_regularization = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
-    args.args_classification.network_reconstruction = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
-    args.args_classification.lambda_reconstruction = 0.01 # Parameter for controlling the reconstruction regularization
+    args.args_classification.reconstruction_regularization = "AutoEncoderLatentReconstruction" # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
+    args.args_classification.network_reconstruction = "self" # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
+    args.args_classification.lambda_reconstruction = 0.1 # Parameter for controlling the reconstruction regularization
     
     args.args_classification.post_process_regularization = None # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
     args.args_classification.network_post_process = None # Autoencoder Network to use
@@ -78,10 +79,9 @@ def get_default_autoencoder():
     args.args_selection.output_size_selector = (1,28,28)
     args.args_selection.kernel_size = (1,1)
     args.args_selection.kernel_stride = (1,1)
-    args.args_selection.selector = "SelectorUNET"
+    args.args_selection.selector = None
     args.args_selection.selector_var = None #selectorSimilarVar
-    args.args_selection.activation = "LogSigmoid"
-    # args.args_selection.activation = torch.nn.LogSoftmax(dim=-1)
+    args.args_selection.activation = None
 
     # For regularization :
     args.args_selection.trainable_regularisation = False

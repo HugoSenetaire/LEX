@@ -166,7 +166,6 @@ class SelectorUNET(AbstractSelector):
       self.log2_min_channel = log2_min_channel
       self.factor = 2 if self.bilinear else 1
 
-
     
       self.nb_block = int(math.log(min(self.output_size[1], self.output_size[2]), 2)//2)
       self.dim_latent = (2**(self.log2_min_channel+self.nb_block)/self.factor, self.w / (2**self.nb_block), self.h/(2**self.nb_block))
@@ -188,6 +187,16 @@ class SelectorUNET(AbstractSelector):
       x = x.view(-1, np.prod(self.output_size))
 
       return x
+
+    def encode(self, x):
+      x = self.getconfiguration(x)
+      x = self.UNET.encode(x)
+      return x
+
+    def decode(self, x):
+      x = self.UNET.decode(x)
+      return x
+    
 
 class SelectorUNET1D(AbstractSelector):
     def __init__(self, input_size = (22, 19), output_size = (1,28,28), bilinear = False):
