@@ -35,9 +35,8 @@ def convert_classification(args_classification):
     args_classification.imputation = get_imputation_type(args_classification.imputation)
 
 
-    args_classification.reconstruction_regularization = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
-    args_classification.network_reconstruction = None # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
-    args_classification.lambda_reconstruction = 0.0 # Parameter for controlling the reconstruction regularization
+    args_classification.reconstruction_regularization = dic_reconstruction_regularization[args_classification.reconstruction_regularization] # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
+    args_classification.network_reconstruction = args_classification.network_reconstruction # Posssibility Autoencoder regularization (the output of the autoencoder is not given to classification, simple regularization of the mask)
     
     
     args_classification.post_process_regularization = get_post_process_reg(args_classification.post_process_regularization) # Possibility NetworkTransform, Network add, NetworkTransformMask (the output of the autoencoder is given to classification)
