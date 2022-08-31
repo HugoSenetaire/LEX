@@ -133,7 +133,6 @@ class trainingWithSelection(ordinaryPredictionTraining):
                                                                             )
 
         log_y_hat, regul_classification, mask_expanded, regul_sel, p_z = self.interpretable_module(data, index= index, nb_sample_z_monte_carlo = self.nb_sample_z_monte_carlo, nb_sample_z_iwae = self.nb_sample_z_iwae, )
-            
         out_loss = calculate_cost(
                     interpretable_module=self.interpretable_module,
                     log_y_hat = log_y_hat,
