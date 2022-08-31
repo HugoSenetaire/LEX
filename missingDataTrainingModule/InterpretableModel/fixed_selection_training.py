@@ -53,11 +53,13 @@ class EVAL_X(PredictionCompleteModel):
     def __init__(self,
                     prediction_module,
                     fixed_distribution = wrappers.FixedBernoulli(),
-                    reshape_mask_function = None, 
+                    reshape_mask_function = None,
+                    mask_dimension = None, 
                     ):
         super().__init__(prediction_module, )
         self.fixed_distribution = fixed_distribution
         self.reshape_mask_function = reshape_mask_function
+        self.mask_dimension = mask_dimension
 
 
 
@@ -75,11 +77,10 @@ class EVAL_X(PredictionCompleteModel):
         batch_size = data.shape[0]
         
         # Destructive module
-        p_z = self.fixed_distribution(torch.zeros(batch_size, nb_sample_z_iwae, *self.prediction_module.classifier.input_size[1:]).to(data.device))
+        p_z = self.fixed_distribution(torch.zeros(batch_size, nb_sample_z_iwae, *self.mask_dimension).to(data.device))
         # Train classification module :
         mask = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo,))
         mask = self.reshape(mask)
-
         
         
         log_y_hat, regul_classification = self.prediction_module(data_expanded.flatten(0,2), mask = mask, index = index_expanded)
@@ -88,7 +89,7 @@ class EVAL_X(PredictionCompleteModel):
 
     def sample_z(self, data, index, nb_sample_z_monte_carlo = 1 , nb_sample_z_iwae = 1):
         batch_size = data.shape[0]
-        p_z = self.fixed_distribution(torch.zeros(batch_size, nb_sample_z_iwae, 1, *self.prediction_module.classifier.input_size[1:]).to(data.device))
+        p_z = self.fixed_distribution(torch.zeros(batch_size, nb_sample_z_iwae, *self.mask_dimension).to(data.device))
         z = self.fixed_distribution.sample(sample_shape = (nb_sample_z_monte_carlo,))
         return z
     
