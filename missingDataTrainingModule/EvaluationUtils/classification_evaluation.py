@@ -66,7 +66,10 @@ def test_train_loss(interpretable_module, loader, loss_function = None, nb_sampl
 
 
             log_y_hat, _ = interpretable_module.prediction_module(data_expanded.flatten(0,2), z, index = index_expanded_flatten)
-            log_y_hat = log_y_hat.reshape(-1, loader.dataset.get_dim_output())
+            if type(loader.dataset.get_dim_output()) == int :
+                log_y_hat = log_y_hat.reshape(-1, loader.dataset.get_dim_output())
+            else :
+                log_y_hat = log_y_hat.reshape(-1, *loader.dataset.get_dim_output())
 
             loss_train = calculate_cost(
                 interpretable_module = interpretable_module,
@@ -158,7 +161,10 @@ def multiple_test_classification(interpretable_module, loader, nb_sample_z_monte
                     no_imputation = False
 
                 log_y_hat, _ = interpretable_module.prediction_module(data_expanded.flatten(0,2), z, index = index_expanded_flatten)
-                log_y_hat = log_y_hat.reshape(-1, dim_output)
+                if type(dim_output) == int :
+                    log_y_hat = log_y_hat.reshape(-1, 1)
+                else :
+                    log_y_hat = log_y_hat.reshape(-1, *dim_output)
 
 
 
@@ -348,7 +354,10 @@ def multiple_test_regression(interpretable_module, loader, nb_sample_z_monte_car
                     no_imputation = False
 
                 log_y_hat, _ = interpretable_module.prediction_module(data_expanded.flatten(0,2), z, index = index_expanded_flatten)
-                log_y_hat = log_y_hat.reshape(-1, dim_output)
+                if type(loader.dataset.get_dim_output())==int :
+                    log_y_hat = log_y_hat.reshape(-1, dim_output)
+                else :
+                    log_y_hat = log_y_hat.reshape(-1, *loader.dataset.get_dim_output())
 
 
 
