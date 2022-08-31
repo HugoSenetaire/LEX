@@ -98,6 +98,8 @@ def convert_distribution(args_distribution):
         args_distribution.distribution_module = PytorchDistributionUtils.wrappers.DistributionModule
     elif args_distribution.distribution_module == "FixedBernoulli" :
         args_distribution.distribution_module = PytorchDistributionUtils.wrappers.FixedBernoulli
+    elif args_distribution.distribution_module is None or args_distribution.distribution_module == "None" :
+        args_distribution.distribution_module = None
     else :
         raise ValueError("Unknown distribution module")
 
@@ -115,6 +117,8 @@ def convert_distribution(args_distribution):
         args_distribution.distribution = RelaxedSubsetSampling
     elif args_distribution.distribution == "RelaxedSubsetSampling_STE":
         args_distribution.distribution = RelaxedSubsetSampling_STE
+    elif args_distribution.distribution is None or args_distribution.distribution == "None" :
+        args_distribution.distribution = None
     else :
         raise ValueError("Distribution not found")
     
@@ -132,6 +136,8 @@ def convert_distribution(args_distribution):
         args_distribution.distribution_relaxed = RelaxedSubsetSampling
     elif args_distribution.distribution_relaxed == "RelaxedSubsetSampling_STE":
         args_distribution.distribution_relaxed = RelaxedSubsetSampling_STE
+    elif args_distribution.distribution_relaxed is None or args_distribution.distribution_relaxed == "None" :
+        args_distribution.distribution_relaxed = None
     else :
         raise ValueError("Distribution relaxed not found")
 

@@ -7,7 +7,7 @@ from .mnist_background import MNISTImageBackground
 from .mnist_noise import MNISTNoiseBackground
 from .derma_panels import DermamnistPanel, Dermamnist
 from .blood_panels import BloodMNIST, BloodMNISTPanel
-
+from .autoencoder_dataset import AutoEncoderDataset
 
 
 list_dataset = {
@@ -21,6 +21,7 @@ list_dataset = {
     "Dermamnist": Dermamnist,
     "BloodMNIST": BloodMNIST,
     "BloodMNISTPanel": BloodMNISTPanel,
+    "AutoEncoderDataset": AutoEncoderDataset,
 }
 
 class args_dataset_parameters():
@@ -32,3 +33,4 @@ class args_dataset_parameters():
         self.download = None
         self.train_seed = None
         self.test_seed = None
+        self.dataset = None

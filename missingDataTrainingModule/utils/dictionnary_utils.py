@@ -93,7 +93,7 @@ def compare_args(default_args, created_args):
     set_created = set(list(created_args_dic.keys()))
     set_different = set_default.difference(set_created)
     for k in list(set_different) :
-        if "optim" in k or "scheduler" in k or "module_imputation" in k:
+        if "optim" in k or "scheduler" in k or "module_imputation" in k or "dataset_parameters_dataset_" in k:
             set_different.remove(k)
     if len(set_different)>0:
         print("The following arguments are missing in the created args :")

@@ -79,6 +79,8 @@ def class_or_reg(output_dim):
     return problem_type
 
 def extend_input(input, mc_part = 1, iwae_part = 1,):
+    if input is None :
+        return None
     shape = input.shape
     reshape_shape = torch.Size((1,)) + torch.Size((shape[0],)) + torch.Size((1,)) + shape[1:]
     wanted_shape = torch.Size((mc_part,)) + torch.Size((shape[0],)) + torch.Size((iwae_part,)) + shape[1:]
