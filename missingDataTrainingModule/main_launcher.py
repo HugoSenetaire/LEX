@@ -49,8 +49,6 @@ def experiment(dataset, loader, complete_args,):
     final_path = origin_path
 
     complete_args_converted = convert_all(complete_args)
-    print(vars(complete_args.args_selection))
-    print(vars(complete_args_converted.args_selection))
     print("====================================================================================================================================================")
     print(f"Save at {final_path}")
     print(f"Dir at {os.path.dirname(final_path)}")
@@ -64,14 +62,15 @@ def experiment(dataset, loader, complete_args,):
     ## Sampling :
     distribution_module = get_distribution_module_from_args(complete_args_converted.args_distribution_module)
     classification_distribution_module = get_distribution_module_from_args(complete_args_converted.args_classification_distribution_module)
-    ### Imputation :
-    imputation = get_imputation_method(complete_args_converted.args_classification, dataset)
+
     ### Networks :
     classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(complete_args_converted.args_classification,
                                                                         complete_args_converted.args_selection,
                                                                         complete_args_converted.args_trainer,
                                                                         complete_args_converted.args_interpretable_module,
                                                                         dataset=dataset)
+    ### Imputation :
+    imputation = get_imputation_method(complete_args_converted.args_classification, dataset,)
     ### Loss Function :
     loss_function = get_loss_function(complete_args_converted.args_train.loss_function,
                                             complete_args_converted.args_train,
@@ -80,11 +79,13 @@ def experiment(dataset, loader, complete_args,):
                                             complete_args_converted.args_train,
                                             dataset.get_dim_output())
     ### Complete Module :
-    prediction_module = PredictionModule(classifier, imputation=imputation)
-    selection_module =  SelectionModule(selector,
-                    activation=complete_args_converted.args_selection.activation,
-                    regularization=regularization,
-                    )
+    if classifier is not None :
+        prediction_module = PredictionModule(classifier, imputation=imputation, input_size=dataset.get_dim_input(),)
+    if selector is not None:
+        selection_module =  SelectionModule(selector,
+                        activation=complete_args_converted.args_selection.activation,
+                        regularization=regularization,
+                        )
     selection_module_var = None
     interpretable_module = get_complete_module(complete_args_converted.args_interpretable_module.interpretable_module,
                                                 prediction_module,
@@ -94,6 +95,7 @@ def experiment(dataset, loader, complete_args,):
                                                 classification_distribution_module = classification_distribution_module,
                                                 reshape_mask_function = reshape_mask_function,
                                                 dataset = dataset,
+                                                args_selection=complete_args_converted.args_selection,
                                                 )
     
     if complete_args_converted.args_train.use_cuda:

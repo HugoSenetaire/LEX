@@ -7,7 +7,7 @@ from .utils import class_or_reg
 from .Trainer import SINGLE_LOSS, SEPARATE_LOSS, trainingWithSelection, ordinaryPredictionTraining
 from functools import partial
 
-def get_imputation_method(args_classification, dataset):
+def get_imputation_method(args_classification, dataset,):
 
     # Instantiate mask regularization method
     if args_classification.mask_reg is not None :
@@ -100,6 +100,9 @@ def get_networks(args_classification, args_selection, args_trainer, args_interpr
     
     dim_output = dataset.get_dim_output()
     input_size_classifier = args_classification.input_size_prediction_module
+    if args_classification.add_mask :
+        init_shape = dataset.get_dim_input()
+        input_size_classifier = torch.Size((init_shape[0]+1,)) + torch.Size((init_shape[1:]))
     input_size_baseline = args_classification.input_size_prediction_module
     if args_classification.classifier is DatasetBasedClassifier :
         classifier = args_classification.classifier(dataset)
@@ -124,17 +127,20 @@ def get_networks(args_classification, args_selection, args_trainer, args_interpr
         kernel_stride = None
     
     try :
-        reshape_mask_function = args_interpretable_module.reshape_mask_function(input_size_classifier = input_size_classifier,
+        reshape_mask_function = args_interpretable_module.reshape_mask_function(input_size_classifier = args_classification.input_size_prediction_module,
                                                                     output_size_selector = output_size_selector,
                                                                     kernel_size = kernel_size,
                                                                     kernel_stride = kernel_stride)
     except :
-        reshape_mask_function = args_interpretable_module.reshape_mask_function(size = input_size_classifier)
+        reshape_mask_function = args_interpretable_module.reshape_mask_function(size = args_classification.input_size_prediction_module)
 
-    try : 
-        selector = args_selection.selector(input_size_selector, output_size_selector, kernel_size, kernel_stride)
-    except TypeError:
-        selector = args_selection.selector(input_size_selector, output_size_selector)
+    if args_selection.selector is None :
+        selector = None
+    else :
+        try : 
+            selector = args_selection.selector(input_size_selector, output_size_selector, kernel_size, kernel_stride)
+        except TypeError:
+            selector = args_selection.selector(input_size_selector, output_size_selector)
     
 
     if args_selection.selector_var is not None :
@@ -144,6 +150,9 @@ def get_networks(args_classification, args_selection, args_trainer, args_interpr
             selector_var = args_selection.selector_var(input_size_selector, output_size_selector)
     else :
         selector_var = None
+
+    if args_classification.network_reconstruction == "self" :
+        args_classification.network_reconstruction = classifier
 
     return classifier, selector, baseline, selector_var, reshape_mask_function
 
@@ -203,6 +212,7 @@ def get_complete_module(interpretable_module,
                         classification_distribution_module = None,
                         reshape_mask_function = None,
                         dataset = None,
+                        args_selection = None,
                         ):
 
     if interpretable_module is COUPLED_SELECTION :
@@ -225,7 +235,8 @@ def get_complete_module(interpretable_module,
         interpretable_module = EVAL_X(prediction_module,
                     classification_distribution_module,
                     reshape_mask_function,
-        )                       
+                    mask_dimension=args_selection.output_size_selector,
+        )                 
     else :
         raise ValueError(f"Interpretable module {interpretable_module} is not implemented")
 
