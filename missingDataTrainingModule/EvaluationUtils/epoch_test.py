@@ -24,7 +24,9 @@ def test_epoch(interpretable_module, epoch, loader, args, liste_mc = [(1,1,1,1),
     else :
         multiple_test = multiple_test_regression
 
-    total_dic.update(multiple_test(interpretable_module= interpretable_module, loader = loader,))
+    if interpretable_module.prediction_module.imputation is not None :
+        if not interpretable_module.prediction_module.imputation.add_mask : #Check if the predictor actually use the mask
+            total_dic.update(multiple_test(interpretable_module = interpretable_module, loader = loader,))
 
     if hasattr(interpretable_module, "sample_z"):
         sample_z_function = interpretable_module.sample_z
