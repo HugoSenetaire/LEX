@@ -195,6 +195,8 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
         if hasattr(loader.dataset, "optimal_S_test"):
             save_f1score(data[k], target[k], quadrant[k], pi_list[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap, pi_list_estimation = "straight_pi_list")
             save_f1score(data[k], target[k], quadrant[k], pi_list_selected[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap, pi_list_estimation = "selected_pi_list")
+            save_f1score(data[k], target[k], quadrant[k], pi_list_sampled[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap, pi_list_estimation = "sampled_pi_list")
+
         for l in range(nb_imputation):
             save_imputation(data[k], target[k], data_imputed[l][k], z[k], final_path, k, l, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap)
 
