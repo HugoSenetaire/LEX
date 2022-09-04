@@ -21,10 +21,13 @@ import pickle as pkl
 import numpy as np
 
 
-def get_dataset(args_dataset):
+def get_dataset(args):
+    args_dataset = args.args_dataset
     #Turn class to dictionary
     dic_parameters_dataset = vars(args_dataset.args_dataset_parameters)
     dataset = list_dataset[args_dataset.dataset](**dic_parameters_dataset)
+    args.args_dataset.dataset_input_dim = dataset.get_dim_input()
+    args.args_dataset.dataset_output_dim = dataset.get_dim_output()
     loader = LoaderArtificial(dataset, batch_size_train=args_dataset.args_dataset_parameters.batch_size_train, batch_size_test=args_dataset.args_dataset_parameters.batch_size_test,)
     return dataset, loader
 

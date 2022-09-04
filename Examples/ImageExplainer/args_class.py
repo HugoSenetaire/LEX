@@ -36,6 +36,8 @@ class args_dataset():
         self.dataset = None
         self.loader = None
         self.args_dataset_parameters = args_dataset_parameters()
+        self.dataset_input_dim = None
+        self.dataset_output_dim = None
 
 class args_classification():
     def __init__(self):
