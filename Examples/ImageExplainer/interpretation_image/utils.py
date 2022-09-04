@@ -123,7 +123,6 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     interpretable_module.eval()
     data, target, index= next(iter(loader.test_loader))
 
-
     output_category = loader.dataset.get_dim_output()
     indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
     data = data[indexes]
@@ -160,16 +159,16 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     
     log_pi_list,_ = selection_module(data)
     pi_list = torch.exp(log_pi_list)
-    pi_list = interpretable_module.reshape(pi_list[None, :, None])
+    pi_list_selected = get_sel_pred(interpretable_module, pi_list, rate = rate)
+    pi_list = interpretable_module.reshape(pi_list.reshape(data.shape[0], -1))
     
     
 
     pz = distribution_module(torch.exp(log_pi_list))
     z = distribution_module.sample((100,))
-    pi_list_sampled = z.mean(dim=0)[None,]
+    pi_list_sampled = z.mean(dim=0)
     pi_list_sampled = interpretable_module.reshape(pi_list_sampled)
     
-    pi_list_selected = get_sel_pred(interpretable_module, pi_list, rate = rate)
 
     z = distribution_module.sample((1,))
     z = interpretable_module.reshape(z)

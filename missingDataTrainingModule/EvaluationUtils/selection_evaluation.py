@@ -27,12 +27,12 @@ def get_sel_pred(interpretable_module, pi_list, rate = None):
     if rate is None or rate == 0.0 :
         return  pi_list>0.5
     else :
-        original_shape = pi_list.shape
+
         dim_pi_list = np.prod(interpretable_module.selection_module.selector.output_size)
         k = max(int(dim_pi_list * rate),1)
 
         _, to_sel = torch.topk(pi_list.reshape(-1, dim_pi_list), k, dim = 1)
-        sel_pred = torch.zeros_like(pi_list.reshape(-1, dim_pi_list)).scatter(1, to_sel, 1).reshape(original_shape)
+        sel_pred = torch.zeros_like(pi_list.reshape(-1, dim_pi_list)).scatter(1, to_sel, 1)
         return sel_pred
 
 
@@ -203,13 +203,12 @@ def eval_selection_local(interpretable_module, loader, rate = None):
             else :
                 pi_list = torch.exp(log_pi_list)
             
-
-            pi_list = interpretable_module.reshape(pi_list[None,:,None]).flatten(1)
+            sel_pred = get_sel_pred(interpretable_module, pi_list, rate = rate).detach().cpu().numpy().astype(int)
+            pi_list = interpretable_module.reshape(pi_list.reshape(batch_size, -1))
         if dim < 20 :
             total_pi_list[index] = pi_list.detach().cpu().numpy()
 
         optimal_S_test = optimal_S_test.detach().cpu().numpy()
-        sel_pred = get_sel_pred(interpretable_module, pi_list, rate = rate).detach().cpu().numpy().astype(int)
         sel_true = optimal_S_test.reshape(sel_pred.shape)
 
 

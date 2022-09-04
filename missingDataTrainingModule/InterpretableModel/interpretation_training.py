@@ -20,15 +20,7 @@ class COUPLED_SELECTION(nn.Module):
         self.prediction_module = prediction_module
         self.selection_module = selection_module
         self.distribution_module = distribution_module
-        self.reshape_mask_function = reshape_mask_function
-
-
-    def reshape(self, z):
-        if self.reshape_mask_function is not None :
-            reshaped_z = self.reshape_mask_function(z)
-            return reshaped_z
-        else :
-            return z
+        self.reshape = reshape_mask_function
     
     def __call__(self, data, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1,):
         data_expanded = extend_input(data, mc_part = nb_sample_z_monte_carlo, iwae_part = nb_sample_z_iwae)

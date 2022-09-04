@@ -58,16 +58,10 @@ class EVAL_X(PredictionCompleteModel):
                     ):
         super().__init__(prediction_module, )
         self.fixed_distribution = fixed_distribution
-        self.reshape_mask_function = reshape_mask_function
+        self.reshape = reshape_mask_function
         self.mask_dimension = mask_dimension
 
 
-
-    def reshape(self, z):
-        if self.reshape_mask_function is not None:
-            return self.reshape_mask_function(z)
-        else :
-            return z
 
     def __call__(self, data, index = None, nb_sample_z_monte_carlo = 1, nb_sample_z_iwae = 1, ):   
         data_expanded = extend_input(data, mc_part = nb_sample_z_monte_carlo, iwae_part = nb_sample_z_iwae)

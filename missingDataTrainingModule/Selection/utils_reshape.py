@@ -19,7 +19,9 @@ class KernelReshape2D():
         self.kernel_size = kernel_size
         self.kernel_stride = kernel_stride
         self.just_collapse = False
-        if kernel_size is None or kernel_stride is None:
+        
+
+        if kernel_size is None or kernel_stride is None or (np.prod(kernel_size) == 1 and np.prod(kernel_stride) == 1) :
             self.just_collapse = True
             if self.output_size_selector[0] == self.input_size_classifier[0] : # Checking for the number of channel to be the same.
                 self.collapse = CollapseInBatch(self.input_size_classifier)
@@ -27,30 +29,25 @@ class KernelReshape2D():
                 self.current_collapse = CollapseInBatch(self.output_size_selector)
                 self.collapse = lambda z: CollapseInBatch(z).expand(-1, *self.input_size_classifier)
         else :
-            self.fold = torch.nn.Fold( output_size=(self.input_size_classifier[1], self.input_size_classifier[2]), kernel_size = self.kernel_size, stride = self.kernel_stride)
-            # if np.all(self.kernel_size == 1) :
-                # self.collapse = CollapseInBatch(self.input_size_classifier)
+            self.fold = torch.nn.Fold(output_size=(self.input_size_classifier[1:]), kernel_size = self.kernel_size, stride = self.kernel_stride)
 
-
-    def __call__(self, z) :
+    def __call__(self, z, clamp = True) :
         if self.just_collapse :
             return self.collapse(z)
         else :
-            z = z.reshape(-1, self.output_size_selector[0], self.output_size_selector[1]*self.output_size_selector[2]) # Collapse the mc dim in batch, flatten the number of blocks in one dim
-            z = z.unsqueeze(2).expand(-1, -1, np.prod(self.kernel_size), -1).flatten(1,2) # 
+            z = z.reshape(-1, self.output_size_selector[0], np.prod(self.output_size_selector[1:]) ) # Collapse the mc dim in batch, flatten the number of blocks in one dim
+            z = z.unsqueeze(2).expand(-1, self.output_size_selector[0],np.prod(self.kernel_size), np.prod(self.output_size_selector[1:])).flatten(1,2) 
             new_z = self.fold(z)
-            new_z = new_z.clamp(0.0, 1.0)
-            # Following lines controls when the reconstruction is out of bounds
-            for k in range(2, len(self.input_size_classifier)):
-                new_z = new_z[:, :, :self.input_size_classifier[k],]
-                new_z.flatten(1,2)
+            if clamp :
+                new_z = new_z.clamp(0.0, 1.0) # Clamp the value to be between 0 and 1 because you might have superposition of different probability of sampling.
+
 
             if self.output_size_selector[0] == self.input_size_classifier[0] :
                 new_z = new_z.reshape(-1, *self.input_size_classifier)
             else :
                 if self.output_size_selector[0] != 1 :
                     raise ValueError("The output size of the selector is not 1 nor the same as the input size of the classifier, it does not make sense.")
-                new_z = new_z.reshape((z.shape[0], 1, *self.input_size_classifier[1:]))
+                new_z = new_z.reshape((z.shape[0], self.output_size_selector[0], *self.input_size_classifier[1:]))
                 new_z = new_z.expand((z.shape[0], *self.input_size_classifier))
 
             return new_z
