@@ -49,38 +49,17 @@ def experiment(dataset, loader, complete_args,):
 
     final_path = origin_path
 
-    complete_args_converted = convert_all(complete_args)
     print("====================================================================================================================================================")
     print(f"Save at {final_path}")
     print(f"Dir at {os.path.dirname(final_path)}")
     print("====================================================================================================================================================")
 
+    interpretable_module, complete_args_converted = instantiate(complete_args, dataset=dataset)
+    try :
+        interpretable_module = load_full_module(final_path, interpretable_module, suffix = "_last")
+    except FileNotFoundError:
+        print("No previous model found at {}, starting from scratch".format(final_path))
 
-
-
-    ### Regularization method :
-    regularization = get_regularization_method(complete_args_converted.args_selection, complete_args_converted.args_distribution_module)
-    ## Sampling :
-    distribution_module = get_distribution_module_from_args(complete_args_converted.args_distribution_module)
-    classification_distribution_module = get_distribution_module_from_args(complete_args_converted.args_classification_distribution_module)
-
-    ### Networks :
-    classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(complete_args_converted.args_classification,
-                                                                        complete_args_converted.args_selection,
-                                                                        complete_args_converted.args_trainer,
-                                                                        complete_args_converted.args_interpretable_module,
-                                                                        complete_args_converted.args_dataset,
-                                                                        dataset=dataset)
-    ### Imputation :
-    if complete_args_converted.args_classification.module_imputation_parameters is not None :
-        if "path_module" in complete_args_converted.args_classification.module_imputation_parameters.keys() :
-            path_module = complete_args_converted.args_classification.module_imputation_parameters["path_module"]
-            parameters_path_module = os.path.join(os.path.join(path_module, "parameters"), "parameters.pkl")
-            args_module = pkl.load(open(parameters_path_module, "rb"))
-            interpretable_module = instantiate(args_module)
-            interpretable_module = load_full_module(path_module, interpretable_module)
-            complete_args_converted.args_classification.module_imputation_parameters["module"] = interpretable_module
-    imputation = get_imputation_method(complete_args_converted.args_classification, dataset,)
     ### Loss Function :
     loss_function = get_loss_function(complete_args_converted.args_train.loss_function,
                                             complete_args_converted.args_train,
@@ -88,33 +67,6 @@ def experiment(dataset, loader, complete_args,):
     loss_function_selection = get_loss_function(complete_args_converted.args_train.loss_function_selection,
                                             complete_args_converted.args_train,
                                             dataset.get_dim_output())
-    ### Complete Module :
-    if classifier is not None :
-        prediction_module = PredictionModule(classifier, imputation=imputation, input_size=dataset.get_dim_input(),)
-    else :
-        prediction_module = None
-    if selector is not None:
-        selection_module =  SelectionModule(selector,
-                        activation=complete_args_converted.args_selection.activation,
-                        regularization=regularization,
-                        )
-    else :
-        selection_module = None
-    selection_module_var = None
-    interpretable_module = get_complete_module(complete_args_converted.args_interpretable_module.interpretable_module,
-                                                prediction_module,
-                                                selection_module,
-                                                selection_module_var,
-                                                distribution_module = distribution_module,
-                                                classification_distribution_module = classification_distribution_module,
-                                                reshape_mask_function = reshape_mask_function,
-                                                dataset = dataset,
-                                                args_selection=complete_args_converted.args_selection,
-                                                )
-    
-    if complete_args_converted.args_train.use_cuda:
-        interpretable_module.cuda()
-        
 
     if not os.path.exists(final_path):
         os.makedirs(final_path)
@@ -129,7 +81,7 @@ def experiment(dataset, loader, complete_args,):
     if complete_args_converted.args_train.post_hoc and complete_args_converted.args_train.post_hoc_guidance is not None :
         print("Training post-hoc guidance")
         post_hoc_classifier =  complete_args_converted.args_train.post_hoc_guidance(complete_args_converted.args_selection.input_size_selector, dataset.get_dim_output())
-        post_hoc_guidance_prediction_module = PredictionModule(post_hoc_classifier, imputation = imputation)
+        post_hoc_guidance_prediction_module = PredictionModule(post_hoc_classifier, imputation = interpretable_module.prediction_module.imputation)
         post_hoc_guidance_complete_module = PredictionCompleteModel(post_hoc_guidance_prediction_module,)
 
         trainer = ordinaryPredictionTraining(prediction_module = post_hoc_guidance_complete_module, loss_function = loss_function,)
@@ -282,26 +234,35 @@ def experiment(dataset, loader, complete_args,):
 
     ####Optim_optim_classification :
 
-    optim_classification, scheduler_classification = get_optim(prediction_module,
+    optim_classification, scheduler_classification = get_optim(interpretable_module.prediction_module,
                                                     complete_args_converted.args_compiler.optim_classification,
                                                     complete_args_converted.args_compiler.optim_classification_param,
                                                     complete_args_converted.args_compiler.scheduler_classification,
                                                     complete_args_converted.args_compiler.scheduler_classification_param,) 
-    optim_selection, scheduler_selection = get_optim(selection_module,
+    optim_selection, scheduler_selection = get_optim(interpretable_module.selection_module,
                                             complete_args_converted.args_compiler.optim_selection,
                                             complete_args_converted.args_compiler.optim_selection_param,
                                             complete_args_converted.args_compiler.scheduler_selection,
                                             complete_args_converted.args_compiler.scheduler_selection_param,)
-    optim_baseline, scheduler_baseline = get_optim(baseline,
+    try :
+        optim_baseline, scheduler_baseline = get_optim(interpretable_module.baseline,
                                         complete_args_converted.args_compiler.optim_baseline,
                                         complete_args_converted.args_compiler.optim_baseline_param,
                                         complete_args_converted.args_compiler.scheduler_baseline,
                                         complete_args_converted.args_compiler.scheduler_baseline_param,)
-    optim_distribution_module, scheduler_distribution_module = get_optim(distribution_module,
+    except AttributeError :
+        optim_baseline, scheduler_baseline = None, None
+        print("No baseline for this interpretable module {}".format(complete_args_converted.args_interpretable_module.interpretable_module))
+
+    try :
+        optim_distribution_module, scheduler_distribution_module = get_optim(interpretable_module.distribution_module,
                                                                 complete_args_converted.args_compiler.optim_distribution_module,
                                                                 complete_args_converted.args_compiler.optim_distribution_module_param,
                                                                 complete_args_converted.args_compiler.scheduler_distribution_module,
                                                                 complete_args_converted.args_compiler.scheduler_distribution_module_param,)
+    except AttributeError :
+        optim_distribution_module, scheduler_distribution_module = None, None
+        print("No distribution module for this interpretable module {}".format(complete_args_converted.args_interpretable_module.interpretable_module))
 
     trainer = compile_trainer(trainer,
         trainer_type = complete_args_converted.args_trainer.complete_trainer,
@@ -318,7 +279,6 @@ def experiment(dataset, loader, complete_args,):
 
 
 ###### Main module training :
-    # epoch_scheduler = classic_train_epoch(save_dic = True, verbose=((epoch+1) % complete_args_converted.args_train.print_every == 0),)
     epoch_scheduler = classic_train_epoch(save_dic = True, verbose=complete_args_converted.args_train.verbose,)
     best_train_loss_in_test = float("inf")
     total_dic_train = {}
@@ -336,10 +296,9 @@ def experiment(dataset, loader, complete_args,):
                 last_train_loss_in_test = dic_test["train_loss_in_test"]
                 if last_train_loss_in_test < best_train_loss_in_test :
                     best_train_loss_in_test = last_train_loss_in_test
-                    save_model(final_path, prediction_module, selection_module, distribution_module, baseline,suffix = "_best")
+                    save_model(final_path, interpretable_module, suffix = "_best")
         
-    if complete_args_converted.args_train.nb_epoch > 0 :  
-        save_model(final_path, prediction_module, selection_module, distribution_module, baseline, suffix = "_last")
+    save_model(final_path, interpretable_module, suffix = "_last")
 
     save_dic(os.path.join(final_path,"train"), total_dic_train)
     save_dic(os.path.join(final_path,"test"), total_dic_test)
