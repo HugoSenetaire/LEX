@@ -160,7 +160,8 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     log_pi_list,_ = selection_module(data)
     pi_list = torch.exp(log_pi_list)
     pi_list_selected = get_sel_pred(interpretable_module, pi_list, rate = rate)
-    pi_list = interpretable_module.reshape(pi_list.reshape(data.shape[0], -1))
+    pi_list_selected = interpretable_module.reshape(pi_list_selected)
+    pi_list = interpretable_module.reshape(pi_list)
     
     
 
