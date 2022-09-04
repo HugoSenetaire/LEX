@@ -7,3 +7,4 @@ from .utils import *
 from .EvaluationUtils import *
 from .InterpretableModel import *
 from .Trainer import *
+from .instantiate import *

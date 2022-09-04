@@ -153,6 +153,7 @@ def dic_evaluation(accuracy, mse, neg_likelihood, suffix = "", mse_loss_prod = N
 
 
 def save_model(final_path, prediction_module, selection_module, distribution_module, baseline, suffix = ""):
+    print("Saving model at {}".format(final_path))
     if not os.path.exists(final_path):
         os.makedirs(final_path)
 
@@ -171,6 +172,28 @@ def save_model(final_path, prediction_module, selection_module, distribution_mod
     if baseline is not None:
         path = os.path.join(final_path, f"baseline{suffix}.pt")
         torch.save(baseline.state_dict(), path)
+
+def load_model(final_path, prediction_module = None, selection_module = None, distribution_module = None, baseline = None, suffix = "_best"):
+    if not os.path.exists(final_path):
+        os.makedirs(final_path)
+
+    if prediction_module is not None :
+        path = os.path.join(final_path, f"prediction_module{suffix}.pt")
+        prediction_module.load_state_dict(torch.load(path))
+
+    if selection_module is not None :
+        path = os.path.join(final_path, f"selection_module{suffix}.pt")
+        selection_module.load_state_dict(torch.load(path))
+
+    if distribution_module is not None :
+        path = os.path.join(final_path, f"distribution_module{suffix}.pt")
+        distribution_module.load_state_dict(torch.load(path))
+
+    if baseline is not None:
+        path = os.path.join(final_path, f"baseline{suffix}.pt")
+        baseline.load_state_dict(torch.load(path))
+
+    return prediction_module, selection_module, distribution_module, baseline
 
 
 import torch

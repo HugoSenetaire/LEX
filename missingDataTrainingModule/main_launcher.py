@@ -7,6 +7,7 @@ from .Selection import SelectionModule
 from .Prediction import PredictionModule
 from .Trainer import ordinaryPredictionTraining, trainingWithSelection, selectionTraining
 from .EpochsScheduler import classic_train_epoch, alternate_ordinary_train_epoch, alternate_fixing_train_epoch
+from .instantiate_utils import *
 from .instantiate import *
 from .convert_args import *
 from .EvaluationUtils import test_epoch
@@ -68,8 +69,17 @@ def experiment(dataset, loader, complete_args,):
                                                                         complete_args_converted.args_selection,
                                                                         complete_args_converted.args_trainer,
                                                                         complete_args_converted.args_interpretable_module,
+                                                                        complete_args_converted.args_dataset,
                                                                         dataset=dataset)
     ### Imputation :
+    if complete_args_converted.args_classification.module_imputation_parameters is not None :
+        if "path_module" in complete_args_converted.args_classification.module_imputation_parameters.keys() :
+            path_module = complete_args_converted.args_classification.module_imputation_parameters["path_module"]
+            parameters_path_module = os.path.join(os.path.join(path_module, "parameters"), "parameters.pkl")
+            args_module = pkl.load(open(parameters_path_module, "rb"))
+            interpretable_module = instantiate(args_module)
+            interpretable_module = load_full_module(path_module, interpretable_module)
+            complete_args_converted.args_classification.module_imputation_parameters["module"] = interpretable_module
     imputation = get_imputation_method(complete_args_converted.args_classification, dataset,)
     ### Loss Function :
     loss_function = get_loss_function(complete_args_converted.args_train.loss_function,
@@ -81,11 +91,15 @@ def experiment(dataset, loader, complete_args,):
     ### Complete Module :
     if classifier is not None :
         prediction_module = PredictionModule(classifier, imputation=imputation, input_size=dataset.get_dim_input(),)
+    else :
+        prediction_module = None
     if selector is not None:
         selection_module =  SelectionModule(selector,
                         activation=complete_args_converted.args_selection.activation,
                         regularization=regularization,
                         )
+    else :
+        selection_module = None
     selection_module_var = None
     interpretable_module = get_complete_module(complete_args_converted.args_interpretable_module.interpretable_module,
                                                 prediction_module,
@@ -324,8 +338,8 @@ def experiment(dataset, loader, complete_args,):
                     best_train_loss_in_test = last_train_loss_in_test
                     save_model(final_path, prediction_module, selection_module, distribution_module, baseline,suffix = "_best")
         
-        
-    save_model(final_path, prediction_module, selection_module, distribution_module, baseline,suffix = "_last")
+    if complete_args_converted.args_train.nb_epoch > 0 :  
+        save_model(final_path, prediction_module, selection_module, distribution_module, baseline, suffix = "_last")
 
     save_dic(os.path.join(final_path,"train"), total_dic_train)
     save_dic(os.path.join(final_path,"test"), total_dic_test)

@@ -18,7 +18,6 @@ classifiers_list = {
     "AutoEncoderWrapper": AutoEncoderWrapper,
 }
 
-
 def get_pred_network(classifier_name):
     if classifier_name == "none" or classifier_name == None:
         return None
@@ -26,4 +25,3 @@ def get_pred_network(classifier_name):
         return classifiers_list[classifier_name]
     else:
         raise ValueError(f"Classifier {classifier_name} not found")
-

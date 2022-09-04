@@ -1,4 +1,4 @@
-from .Prediction import *
+from .Prediction import get_pred_network, dic_reconstruction_regularization, get_imputation_type, get_post_process_reg, get_maskreg
 from .PytorchDistributionUtils import *
 from .Selection import *
 from .InterpretableModel import *
@@ -30,7 +30,6 @@ def convert_interpretable_module(args_interpretable_module,):
     return args_interpretable_module
 
 def convert_classification(args_classification):
-    
     args_classification.classifier = get_pred_network(args_classification.classifier) 
     args_classification.imputation = get_imputation_type(args_classification.imputation)
 

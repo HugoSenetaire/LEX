@@ -162,7 +162,7 @@ def multiple_test_classification(interpretable_module, loader, nb_sample_z_monte
 
                 log_y_hat, _ = interpretable_module.prediction_module(data_expanded.flatten(0,2), z, index = index_expanded_flatten)
                 if type(dim_output) == int :
-                    log_y_hat = log_y_hat.reshape(-1, 1)
+                    log_y_hat = log_y_hat.reshape(-1, dim_output)
                 else :
                     log_y_hat = log_y_hat.reshape(-1, *dim_output)
 
