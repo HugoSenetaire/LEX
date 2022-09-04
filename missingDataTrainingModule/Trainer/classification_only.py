@@ -44,11 +44,17 @@ class ordinaryPredictionTraining():
                 self.post_hoc_guidance.cuda()
        
 
-    def _create_dic(self, loss, loss_no_selection = None, ):
+    def _create_dic(self, loss, loss_classification = None, loss_no_selection = None, regul_classification = None, regul_selection = None):
         dic = {}
         dic["total_loss"] = loss.item()
+        if loss_classification is not None :
+            dic["loss_classification"] = loss_classification.item()
         if loss_no_selection is not None :
             dic["loss_no_selection"] = loss_no_selection.item()
+        if regul_classification is not None :
+            dic["regul_classification"] = regul_classification.item()
+        if regul_selection is not None :
+            dic["regul_selection"] = regul_selection.item()
         return dic
 
 
@@ -89,7 +95,7 @@ class ordinaryPredictionTraining():
 
         total_loss = torch.mean(total_loss)
         if need_dic :
-            dic = self._create_dic(total_loss, )
+            dic = self._create_dic(total_loss, loss_classification=torch.mean(out_loss), regul_classification = regul_classification)
         else :
             dic = {}
         total_loss.backward()
@@ -155,7 +161,7 @@ class trainingWithSelection(ordinaryPredictionTraining):
         total_loss = torch.mean(total_loss)
         
         if need_dic :
-            dic = self._create_dic(total_loss, total_loss,)
+            dic = self._create_dic(total_loss, loss_classification=torch.mean(out_loss), regul_classification = regul_classification, regul_selection = regul_sel)
         else :
             dic = {}
         total_loss.backward()
