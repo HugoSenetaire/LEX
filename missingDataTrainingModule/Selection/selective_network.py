@@ -144,14 +144,12 @@ def calculate_blocks_patch(input_size, kernel_size, kernel_stride):
   """
   size = [1,]
   for k in range(len(kernel_size)):
-    # size.append(math.floor((input_size[k+1] - (kernel_size[k]-1)) / kernel_stride[k]) + 1)
-    size.append(int(np.ceil(input_size[k+1]/kernel_stride[k])))
-
+    size.append(math.floor((input_size[k+1] - (kernel_size[k]-1)) / kernel_stride[k]) + 1)
   return tuple(size)
 
 
 class SelectorUNET(AbstractSelector):
-    def __init__(self,  input_size = (1,28,28), output_size= (1, 28, 28), kernel_size = (1,1), kernel_stride = (1,1), bilinear = True, log2_min_channel = 6):
+    def __init__(self,  input_size = (1,28,28), output_size = (1, 28, 28), kernel_size = (1,1), kernel_stride = (1,1), bilinear = True, log2_min_channel = 6):
 
       aux_output_size = calculate_blocks_patch(input_size, kernel_size, kernel_stride)
       assert aux_output_size == output_size, "Output size of the selector must be the same as the output size of the unet."
@@ -177,7 +175,7 @@ class SelectorUNET(AbstractSelector):
         nn.ReLU(inplace = False),
       ])
 
-      self.UNET = UNet(1, bilinear = self.bilinear, nb_block = self.nb_block, log2_min_channel=self.log2_min_channel)
+      self.UNET = UNet(n_classes = 1, bilinear = self.bilinear, nb_block = self.nb_block, log2_min_channel=self.log2_min_channel)
 
 
 
