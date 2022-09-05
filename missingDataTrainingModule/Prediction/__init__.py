@@ -16,6 +16,8 @@ classifiers_list = {
     "RealXClassifier" : RealXClassifier,
     "DatasetBasedClassifier" : DatasetBasedClassifier,
     "AutoEncoderWrapper": AutoEncoderWrapper,
+    "PretrainedVGGPytorch": PretrainedVGGPytorch,
+    "RealXClassifier_withBatchnorm": RealXClassifier_withBatchnorm,
 }
 
 def get_pred_network(classifier_name):

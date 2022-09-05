@@ -97,26 +97,26 @@ class ClassifierLVL3(PredictorAbstract):
         x = self.fc5(x)
         return self.activation(x)
 
-# class RealXClassifier(PredictorAbstract):
-#     def __init__(self, input_size, output, middle_size=200):
-#         super().__init__(input_size=input_size, output_size=output_size)
-#         self.input_size = input_size
-#         self.fc1 = nn.Linear(np.prod(input_size), 200)
-#         self.bn1 = nn.BatchNorm1d(200)
-#         self.fc2 = nn.Linear(200, 200)
-#         self.bn2 = nn.BatchNorm1d(200)
-#         self.fc3 = nn.Linear(200, output)
+class RealXClassifier_withBatchnorm(PredictorAbstract):
+    def __init__(self, input_size = (1,28,28), output_size = 10, middle_size = 50):
+        super().__init__(input_size=input_size, output_size=output_size)
+        self.input_size = input_size
+        self.fc1 = nn.Linear(np.prod(input_size), 200)
+        self.bn1 = nn.BatchNorm1d(200)
+        self.fc2 = nn.Linear(200, 200)
+        self.bn2 = nn.BatchNorm1d(200)
+        self.fc3 = nn.Linear(200, self.output)
 
 
-#     def __call__(self, x):
-#         x = x.flatten(1)
-#         x = F.relu(self.fc1(x))
-#         x = self.bn1(x)
-#         x = F.relu(self.fc2(x))
-#         x = self.bn2(x)
-#         x = self.fc3(x)
+    def __call__(self, x):
+        x = x.flatten(1)
+        x = F.relu(self.fc1(x))
+        x = self.bn1(x)
+        x = F.relu(self.fc2(x))
+        x = self.bn2(x)
+        x = self.fc3(x)
 
-#         return self.activation(x)
+        return self.activation(x)
 
 
 def init_weights(m):
@@ -160,7 +160,7 @@ class StupidClassifier(PredictorAbstract):
 
 
 class PretrainedVGGPytorch(PredictorAbstract):
-    def __init__(self, input_size = (3, 224, 224), output_size = 2, model_type = "vgg11", pretrained= True, retrain = False):
+    def __init__(self, input_size = (3, 224, 224), output_size = 2, model_type = "vgg19", ):
         super().__init__(input_size=input_size, output_size=output_size)
         assert(model_type.startswith("vgg"))
         self.model = torch.hub.load('pytorch/vision:v0.9.0', model_type, pretrained=True)
@@ -175,58 +175,12 @@ class PretrainedVGGPytorch(PredictorAbstract):
                                 nn.Dropout(),
                                 nn.Linear(4096, self.output),
                             )
+        self.new_classifier.requires_grad_(True)
         self.elu = nn.ELU()
 
     def __call__(self, x):
         x = self.model.features(x)
         x = self.model.avgpool(x)
-        x = self.new_classifier(x)
-        x = self.activation(self.elu(x))
-        return x
-
-
-
-class VGGSimilar(PredictorAbstract):
-    def __init__(self, input_size = (3,224, 224), output_size = 2):
-        super().__init__(input_size=input_size, output_size=output_size)
-        self.input_size = input_size
-        assert(len(input_size)==3)
-        w = input_size[1]
-        self.nb_block = min(int(math.log(w/7., 2)),5)
-        if self.nb_block<1 :
-            raise EnvironmentError("Size of the image should be higher than 7")
-
-
-        list_feature = []
-        in_channels = input_size[0]
-        for k in range(self.nb_block):
-            out_channels = 2**(5+k)
-            list_feature.append(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1))
-            list_feature.append(nn.ReLU(inplace=True))
-            in_channels = out_channels
-            list_feature.append(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1))
-            list_feature.append(nn.ReLU(inplace=True))
-            list_feature.append(nn.MaxPool2d(kernel_size=2, stride=2))
-        self.features = nn.Sequential(*list_feature)
-
-        self.avg_pool = nn.AdaptiveAvgPool2d((7,7))
-        self.new_classifier = nn.Sequential(
-                                nn.Flatten(),
-                                nn.Linear(out_channels*7*7, 4096),
-                                nn.ReLU(True),
-                                nn.Dropout(),
-                                nn.Linear(4096,4096),
-                                nn.ReLU(True),
-                                nn.Dropout(),
-                                nn.Linear(4096, self.output)
-                            )
-        self.elu = nn.ELU()
-
-        
-
-    def __call__(self, x):
-        x = self.features(x)
-        x = self.avg_pool(x)
         x = self.new_classifier(x)
         x = self.activation(self.elu(x))
         return x
@@ -255,23 +209,50 @@ class ConvClassifier(PredictorAbstract):
 class ConvClassifier2(PredictorAbstract):
     def __init__(self, input_size = (1,28,28), output_size = 10):
         super().__init__(input_size=input_size, output_size=output_size)
-        self.conv1 = nn.Conv2d(input_size[0], 6, 5, stride=1, padding=0)
-        self.maxpool1 = nn.AvgPool2d(kernel_size=(2,2),stride=1,padding = 0) # 23 23
-        self.conv2 = nn.Conv2d(6, 16, 5, stride=1, padding=0) # 23 23
-        self.maxpool2 = nn.AvgPool2d(kernel_size=(2,2),stride=1,padding = 0) # 18 18
-        self.fc = nn.Linear(18*18*16,self.output) # 18 18
+        self.nb_block = int(math.log(min(self.output_size[1], self.output_size[2]), 2)//2)
+        
+        liste_conv = []
+        liste_conv.append(nn.Sequential([
+            nn.Conv2d(input_size[0], 2**5, 3, stride=1, padding=1),
+            nn.Conv2d(2**5, 2**5, 3, stride=1, padding=1),
+            nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
+        ]))
+        for k in range(1, self.nb_block):
+            liste_conv.append(nn.Sequential([
+                nn.Conv2d(2**(k+4), 2**(k+5), 3, stride=1, padding=1),
+                nn.Conv2d(2**(k+5), 2**(k+5), 3, stride=1, padding=1),
+                nn.MaxPool2d(kernel_size=(2,2),stride=2,padding = 0),
+            ])
+            )
+        self.conv = nn.ModuleList(liste_conv)
+        self.fc = nn.Linear(2**(self.nb_block+4)*int(np.prod(input_size[1:])/2**(2*self.nb_block)),128)
         self.elu = nn.ELU()
+
+        self.fc2 = nn.Linear(128,self.output)
+
+
     
     def __call__(self, x):
         batch_size = x.shape[0]
-        x = self.maxpool1(self.conv1(x))
-        x = self.maxpool2(self.conv2(x))
-        x = torch.flatten(x,1)
-        result = self.activation(self.elu(self.fc(x))).reshape(batch_size, -1)
-        return result #N_expectation, Batch_size, Category
+        x = self.conv(x)
+        x = self.elu(self.fc(x))
+        x = self.activation(self.fc2(x))
+        return x 
 
 
+            
 
+class ResNet50(PredictorAbstract):
+    def __init__(self, input_size = (3, 224, 224), output_size = 10):
+        super().__init__(input_size=input_size, output_size=output_size)
+
+        self.model = models.resnet50(pretrained=True)
+        self.model.fc = nn.Linear(512, self.output)
+
+    def __call__(self, x):
+        x = self.model(x)
+        x = self.activation(x)
+        return x
 
 class ProteinCNN(PredictorAbstract):
     def __init__(self, input_size = (21,19), output_size = 8):
