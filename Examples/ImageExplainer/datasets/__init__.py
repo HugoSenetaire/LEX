@@ -9,6 +9,7 @@ from .derma_panels import DermamnistPanel, Dermamnist
 from .blood_panels import BloodMNIST, BloodMNISTPanel
 from .autoencoder_dataset import AutoEncoderDataset
 from .CelebA_dataset import CELEBA
+from .CIFAR10_dataset import CIFAR10
 
 
 list_dataset = {
@@ -24,6 +25,7 @@ list_dataset = {
     "BloodMNISTPanel": BloodMNISTPanel,
     "AutoEncoderDataset": AutoEncoderDataset,
     "CELEBA": CELEBA,
+    "CIFAR10": CIFAR10,
 }
 
 class args_dataset_parameters():

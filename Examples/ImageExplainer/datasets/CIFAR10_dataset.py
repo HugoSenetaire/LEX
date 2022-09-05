@@ -6,12 +6,10 @@ from torch.utils.data import TensorDataset
 from sklearn.model_selection import train_test_split
 
 default_CIFAR10_transform = torchvision.transforms.Compose([
+                                    torchvision.transforms.Resize((224,224),),
                                     torchvision.transforms.ToTensor(),
                                     torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                     ])
-
-
-
 
 class CIFAR10():
     def __init__(self,
@@ -32,11 +30,10 @@ class CIFAR10():
         self.target_test = torch.tensor(self.CIFAR10_test.targets, dtype = torch.int64)
 
 
-        self.data_train = self.data_train.reshape(-1,3,32,32)
+        self.data_train = self.data_train.reshape(-1,3,224,224)
         index_train, index_val = train_test_split(np.arange(len(self.data_train)), test_size=0.1, random_state = random_seed)
 
-        self.data_test = self.data_test.reshape(-1,3,32,32)
-
+        self.data_test = self.data_test.reshape(-1,3,224,224)
         self.dataset_train = TensorDataset(self.data_train[index_train], self.target_train[index_train])
         self.dataset_val = TensorDataset(self.data_train[index_val], self.target_train[index_val])
         self.dataset_test = TensorDataset(self.data_test, self.target_test)
@@ -44,7 +41,7 @@ class CIFAR10():
 
 
     def get_dim_input(self,):
-        return (1,32,32)
+        return (3,224,224)
 
     def get_dim_output(self,):
         return 10
