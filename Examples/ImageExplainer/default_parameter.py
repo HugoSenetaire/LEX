@@ -46,6 +46,7 @@ def get_default():
     args.args_dataset.args_dataset_parameters.download = True
     args.args_dataset.args_dataset_parameters.train_seed = 0
     args.args_dataset.args_dataset_parameters.test_seed = 1
+    args.args_dataset.args_dataset_parameters.target = "Smiling"
 
 
 
