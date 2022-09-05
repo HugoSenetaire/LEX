@@ -8,6 +8,7 @@ from .mnist_noise import MNISTNoiseBackground
 from .derma_panels import DermamnistPanel, Dermamnist
 from .blood_panels import BloodMNIST, BloodMNISTPanel
 from .autoencoder_dataset import AutoEncoderDataset
+from .CelebA_dataset import CELEBA
 
 
 list_dataset = {
@@ -22,6 +23,7 @@ list_dataset = {
     "BloodMNIST": BloodMNIST,
     "BloodMNISTPanel": BloodMNISTPanel,
     "AutoEncoderDataset": AutoEncoderDataset,
+    "CELEBA": CELEBA,
 }
 
 class args_dataset_parameters():
@@ -34,3 +36,4 @@ class args_dataset_parameters():
         self.train_seed = None
         self.test_seed = None
         self.dataset = None
+        self.target = None
