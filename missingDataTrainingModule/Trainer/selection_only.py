@@ -93,7 +93,7 @@ class selectionTraining():
         with torch.no_grad():
             for batch_index, data in enumerate(loader.test_loader):
                 data, _, index = parse_batch(data)
-                target = loader.dataset.optimal_S_test[index].type(torch.float32)
+                target = loader.dataset.get_true_selection(index, "test").type(torch.float32)
                 if self.use_cuda :
                     data, target, index = on_cuda(data, target, index)
                 log_pi_list, _ = self.interpretable_module.selection_module(data,)
