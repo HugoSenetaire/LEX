@@ -25,56 +25,70 @@ def show_interpretation(sample, data, target, shape = (1,28,28)):
         plt.imshow(sample_reshaped[k], cmap='gray', interpolation='none', vmin=sample_reshaped[k].min().item(), vmax=sample_reshaped[k].max().item())
         plt.show()
 
+def handle_multiple_channel(x, wanted_shape, transpose_set = None):
+    """
+    Given a single input image, get the channel at the right place if necessary
+    """
 
-def save_imputation(x_original, target, x_imputed, z, final_path, k, l, wanted_shape_transpose, transpose_set = None, cmap = 'gray'):
+    if len(x.shape) > 2 and x.shape[0] > 1:
+        if transpose_set is not None:
+            x = x.transpose(transpose_set)
+            x = x.reshape(wanted_shape)
+            cmap = "viridis"
+        else:
+            raise ValueError("The input image has multiple channels but no transpose set is provided")
+    else :
+        x = x.reshape(wanted_shape[:2])
+        cmap = "gray"
+    
+    return x, cmap
+
+
+def save_imputation(x_original, target, x_imputed, z, final_path, k, l, wanted_shape_transpose, transpose_set = None, ):
     folder_path = os.path.join(final_path, "imputation_from_sample")
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    if transpose_set is not None :
-        x_imputed = x_imputed.transpose(transpose_set)
-        x_original = x_original.transpose(transpose_set)
-    x_imputed = x_imputed.reshape(wanted_shape_transpose)
-    x_original = x_original.reshape(wanted_shape_transpose)
 
-    current_z = z[0].reshape(wanted_shape_transpose[:2])
+    x_original, cmap_x = handle_multiple_channel(x_original, wanted_shape_transpose, transpose_set = transpose_set)
+    current_z, cmap_z = handle_multiple_channel(z, wanted_shape_transpose, transpose_set = transpose_set)
+    x_imputed, cmap_imputed = handle_multiple_channel(x_imputed, wanted_shape_transpose, transpose_set = transpose_set)
+
     fig, axs = plt.subplots(1,3, figsize=(15,5))
-    axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
+    axs[0].imshow(x_original, cmap=cmap_x, interpolation='none',)
     axs[0].set_title(f"Original image")
     axs[0].axis("off")
-    axs[1].imshow(current_z, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
+    axs[1].imshow(current_z, cmap=cmap_z, interpolation='none', vmin = 0., vmax = 1.)
     axs[1].set_title(f"One Sampled Mask")
     axs[1].axis("off")
-    axs[2].imshow(x_imputed, cmap=cmap, interpolation='none',)
+    axs[2].imshow(x_imputed, cmap=cmap_imputed, interpolation='none',)
     axs[2].set_title(f"Imputed image")
     axs[2].axis("off")
     plt.axis('off')
-
     plt.savefig(os.path.join(folder_path, f"{k}_target_{target}_imputation_{l}.png"))
     plt.close(fig)
 
 
-def save_sampling_mask(x_original, z,  pi_list, target, pred, final_path, k, wanted_shape_transpose, transpose_set = None, cmap = 'gray', prefix = "",):
+def save_sampling_mask(x_original, z,  pi_list, target, pred, final_path, k, wanted_shape_transpose, transpose_set = None, prefix = "",):
     folder_path = os.path.join(final_path, "output_sample")
     target_path = os.path.join(folder_path, f"target_{target}")
     if not os.path.exists(target_path):
         os.makedirs(target_path)
 
-    if transpose_set is not None :
-        x_original = x_original.transpose(transpose_set)
-    x_original = x_original.reshape(wanted_shape_transpose)
+    print(x_original)
+    x_original, cmap_x = handle_multiple_channel(x_original, wanted_shape_transpose, transpose_set = transpose_set)
+    current_z, cmap_z = handle_multiple_channel(z, wanted_shape_transpose, transpose_set = transpose_set)
+    current_pi_list, cmap_pi_list = handle_multiple_channel(pi_list, wanted_shape_transpose, transpose_set = transpose_set)
 
-    current_z = z.reshape(wanted_shape_transpose[:2])
-    current_pi_list = pi_list.reshape(wanted_shape_transpose[:2])
-    
+
     fig, axs = plt.subplots(1,4, figsize=(20,5))
-    axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
+    axs[0].imshow(x_original, cmap=cmap_x, interpolation='none',)
     axs[0].set_title(f"Original image")
     axs[0].axis("off")
-    axs[1].imshow(current_z, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
+    axs[1].imshow(current_z, cmap=cmap_z, interpolation='none', vmin = 0., vmax = 1.)
     axs[1].set_title(f"One sample")
     axs[1].axis("off")
-    axs[2].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.)
+    axs[2].imshow(current_pi_list, cmap=cmap_pi_list, interpolation='none', vmin = 0., vmax = 1.)
     axs[2].set_title(f"Sample averaged")
     axs[2].axis("off")
     axs[3].bar(np.arange(len(pred[k])), pred[k])
@@ -84,28 +98,29 @@ def save_sampling_mask(x_original, z,  pi_list, target, pred, final_path, k, wan
 
 
 
-def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_transpose, transpose_set = None, cmap = 'gray', pi_list_estimation = "Undefined"):
+def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_transpose, transpose_set = None, pi_list_estimation = "Undefined"):
     folder_path = os.path.join(final_path, f"f1_score_{pi_list_estimation}")
 
     target_path = os.path.join(folder_path, f"target_{target}")
     if not os.path.exists(target_path):
         os.makedirs(target_path)
 
-    x_original = data
-    if transpose_set is not None :
-        x_original = x_original.transpose(transpose_set)
-    x_original = x_original.reshape(wanted_shape_transpose)
-    
-    current_quadrant = quadrant.reshape(wanted_shape_transpose[:2])
-    current_pi_list = pi_list.reshape(wanted_shape_transpose[:2]) 
+
+
+
+    x_original, cmap_x = handle_multiple_channel(data, wanted_shape_transpose, transpose_set = transpose_set)
+    current_quadrant, cmap_quadrant = handle_multiple_channel(quadrant, wanted_shape_transpose, transpose_set = transpose_set)
+    current_pi_list, cmap_pi_list = handle_multiple_channel(pi_list, wanted_shape_transpose, transpose_set = transpose_set)
+
+
     fig, axs = plt.subplots(1,3, figsize=(15,5))
-    axs[0].imshow(x_original, cmap=cmap, interpolation='none',)
+    axs[0].imshow(x_original, cmap=cmap_x, interpolation='none',)
     axs[0].set_title(f"Original image")
     axs[0].axis("off")
-    axs[1].imshow(current_pi_list, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
+    axs[1].imshow(current_pi_list, cmap=cmap_quadrant, interpolation='none', vmin = 0., vmax = 1.0)
     axs[1].set_title(f"Pi list estimated with {pi_list_estimation}")
     axs[1].axis("off")
-    axs[2].imshow(current_quadrant, cmap='gray', interpolation='none', vmin = 0., vmax = 1.0)
+    axs[2].imshow(current_quadrant, cmap=cmap_pi_list, interpolation='none', vmin = 0., vmax = 1.0)
     axs[2].set_title(f"True selection")
     axs[2].axis("off")
     plt.axis("off")
@@ -114,7 +129,6 @@ def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_tr
         plt.title(f"F1_score {f1_score:.5f}")
     except ValueError:
         f1_score = None
-    
     plt.savefig(os.path.join(target_path, f"{k}.png"))
     plt.close(fig)
     
@@ -127,21 +141,24 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
     data = data[indexes]
     target =  target[indexes]
-    if hasattr(loader.dataset, "optimal_S_test"):
-        quadrant = loader.dataset.optimal_S_test[indexes]
+    if hasattr(loader.dataset, "get_true_selection"):
+        quadrant = loader.dataset.get_true_selection(indexes)
     total_image = len(data)
 
-    # data = loader.dataset.data_test[indexes]
-    # target = loader.dataset.target_test[indexes]
+    shape_input = interpretable_module.prediction_module.input_size
+    if shape_input[0] == 1:
+        channel_handling = False
+    else :
+        channel_handling = True
+    dim = np.prod(shape_input[1:])
+
     wanted_shape = loader.dataset.get_dim_input()
     if wanted_shape[0] == 1 :
         transpose_set = None
         wanted_shape_transpose = (wanted_shape[1], wanted_shape[2])
-        cmap = 'gray'
     elif wanted_shape[0] >1 :
         transpose_set = (1, 2, 0)
         wanted_shape_transpose = (wanted_shape[1], wanted_shape[2], wanted_shape[0])
-        cmap = 'viridis'
 
     
 
@@ -160,18 +177,18 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     log_pi_list,_ = selection_module(data)
     pi_list = torch.exp(log_pi_list)
     pi_list_selected = get_sel_pred(interpretable_module, pi_list, rate = rate)
+    pz = distribution_module(torch.exp(log_pi_list))
+
+
     pi_list_selected = interpretable_module.reshape(pi_list_selected)
     pi_list = interpretable_module.reshape(pi_list)
-    
-    
 
-    pz = distribution_module(torch.exp(log_pi_list))
     z = distribution_module.sample((100,))
     pi_list_sampled = z.mean(dim=0)
     pi_list_sampled = interpretable_module.reshape(pi_list_sampled)
     
 
-    z = distribution_module.sample((1,))
+    z = distribution_module.sample((1,)).flatten(0,1)
     z = interpretable_module.reshape(z)
 
     data_imputed = prediction_module.get_imputation(data, z)
@@ -181,24 +198,30 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     pred, _ = prediction_module(data, z)
 
     data = data.cpu().detach().numpy()
-    z = z.cpu().detach().numpy()
+    data_imputed = data_imputed.cpu().detach().numpy()
     target = target.cpu().detach().numpy()
     pred = torch.exp(pred).cpu().detach().numpy()
-    pi_list_sampled = pi_list_sampled.cpu().detach().numpy()
-    pi_list = pi_list.cpu().detach().numpy()
-    pi_list_selected = pi_list_selected.cpu().detach().numpy()
-    data_imputed = data_imputed.cpu().detach().numpy()
-    quadrant = quadrant.cpu().detach().numpy() if hasattr(loader.dataset, "optimal_S_test") else None
+
+    if channel_handling :
+        pi_list_sampled = pi_list_sampled[:,0].cpu().detach().numpy()
+        pi_list = pi_list[:,0].cpu().detach().numpy()
+        pi_list_selected = pi_list_selected[:,0].cpu().detach().numpy()
+        z = z[:,0].cpu().detach().numpy()
+
+    if hasattr(loader.dataset, "get_true_selection"):
+        quadrant = quadrant.to(torch.float32).cpu().detach().numpy()
+        if channel_handling :
+            quadrant = quadrant[:,0]
 
     for k in range(len(data)):
-        save_sampling_mask(data[k], z[k, 0], pi_list_sampled[k, 0], target[k], pred, final_path, k, wanted_shape_transpose, transpose_set, cmap,)
-        if hasattr(loader.dataset, "optimal_S_test"):
-            save_f1score(data[k], target[k], quadrant[k], pi_list[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap, pi_list_estimation = "straight_pi_list")
-            save_f1score(data[k], target[k], quadrant[k], pi_list_selected[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap, pi_list_estimation = "selected_pi_list")
-            save_f1score(data[k], target[k], quadrant[k], pi_list_sampled[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap, pi_list_estimation = "sampled_pi_list")
+        save_sampling_mask(data[k], z[k,], pi_list_sampled[k,], target[k], pred, final_path, k, wanted_shape_transpose, transpose_set,)
+        if hasattr(loader.dataset, "get_true_selection"):
+            save_f1score(data[k], target[k], quadrant[k], pi_list[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, pi_list_estimation = "straight_pi_list")
+            save_f1score(data[k], target[k], quadrant[k], pi_list_selected[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, pi_list_estimation = "selected_pi_list")
+            save_f1score(data[k], target[k], quadrant[k], pi_list_sampled[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, pi_list_estimation = "sampled_pi_list")
 
         for l in range(nb_imputation):
-            save_imputation(data[k], target[k], data_imputed[l][k], z[k], final_path, k, l, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, cmap = cmap)
+            save_imputation(data[k], target[k], data_imputed[l][k], z[k], final_path, k, l, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, )
 
 
 
