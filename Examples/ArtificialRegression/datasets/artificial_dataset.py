@@ -23,6 +23,16 @@ class ArtificialDataset():
     def get_true_output(self, value, mask = None, index=None, dataset_type = None):
         raise NotImplementedError("Using abstract class ArtificialDataset")
 
+    def get_true_selection(self, indexes, type = "test",):
+        if type == "train" :
+            optimal_S = self.optimal_S_train[indexes]
+        elif type == "test" :
+            optimal_S = self.optimal_S_test[indexes]
+        else :
+            raise ValueError("dataset_type must be either train or test")
+
+        return optimal_S
+
     def get_dim_input(self):
         return (self.dim_input, )
 

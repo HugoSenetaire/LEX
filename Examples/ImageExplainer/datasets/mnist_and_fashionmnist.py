@@ -86,6 +86,15 @@ class MNIST_and_FASHIONMNIST():
     def get_dim_output(self,):
         return 10
 
+    def get_true_selection(self, indexes, type = "test",):
+        if type == "train" :
+            optimal_S = self.optimal_S_train[indexes]
+        elif type == "test" :
+            optimal_S = self.optimal_S_test[indexes]
+        else :
+            raise ValueError("dataset_type must be either train or test")
+
+        return optimal_S
 
     def __str__(self):
         return "Mnist_and_FashionMNIST"
