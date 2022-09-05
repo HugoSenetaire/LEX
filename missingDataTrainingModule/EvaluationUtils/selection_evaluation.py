@@ -76,6 +76,14 @@ def eval_selection_sample(interpretable_module, loader, nb_sample = 100):
     tn = np.zeros((nb_data,), dtype=np.float32)
     total_pi_list = None
 
+    shape_input = interpretable_module.prediction_module.input_size
+    if shape_input[0] == 1:
+        channel_handling = False
+    else :
+        channel_handling = True
+    dim = np.prod(shape_input[1:])
+
+
     for batch in loader.test_loader :
         try :
             data, target, index = batch
@@ -83,13 +91,12 @@ def eval_selection_sample(interpretable_module, loader, nb_sample = 100):
             print("Should give index to get the eval selection")
             return {}
 
-        if not hasattr(loader.dataset, "optimal_S_test") :
+        if not hasattr(loader.dataset, "get_true_selection") :
             raise AttributeError("This dataset do not have an optimal S defined")
         else :
-            optimal_S_test = loader.dataset.optimal_S_test[index]
+            optimal_S_test = loader.dataset.get_true_selection(index, "test")
 
         batch_size = data.size(0)
-        dim = np.prod(data.size()[1:])
         if total_pi_list is None and dim<20:
             total_pi_list = np.zeros((nb_data, dim),)
 
@@ -111,9 +118,11 @@ def eval_selection_sample(interpretable_module, loader, nb_sample = 100):
 
         interpretable_module.eval()
         with torch.no_grad():
-            sel_pred = interpretable_module.sample_z(X_test, index, nb_sample_z_monte_carlo = nb_sample, nb_sample_z_iwae = 1)
+            sel_pred = interpretable_module.sample_z(X_test, index, nb_sample_z_monte_carlo = nb_sample, nb_sample_z_iwae = 1).flatten(0,1)
+            sel_pred = interpretable_module.reshape(sel_pred,)
+            if channel_handling:
+                sel_pred = sel_pred[:,0]
             sel_pred = sel_pred.reshape(nb_sample, batch_size, dim).detach().cpu().numpy()
-
         sel_true = optimal_S_test.unsqueeze(0).flatten(2).expand(nb_sample, batch_size, dim).detach().cpu().numpy()
         
         if dim < 20 :
@@ -155,6 +164,14 @@ def eval_selection_local(interpretable_module, loader, rate = None):
     tn = np.zeros((nb_data,), dtype=np.float32)
     total_pi_list = None
 
+    shape_input = interpretable_module.prediction_module.input_size
+    if shape_input[0] == 1:
+        channel_handling = False
+    else :
+        channel_handling = True
+    dim = np.prod(shape_input[1:])
+
+
     for batch in loader.test_loader :
         try :
             data, target, index = batch
@@ -162,14 +179,14 @@ def eval_selection_local(interpretable_module, loader, rate = None):
             print("Should give index to get the eval selection")
             return {}
 
-        if not hasattr(loader.dataset, "optimal_S_test") :
+        if not hasattr(loader.dataset, "get_true_selection") :
             raise AttributeError("This dataset do not have an optimal S defined")
         else :
-            optimal_S_test = loader.dataset.optimal_S_test[index]
+            optimal_S_test = loader.dataset.get_true_selection(index, "test")
 
 
         batch_size = data.size(0)
-        dim = np.prod(data.size()[1:])
+        
         if total_pi_list is None and dim<20:
             total_pi_list = np.zeros((nb_data,dim,), dtype=np.float32)
 
@@ -203,12 +220,22 @@ def eval_selection_local(interpretable_module, loader, rate = None):
             else :
                 pi_list = torch.exp(log_pi_list)
             
-            sel_pred = get_sel_pred(interpretable_module, pi_list, rate = rate).detach().cpu().numpy().astype(int)
+            sel_pred = get_sel_pred(interpretable_module, pi_list, rate = rate)
+            sel_pred = interpretable_module.reshape(sel_pred)
             pi_list = interpretable_module.reshape(pi_list.reshape(batch_size, -1))
+
+            if channel_handling:
+                sel_pred = sel_pred[:,0].reshape(batch_size, *shape_input[1:])
+                pi_list = pi_list[:,0].reshape(batch_size, *shape_input[1:])
+
         if dim < 20 :
             total_pi_list[index] = pi_list.detach().cpu().numpy()
 
+
+
         optimal_S_test = optimal_S_test.detach().cpu().numpy()
+        
+        sel_pred = sel_pred.reshape(batch_size,dim ).detach().cpu().numpy()
         sel_true = optimal_S_test.reshape(sel_pred.shape)
 
 

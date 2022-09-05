@@ -63,7 +63,7 @@ def test_epoch(interpretable_module, epoch, loader, args, liste_mc = [(1,1,1,1),
     
     
     if hasattr(interpretable_module, "sample_z"):
-        if hasattr(loader.dataset, "optimal_S_test") :
+        if hasattr(loader.dataset, "get_true_selection") :
             total_dic.update(eval_selection(interpretable_module = interpretable_module, loader = loader, args = args,))
         
         if args.args_train.use_cuda :
