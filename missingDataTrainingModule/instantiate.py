@@ -9,20 +9,7 @@ def instantiate(complete_args, dataset = None):
     From the dictionnary of complete args, get the interpretable module instantiated with all networks set up
     """
     complete_args_converted = convert_all(complete_args)
-    ### Regularization method :
-    regularization = get_regularization_method(complete_args_converted.args_selection, complete_args_converted.args_distribution_module)
-    ## Sampling :
-    distribution_module = get_distribution_module_from_args(complete_args_converted.args_distribution_module)
-    classification_distribution_module = get_distribution_module_from_args(complete_args_converted.args_classification_distribution_module)
 
-    ### Networks :
-    classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(complete_args_converted.args_classification,
-                                                                        complete_args_converted.args_selection,
-                                                                        complete_args_converted.args_trainer,
-                                                                        complete_args_converted.args_interpretable_module,
-                                                                        complete_args_converted.args_dataset,
-                                                                        dataset=dataset)
-    ### Imputation :
     if complete_args_converted.args_classification.module_imputation_parameters is not None :
         if "path_module" in complete_args_converted.args_classification.module_imputation_parameters.keys() :
             path_module = complete_args_converted.args_classification.module_imputation_parameters["path_module"]
@@ -32,6 +19,24 @@ def instantiate(complete_args, dataset = None):
             interpretable_module = load_full_module(path_module, interpretable_module)
             complete_args_converted.args_classification.module_imputation_parameters["module"] = interpretable_module
     imputation = get_imputation_method(complete_args_converted.args_classification, dataset,)
+
+    ### Networks :
+    classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(complete_args_converted.args_classification,
+                                                                        complete_args_converted.args_selection,
+                                                                        complete_args_converted.args_trainer,
+                                                                        complete_args_converted.args_interpretable_module,
+                                                                        complete_args_converted.args_dataset,
+                                                                        dataset=dataset)
+    ### Regularization method :
+    regularization = get_regularization_method(complete_args_converted.args_selection, complete_args_converted.args_distribution_module)
+    
+    ## Sampling :
+    distribution_module = get_distribution_module_from_args(complete_args_converted.args_distribution_module)
+    classification_distribution_module = get_distribution_module_from_args(complete_args_converted.args_classification_distribution_module)
+
+
+    ### Imputation :
+
 
     ### Complete Module :
     if classifier is not None :
