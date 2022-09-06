@@ -37,7 +37,7 @@ class EncapsulateCelebA(Dataset):
         self.dataset = dataset
         self.target_index = target_index
     def __len__(self):
-        return 100
+        return len(self.dataset)
 
     def __getitem__(self, index):
         image, target = self.dataset.__getitem__(index)
