@@ -3,6 +3,11 @@ import os
 import copy
 
 def create_name(args, dataset_name, name_experiment, count):
+    """
+    Create a new name for the experiment so that it's more easily identifiable in the folders
+    """
+
+    print("HERE")
     current_args = copy.deepcopy(args)
     current_name_experiment = os.path.join(name_experiment, dataset_name)
     origin_path = args.args_output.path
@@ -14,6 +19,6 @@ def create_name(args, dataset_name, name_experiment, count):
         aux_string += f"_{args.args_classification.cste_imputation}"
     current_path = os.path.join(path_global, aux_string)
     current_path = os.path.join(current_path, f"{args.args_classification.classifier}_{args.args_selection.selector}_{args.args_selection.rate}_{count}")
-    current_args.args_output.path = path_global
+    current_args.args_output.path = current_path
 
     return current_args
