@@ -3,7 +3,7 @@ import os
 import copy
 
 def create_name(args, dataset_name, name_experiment, count):
-    args = copy.deepcopy(args)
+    current_args = copy.deepcopy(args)
     current_name_experiment = os.path.join(name_experiment, dataset_name)
     origin_path = args.args_output.path
     path_global = os.path.join(origin_path, current_name_experiment)
@@ -14,6 +14,6 @@ def create_name(args, dataset_name, name_experiment, count):
         aux_string += f"_{args.args_classification.cste_imputation}"
     current_path = os.path.join(path_global, aux_string)
     current_path = os.path.join(current_path, f"{args.args_classification.classifier}_{args.args_selection.selector}_{args.args_selection.rate}_{count}")
-    args.args_output.path = current_path
+    current_args.args_output.path = path_global
 
-    return args
+    return current_args
