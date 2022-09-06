@@ -40,7 +40,7 @@ class GaussianLatentIterator():
             if not os.path.exists(folder_weight):
                 os.makedirs(folder_weight)
 
-            imputation_network_weights_path = os.path.join(folder_weight,dataset_name + "_" + str(component))
+            imputation_network_weights_path = os.path.join(folder_weight,dataset_name + "_latent_" + str(component))
             if not os.path.exists(imputation_network_weights_path) :
                 self.train_gmm( component, dataset, imputation_network_weights_path)
                 
