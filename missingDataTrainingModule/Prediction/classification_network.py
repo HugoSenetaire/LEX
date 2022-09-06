@@ -259,6 +259,18 @@ class ResNet50(PredictorAbstract):
         x = self.activation(x)
         return x
 
+class ResNet34(PredictorAbstract):
+    def __init__(self, input_size = (3, 224, 224), output_size = 10):
+        super().__init__(input_size=input_size, output_size=output_size)
+
+        self.model = models.resnet34(pretrained=True)
+        self.model.fc = nn.Linear(512, self.output)
+
+    def __call__(self, x):
+        x = self.model(x)
+        x = self.activation(x)
+        return x
+
 class ProteinCNN(PredictorAbstract):
     def __init__(self, input_size = (21,19), output_size = 8):
         super().__init__(input_size=input_size, output_size=output_size)

@@ -19,6 +19,7 @@ classifiers_list = {
     "PretrainedVGGPytorch": PretrainedVGGPytorch,
     "RealXClassifier_withBatchnorm": RealXClassifier_withBatchnorm,
     "ResNet50": ResNet50,
+    "ResNet34": ResNet34,
 }
 
 def get_pred_network(classifier_name):
