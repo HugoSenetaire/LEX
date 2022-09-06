@@ -40,6 +40,6 @@ class GaussianDatasetIterator():
             args.args_classification.module_imputation_parameters = {"imputation_network_weights_path": imputation_network_weights_path,
                                                                      "nb_component": component,
                                                                      "data_to_impute" : data_to_impute}
-            args.args_classification.module_imputation ="GaussianMixtureImputation"
+            args.args_classification.module_imputation ="GaussianMixtureDatasetImputation"
             yield imputation_network_weights_path
         
