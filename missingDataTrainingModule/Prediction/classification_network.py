@@ -209,23 +209,26 @@ class ConvClassifier(PredictorAbstract):
 class ConvClassifier2(PredictorAbstract):
     def __init__(self, input_size = (1,28,28), output_size = 10):
         super().__init__(input_size=input_size, output_size=output_size)
-        self.nb_block = int(math.log(min(self.output_size[1], self.output_size[2]), 2)//2)
+        self.nb_block = int(math.log(min(self.input_size[1], self.input_size[2]), 2)//2)
         
         liste_conv = []
-        liste_conv.append(nn.Sequential([
+        liste_conv.extend([
             nn.Conv2d(input_size[0], 2**5, 3, stride=1, padding=1),
             nn.Conv2d(2**5, 2**5, 3, stride=1, padding=1),
             nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0)
-        ]))
+        ])
         for k in range(1, self.nb_block):
-            liste_conv.append(nn.Sequential([
+            liste_conv.extend([
                 nn.Conv2d(2**(k+4), 2**(k+5), 3, stride=1, padding=1),
                 nn.Conv2d(2**(k+5), 2**(k+5), 3, stride=1, padding=1),
-                nn.MaxPool2d(kernel_size=(2,2),stride=2,padding = 0),
-            ])
+                nn.AvgPool2d(kernel_size=(2,2),stride=2,padding = 0),
+            ]
             )
         self.conv = nn.ModuleList(liste_conv)
-        self.fc = nn.Linear(2**(self.nb_block+4)*int(np.prod(input_size[1:])/2**(2*self.nb_block)),128)
+        last_channel = 2**(self.nb_block+4)
+        last_size = int(np.prod(input_size[1:])/(2**(2*self.nb_block)))
+        self.fc = nn.Linear(last_channel*last_size,128)
+
         self.elu = nn.ELU()
 
         self.fc2 = nn.Linear(128,self.output)
@@ -234,7 +237,9 @@ class ConvClassifier2(PredictorAbstract):
     
     def __call__(self, x):
         batch_size = x.shape[0]
-        x = self.conv(x)
+        for k in range(len(self.conv)):
+            x = self.conv[k](x)
+        x = x.flatten(1)
         x = self.elu(self.fc(x))
         x = self.activation(self.fc2(x))
         return x 
