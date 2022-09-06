@@ -24,7 +24,7 @@ class GaussianLatentIterator():
     def train_gmm(self, component, dataset, imputation_network_weights_path):
         parameters_path_module = os.path.join(os.path.join(self.path_module, "parameters"), "parameters.pkl")
         args_autoencoder = pkl.load(open(parameters_path_module, "rb"))
-        interpretable_module = instantiate(args_autoencoder)
+        interpretable_module, _ = instantiate(args_autoencoder)
         interpretable_module = load_full_module(self.path_module, interpretable_module)
         autoencoder = interpretable_module.prediction_module
         if hasattr(dataset, "data_train"):
@@ -42,7 +42,7 @@ class GaussianLatentIterator():
 
             imputation_network_weights_path = os.path.join(folder_weight,dataset_name + "_latent_" + str(component))
             if not os.path.exists(imputation_network_weights_path) :
-                self.train_gmm( component, dataset, imputation_network_weights_path)
+                self.train_gmm(component, dataset, imputation_network_weights_path)
                 
             args.args_classification.module_imputation_parameters = {"imputation_network_weights_path": imputation_network_weights_path, "nb_component": component, "path_module": self.path_module}
             args.args_classification.module_imputation = "GaussianMixtureLatentImputation"
