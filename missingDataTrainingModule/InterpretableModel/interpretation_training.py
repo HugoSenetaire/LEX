@@ -71,4 +71,4 @@ class DECOUPLED_SELECTION(COUPLED_SELECTION):
         self.classification_distribution_module = classification_distribution_module
         self.EVALX = EVAL_X(prediction_module = prediction_module,
                     fixed_distribution = self.classification_distribution_module,
-                    reshape_mask_function = self.reshape_mask_function,)
+                    reshape_mask_function = self.reshape,)
