@@ -31,12 +31,12 @@ class KmeansIterator():
             folder_weight = os.path.join(args.args_output.folder, "weights")
             if not os.path.exists(folder_weight):
                 os.makedirs(folder_weight)
-            imputation_network_weights_path = os.path.join(folder_weight,dataset_name + "_" + str(component))
+            imputation_network_weights_path = os.path.join(folder_weight,dataset_name + "_kmeans_"+ str(component))
 
             data_train = self.get_data_train(dataset)
             if not os.path.exists(imputation_network_weights_path) :
                 train_kmeans(data_train, component, imputation_network_weights_path)
-            data_to_impute = self.get_random_nb_points(self.nb_points, data_train)
+            data_to_impute = self.get_random_nb_points(data_train)
             
             args.args_classification.module_imputation_parameters = {"imputation_network_weights_path": imputation_network_weights_path,
                                                                     "nb_component": component,
