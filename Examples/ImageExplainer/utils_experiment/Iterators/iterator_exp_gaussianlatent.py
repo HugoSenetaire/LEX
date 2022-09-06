@@ -20,7 +20,11 @@ class GaussianLatentIterator():
         interpretable_module = instantiate(args_autoencoder)
         interpretable_module = load_full_module(self.path_module, interpretable_module)
         autoencoder = interpretable_module.prediction_module
-        train_gmm_latent(dataset.data_train, autoencoder, component, imputation_network_weights_path)
+        if hasattr(dataset, "data_train"):
+            train_gmm_latent(dataset.data_train, autoencoder, component, imputation_network_weights_path)
+        else :
+            data_train = torch.stack([dataset.dataset_train.__getitem__(k)[0] for k in range(len(dataset.dataset_train))])
+            train_gmm_latent(data_train, autoencoder, component, imputation_network_weights_path)
 
 
     def __iter__(self, args, dataset, dataset_name):

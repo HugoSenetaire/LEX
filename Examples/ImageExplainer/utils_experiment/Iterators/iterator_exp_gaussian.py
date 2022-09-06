@@ -23,7 +23,11 @@ class GaussianIterator():
                 os.makedirs(folder_weight)
             path_for_weights = os.path.join(folder_weight,dataset_name + "_" + str(component))
             if not os.path.exists(path_for_weights) :
-                train_gmm(dataset.data_train, component, path_for_weights)
+                if hasattr(dataset, "data_train"):
+                    train_gmm(dataset.data_train, component, path_for_weights)
+                else :
+                    data_train = torch.stack([dataset.dataset_train.__getitem__(k)[0] for k in range(len(dataset.dataset_train))])
+                    train_gmm(data_train, component, path_for_weights)
             args.args_classification.module_imputation_parameters = {"path_for_weights": path_for_weights, "nb_component": component, "mean_imputation": self.mean_imputation}
             args.args_classification.module_imputation = GaussianMixtureImputation(path_for_weights, self.mean_imputation)
             yield path_for_weights
