@@ -4,14 +4,22 @@ import sys
 current_file_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(current_file_path)
 from default_parameter import *
-from missingDataTrainingModule import train_gmm_latent, load_full_module, instantiate
+from missingDataTrainingModule import train_gmm_latent, load_full_module, instantiate, experiment
 import pickle as pkl
+
+
+
 
 
 class GaussianLatentIterator():
     def __init__(self, path_module = r"C:\Users\hhjs\Documents\FirstProject\MissingDataTraining\Experiments\weights\MNIST_and_FASHIONMNIST_autoencoder") -> None:        
         self.list_component = [20, 50, 100,] 
         self.path_module = path_module
+
+        autoencoder_path = os.path.join(self.path_module, "prediction_module_best.pt")
+        if not os.path.exists(autoencoder_path):
+            raise AttributeError("The autoencoder is not trained, please train it first")
+            
 
     def train_gmm(self, component, dataset, imputation_network_weights_path):
         parameters_path_module = os.path.join(os.path.join(self.path_module, "parameters"), "parameters.pkl")
@@ -31,6 +39,7 @@ class GaussianLatentIterator():
             folder_weight = os.path.join(self.path_module, "weights_gaussian_latent")
             if not os.path.exists(folder_weight):
                 os.makedirs(folder_weight)
+
             imputation_network_weights_path = os.path.join(folder_weight,dataset_name + "_" + str(component))
             if not os.path.exists(imputation_network_weights_path) :
                 self.train_gmm( component, dataset, imputation_network_weights_path)

@@ -9,10 +9,9 @@ from missingDataTrainingModule import train_kmeans
 
 
 class KmeansIterator():
-    def __init__(self, mean_imputation = False, list_component = [20,50,100], nb_points = 1000) -> None:
+    def __init__(self, list_component = [20,50,100], nb_points = 1000) -> None:
         
         self.list_component = list_component
-        self.mean_imputation = mean_imputation
         self.nb_points = nb_points
 
     def get_data_train(self, dataset):
@@ -39,8 +38,6 @@ class KmeansIterator():
                 train_kmeans(data_train, component, imputation_network_weights_path)
             data_to_impute = self.get_random_nb_points(self.nb_points, data_train)
             
-
-
             args.args_classification.module_imputation_parameters = {"imputation_network_weights_path": imputation_network_weights_path,
                                                                     "nb_component": component,
                                                                     "nb_points" : self.nb_points,
