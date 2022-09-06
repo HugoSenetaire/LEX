@@ -144,7 +144,7 @@ def calculate_blocks_patch(input_size, kernel_size, kernel_stride):
   """
   size = [1,]
   for k in range(len(kernel_size)):
-    size.append(math.floor((input_size[k+1] - (kernel_size[k]-1)) / kernel_stride[k]) + 1)
+    size.append(math.floor((input_size[k+1] - (kernel_size[k]-1) -1 ) / kernel_stride[k]) + 1)
   return tuple(size)
 
 
@@ -180,9 +180,10 @@ class SelectorUNET(AbstractSelector):
 
 
     def __call__(self, x):
+      batch_size = x.shape[0]
       x = self.getconfiguration(x)
       x = self.UNET(x)
-      x = x.view(-1, np.prod(self.output_size))
+      x = x.view(batch_size, np.prod(self.output_size))
 
       return x
 
