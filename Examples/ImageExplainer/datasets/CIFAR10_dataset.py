@@ -23,22 +23,8 @@ class CIFAR10():
         self.CIFAR10_train = torchvision.datasets.CIFAR10(root = root_dir, train=True, download=download, transform=transform)
         self.CIFAR10_test  = torchvision.datasets.CIFAR10(root = root_dir, train=False, download=download, transform=transform)
 
-        self.data_train = torch.stack([self.CIFAR10_train.__getitem__(i)[0] for i in range(len(self.CIFAR10_train))])
-        self.target_train = torch.tensor(self.CIFAR10_train.targets, dtype = torch.int64)
-
-        self.data_test = torch.stack([self.CIFAR10_test.__getitem__(i)[0] for i in range(len(self.CIFAR10_test))])
-        self.target_test = torch.tensor(self.CIFAR10_test.targets, dtype = torch.int64)
-
-
-        self.data_train = self.data_train.reshape(-1,3,224,224)
-        index_train, index_val = train_test_split(np.arange(len(self.data_train)), test_size=0.1, random_state = random_seed)
-
-        self.data_test = self.data_test.reshape(-1,3,224,224)
-        self.dataset_train = TensorDataset(self.data_train[index_train], self.target_train[index_train])
-        self.dataset_val = TensorDataset(self.data_train[index_val], self.target_train[index_val])
-        self.dataset_test = TensorDataset(self.data_test, self.target_test)
-        self.nb_dim_output = self.get_dim_output()
-
+        self.dataset_train = self.CIFAR10_train
+        self.dataset_test = self.CIFAR10_test
 
     def get_dim_input(self,):
         return (3,224,224)
