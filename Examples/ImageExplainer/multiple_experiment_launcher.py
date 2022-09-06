@@ -14,6 +14,7 @@ from missingDataTrainingModule.utils import compare_args, from_args_to_dictionar
 import pickle as pkl
 import traceback
 from args_class import CompleteArgs
+from utils_experiment import check_experiment_value
 
 
 def get_dataset(args):
@@ -44,6 +45,11 @@ def multiple_experiment(count,
         line_name = dic_to_line_str(from_args_to_dictionary(complete_args, to_str=True))
         hashed = str(hash(line_name))
         complete_args.args_output.path = os.path.join(complete_args.args_output.path, hashed)
+
+
+    if check_experiment_value(complete_args.args_output.path):
+        print("The experiment was already launched")
+        return count+1
 
     try :
         final_path, trainer, loader, dic_list = main_launcher.experiment(dataset,
