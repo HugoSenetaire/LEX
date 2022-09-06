@@ -75,7 +75,6 @@ def save_sampling_mask(x_original, z,  pi_list, target, pred, final_path, k, wan
     if not os.path.exists(target_path):
         os.makedirs(target_path)
 
-    print(x_original)
     x_original, cmap_x = handle_multiple_channel(x_original, wanted_shape_transpose, transpose_set = transpose_set)
     current_z, cmap_z = handle_multiple_channel(z, wanted_shape_transpose, transpose_set = transpose_set)
     current_pi_list, cmap_pi_list = handle_multiple_channel(pi_list, wanted_shape_transpose, transpose_set = transpose_set)
