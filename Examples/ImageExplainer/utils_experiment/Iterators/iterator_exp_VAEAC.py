@@ -24,7 +24,7 @@ class VAEACIterator():
         for model_dir in self.model_dir_list :
             if loader is not None:
                 if not os.path.exists(os.path.join(model_dir, "last_checkpoint.tar")):
-                    train_VAEAC(loader, model_dir, epochs = 20)
+                    train_VAEAC(loader, model_dir, epochs = 50)
             args.args_classification.module_imputation_parameters = {"model_dir": model_dir, }
             args.args_classification.module_imputation = "VAEACImputation"
             yield model_dir
