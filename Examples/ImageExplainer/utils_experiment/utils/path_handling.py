@@ -1,7 +1,9 @@
 
 import os
+import copy
 
 def create_name(args, dataset_name, name_experiment, count):
+    args = copy.deepcopy(args)
     current_name_experiment = os.path.join(name_experiment, dataset_name)
     origin_path = args.args_output.path
     path_global = os.path.join(origin_path, current_name_experiment)
