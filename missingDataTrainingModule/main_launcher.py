@@ -234,16 +234,29 @@ def experiment(dataset, loader, complete_args,):
 
     ####Optim_optim_classification :
 
-    optim_classification, scheduler_classification = get_optim(interpretable_module.prediction_module,
+    try :
+        optim_classification, scheduler_classification = get_optim(interpretable_module.prediction_module,
                                                     complete_args_converted.args_compiler.optim_classification,
                                                     complete_args_converted.args_compiler.optim_classification_param,
                                                     complete_args_converted.args_compiler.scheduler_classification,
                                                     complete_args_converted.args_compiler.scheduler_classification_param,) 
-    optim_selection, scheduler_selection = get_optim(interpretable_module.selection_module,
-                                            complete_args_converted.args_compiler.optim_selection,
-                                            complete_args_converted.args_compiler.optim_selection_param,
-                                            complete_args_converted.args_compiler.scheduler_selection,
-                                            complete_args_converted.args_compiler.scheduler_selection_param,)
+    except AttributeError :
+        optim_classification, scheduler_classification = None, None
+        print("No prediction module for this interpretable module {}".format(complete_args_converted.args_interpretable_module.interpretable_module))
+
+
+
+    try :
+        optim_selection, scheduler_selection = get_optim(interpretable_module.selection_module,
+                                                        complete_args_converted.args_compiler.optim_selection,
+                                                        complete_args_converted.args_compiler.optim_selection_param,
+                                                        complete_args_converted.args_compiler.scheduler_selection,
+                                                        complete_args_converted.args_compiler.scheduler_selection_param,)
+    except AttributeError :
+        optim_selection = None
+        scheduler_selection = None
+        print("No selection module for this interpretable module {}".format(complete_args_converted.args_interpretable_module.interpretable_module))
+   
     try :
         optim_baseline, scheduler_baseline = get_optim(interpretable_module.baseline,
                                         complete_args_converted.args_compiler.optim_baseline,
