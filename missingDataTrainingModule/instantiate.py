@@ -10,16 +10,6 @@ def instantiate(complete_args, dataset = None):
     """
     complete_args_converted = convert_all(complete_args)
 
-    try :
-        kernel_size = complete_args_converted.args_selection.kernel_size
-        kernel_stride = complete_args_converted.args_selection.kernel_stride
-        output_size_selector = calculate_blocks_patch(complete_args_converted.args_selection.input_size_selector, kernel_size, kernel_stride)
-        complete_args_converted.args_selection.output_size_selector = output_size_selector
-    except AttributeError:
-        kernel_size = None
-        kernel_stride = None
-
-
     ### Networks :
     classifier, selector, baseline, selector_var, reshape_mask_function = get_networks(complete_args_converted.args_classification,
                                                                         complete_args_converted.args_selection,

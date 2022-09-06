@@ -154,8 +154,6 @@ def get_networks(args_classification, args_selection, args_trainer, args_interpr
     else :
         selector_var = None
 
-    if args_classification.network_reconstruction == "self" :
-        args_classification.network_reconstruction = classifier
 
     return classifier, selector, baseline, selector_var, reshape_mask_function
 
