@@ -173,29 +173,29 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     if next(interpretable_module.parameters()).is_cuda:
         data, target = data.cuda(), target.cuda()
     
-    
-    log_pi_list,_ = selection_module(data)
-    pi_list = torch.exp(log_pi_list)
-    pi_list_selected = get_sel_pred(interpretable_module, pi_list, rate = rate)
-    pz = distribution_module(torch.exp(log_pi_list))
+    with torch.no_grad():
+        log_pi_list,_ = selection_module(data)
+        pi_list = torch.exp(log_pi_list)
+        pi_list_selected = get_sel_pred(interpretable_module, pi_list, rate = rate)
+        pz = distribution_module(torch.exp(log_pi_list))
 
 
-    pi_list_selected = interpretable_module.reshape(pi_list_selected)
-    pi_list = interpretable_module.reshape(pi_list)
+        pi_list_selected = interpretable_module.reshape(pi_list_selected)
+        pi_list = interpretable_module.reshape(pi_list)
 
-    z = distribution_module.sample((100,))
-    pi_list_sampled = z.mean(dim=0)
-    pi_list_sampled = interpretable_module.reshape(pi_list_sampled)
-    
+        z = distribution_module.sample((100,))
+        pi_list_sampled = z.mean(dim=0)
+        pi_list_sampled = interpretable_module.reshape(pi_list_sampled)
+        
 
-    z = distribution_module.sample((1,)).flatten(0,1)
-    z = interpretable_module.reshape(z)
+        z = distribution_module.sample((1,)).flatten(0,1)
+        z = interpretable_module.reshape(z)
 
-    data_imputed = prediction_module.get_imputation(data, z)
-    data_imputed = data_imputed.reshape(nb_imputation, total_image, *wanted_shape)
+        data_imputed = prediction_module.get_imputation(data, z)
+        data_imputed = data_imputed.reshape(nb_imputation, total_image, *wanted_shape)
 
-    prediction_module.imputation.nb_imputation_mc_test = 1
-    pred, _ = prediction_module(data, z)
+        prediction_module.imputation.nb_imputation_mc_test = 1
+        pred, _ = prediction_module(data, z)
 
     data = data.cpu().detach().numpy()
     data_imputed = data_imputed.cpu().detach().numpy()
@@ -203,11 +203,16 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
     pred = torch.exp(pred).cpu().detach().numpy()
 
     if channel_handling :
-        pi_list_sampled = pi_list_sampled[:,0].cpu().detach().numpy()
-        pi_list = pi_list[:,0].cpu().detach().numpy()
-        pi_list_selected = pi_list_selected[:,0].cpu().detach().numpy()
-        z = z[:,0].cpu().detach().numpy()
+        pi_list_sampled = pi_list_sampled[:,0]
+        pi_list = pi_list[:,0]
+        pi_list_selected = pi_list_selected[:,0]
+        z = z[:,0]
 
+    pi_list_sampled = pi_list_sampled.cpu().detach().numpy()
+    pi_list = pi_list.cpu().detach().numpy()
+    pi_list_selected = pi_list_selected.cpu().detach().numpy()
+    z = z.cpu().detach().numpy()
+    
     if hasattr(loader.dataset, "get_true_selection"):
         quadrant = quadrant.to(torch.float32).cpu().detach().numpy()
         if channel_handling :
