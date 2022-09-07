@@ -23,14 +23,16 @@ class PredictorAbstract(nn.Module):
         self.output_size = output_size
         if type(self.output_size) == int:
             self.output = output_size
+            if self.output > 1:
+                self.activation = nn.LogSoftmax(-1)
+            else :
+                self.activation = lambda x: x
         else:
             self.output = np.prod(self.output_size)
             if len(self.output_size) >1:
                 raise NotImplementedError
-        if self.output > 1:
-            self.activation = nn.LogSoftmax(-1)
-        else :
-            self.activation = lambda x: x
+            self.activation = lambda x : x
+        
     def forward(self, x):
         raise NotImplementedError
     
