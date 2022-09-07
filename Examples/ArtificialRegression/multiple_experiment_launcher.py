@@ -19,6 +19,7 @@ from torch.optim import *
 import torch
 import pickle as pkl
 import numpy as np
+from utils_experiment import check_experiment_value
 
 
 def get_dataset(args):
@@ -49,20 +50,14 @@ def multiple_experiment(
         hashed = str(hash(line_name))
         complete_args.args_output.path = os.path.join(complete_args.args_output.path, hashed)
 
-    count+=1
-    if os.path.exists(complete_args.args_output.path):
-        complete_args.args_train.nb_epoch = 0
-        complete_args.args_train.nb_epoch_pretrain = 0
-        complete_args.args_train.nb_epoch_post_hoc = 0
-        final_path, trainer, loader, dic_list = missingDataTrainingModule.main_launcher.experiment(dataset, loader, complete_args=complete_args)
-        trainer.load_best_iter_dict(final_path)
-        total_dic = trainer.multiple_test(loader, complete_args.args_test, complete_args.args_compiler, complete_args.args_classification_distribution_module, complete_args.args_output)
-        with open(os.path.join(complete_args.args_output.path, "total_dic_afterwards.txt"), "z") as f:
-            f.write(str(total_dic))
-        return count
+
+    if check_experiment_value(complete_args.args_output.path):
+        return count+1
+    
     try :
         final_path, trainer, loader, dic_list = missingDataTrainingModule.main_launcher.experiment(dataset, loader, complete_args)
         interpretable_module = trainer.interpretable_module
+        
         ## Interpretation                
         dic_interpretation = calculate_score(interpretable_module, loader, trainer, complete_args, CFindex = None)
         current_path = os.path.join(final_path, "interpretation.txt")
@@ -88,13 +83,14 @@ def multiple_experiment(
             plt.scatter(loader.dataset.X[:10000,0], loader.dataset.X[:10000,1], c =Y, alpha = 0.15, cmap = 'gray', vmin = np.min(Y), vmax = np.max(Y))
             plt.savefig(out_path)
             plt.close()
+            
         del trainer, loader, dic_list
         try :
             torch.cuda.empty_cache()
         except BaseException as e:
             print(e)
             print("Can't empty the cache")
-        return count
+        return count+1
     except Exception as e :
         print(traceback.format_exc())
         if os.path.exists(complete_args.args_output.path):
@@ -111,5 +107,5 @@ def multiple_experiment(
         except BaseException as e:
             print(e)
             print("Can't empty the cache")
-        return count
+        return count+1
 
