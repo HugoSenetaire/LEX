@@ -4,14 +4,15 @@ from .artificial_dataset import ArtificialDataset
 from .tensor_dataset_augmented import TensorDatasetAugmented
 from .gaussian_dataset import GaussianDataset
 from .utils import getProbA, getProbB, getProbC, f_a, f_b, f_c
+from functools import partial
 
 
-
-def generate_Y_classification(X, nb_sample_train = 10000, nb_sample_test = 10000, getProb1 = getProbA, getProb2 = getProbB):
+def generate_Y_classification(X, nb_sample_train = 10000, nb_sample_test = 10000, getProb1 = getProbA, getProb2 = getProbB, shift = 0.0):
     assert(len(X) == nb_sample_test + nb_sample_train)
-    _, prob1, sel1 = getProb1(X)
-    _, prob2, sel2 = getProb2(X)
-    aux = X[:,10]<0
+    aux_X = X - shift
+    _, prob1, sel1 = getProb1(aux_X)
+    _, prob2, sel2 = getProb2(aux_X)
+    aux = aux_X[:,10]<0
     prob_total = torch.where(aux, prob1, prob2)
     
     # aux = torch.reshape(aux, (aux.shape[0],1)).repeat(repeats = X.shape[1], axis = 1)
@@ -31,11 +32,12 @@ def generate_Y_classification(X, nb_sample_train = 10000, nb_sample_test = 10000
     
     return data_train, target_train, sel_train, data_test, target_test, sel_test
 
-def generate_Y_regression(X, epsilon_sigma = 1.0, nb_sample_train = 10000, nb_sample_test = 10000, getProb1 = getProbA, getProb2 = getProbB, scaling_regression = True):
+def generate_Y_regression(X, epsilon_sigma = 1.0, nb_sample_train = 10000, nb_sample_test = 10000, getProb1 = getProbA, getProb2 = getProbB, scaling_regression = True, shift = 0.0):
     assert(len(X) == nb_sample_test + nb_sample_train)
-    f1, prob1, sel1 = getProb1(X)
-    f2, prob2, sel2 = getProb2(X)
-    aux = X[:,10]<0
+    aux_X = X - shift
+    f1, prob1, sel1 = getProb1(aux_X)
+    f2, prob2, sel2 = getProb2(aux_X)
+    aux = aux_X[:,10]<0
 
     if scaling_regression :
         f_total = torch.where(aux, prob1, prob2)
@@ -70,12 +72,24 @@ class S_init(GaussianDataset):
                 scaling_regression = True,
                 give_index = False,
                 noise_function = None,
+                train_seed = 0,
+                test_seed = 1,
+                shift = 0,
                 **kwargs):
-        super().__init__(mean = mean, cov=cov, covariance_type = covariance_type, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function = noise_function, **kwargs)
+        super().__init__(mean = mean,
+            cov=cov,
+            covariance_type = covariance_type,
+            nb_sample_train = nb_sample_train,
+            nb_sample_test = nb_sample_test,
+            give_index = give_index,
+            noise_function = noise_function,
+            train_seed=train_seed,
+            test_seed=test_seed,
+            **kwargs)
         print(f"Given cov is {self.cov}")
 
         self.dim_input = 11
-
+        self.shift = shift
 
         self.classification = classification
         self.epsilon_sigma = epsilon_sigma
@@ -85,7 +99,8 @@ class S_init(GaussianDataset):
                                                                                                                             nb_sample_train = self.nb_sample_train,
                                                                                                                             nb_sample_test = self.nb_sample_test,
                                                                                                                             getProb1= self.getProb1,
-                                                                                                                            getProb2=self.getProb2)
+                                                                                                                            getProb2=self.getProb2, 
+                                                                                                                            shift = self.shift)
             self.nb_classes = 2
         else :
             self.data_train, self.target_train, self.optimal_S_train, self.data_test, self.target_test, self.optimal_S_test = generate_Y_regression(X = self.X,
@@ -94,7 +109,8 @@ class S_init(GaussianDataset):
                                                                                                                             nb_sample_test = self.nb_sample_test,
                                                                                                                             getProb1 = self.getProb1,
                                                                                                                             getProb2 = self.getProb2,
-                                                                                                                            scaling_regression = self.scaling_regression)
+                                                                                                                            scaling_regression = self.scaling_regression,
+                                                                                                                            shift = self.shift)
             self.nb_classes = 1
         self.dataset_train = TensorDatasetAugmented(x = self.data_train, y = self.target_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(x = self.data_test, y = self.target_test, give_index = self.give_index)
@@ -112,6 +128,9 @@ class S_1(S_init):
                 scaling_regression = True,
                 give_index = False,
                 noise_function = None,
+                train_seed=0,
+                test_seed=1,
+                shift = 0,
                 **kwargs):
         self.getProb1 = getProbA
         self.getProb2 = getProbB
@@ -125,6 +144,9 @@ class S_1(S_init):
                 scaling_regression = scaling_regression,
                 give_index = give_index,
                 noise_function = noise_function,
+                shift = shift,
+                train_seed=train_seed,
+                test_seed=test_seed,
                 **kwargs)
 
   
@@ -140,6 +162,9 @@ class S_2(S_init):
                 scaling_regression = True,
                 give_index = False,
                 noise_function = None,
+                train_seed=0,
+                test_seed=1,
+                shift = 0,
                 **kwargs):
         self.getProb1 = getProbA
         self.getProb2 = getProbC
@@ -153,6 +178,9 @@ class S_2(S_init):
                 scaling_regression = scaling_regression,
                 give_index = give_index,
                 noise_function = noise_function,
+                shift = shift,
+                train_seed=train_seed,
+                test_seed=test_seed,
                 **kwargs)
 
 
@@ -168,6 +196,9 @@ class S_3(S_init):
                 scaling_regression = True,
                 give_index = False,
                 noise_function = None,
+                train_seed=0,
+                test_seed=1,
+                shift = 0,
                 **kwargs):
         self.getProb1 = getProbB
         self.getProb2 = getProbC
@@ -181,5 +212,8 @@ class S_3(S_init):
                 scaling_regression = scaling_regression,
                 give_index = give_index,
                 noise_function = noise_function,
+                shift = shift,
+                train_seed=train_seed,
+                test_seed=test_seed,
                 **kwargs)
   

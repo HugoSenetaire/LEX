@@ -45,3 +45,4 @@ class args_dataset_parameters():
         self.classification = None  
         self.train_seed = None
         self.test_seed = None
+        self.shift = None

@@ -48,8 +48,20 @@ def create_blockwise_covariance(block_dims, rho_blocks, dim=11):
 
 
 class GaussianDataset(ArtificialDataset):
-    def __init__(self, mean, cov, covariance_type = 'spherical', nb_sample_train = 20, nb_sample_test = 20, dim_input=11, give_index = False, noise_function = None, force_diagonal_impute = False, **kwargs):
+    def __init__(self,
+                mean,
+                cov,
+                covariance_type = 'spherical',
+                nb_sample_train = 20,
+                nb_sample_test = 20,
+                dim_input=11,
+                give_index = False,
+                noise_function = None,
+                train_seed = 0,
+                test_seed = 1,
+                **kwargs):
         super().__init__(nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function=noise_function, **kwargs)
+        torch.manual_seed(train_seed)
         self.mean = mean
         self.cov = cov
         if isinstance(self.cov, int) or isinstance(self.cov, float):
@@ -75,12 +87,13 @@ class GaussianDataset(ArtificialDataset):
         self.X = self.generate_data()
 
     def generate_data(self):
+        mean_vector = torch.full((self.dim_input,), fill_value= self.mean)
         if self.covariance_type == 'spherical' :
-            normal_distrib = torch.distributions.normal.Normal(torch.full((self.dim_input,), fill_value= self.mean),torch.full(size =(self.dim_input,), fill_value = self.cov))
+            normal_distrib = torch.distributions.normal.Normal(mean_vector,torch.full(size =(self.dim_input,), fill_value = self.cov))
         elif self.covariance_type == 'diagonal' :
-            normal_distrib = torch.distributions.normal.Normal(torch.full((self.dim_input,), fill_value= self.mean), self.cov)
+            normal_distrib = torch.distributions.normal.Normal(mean_vector, self.cov)
         elif self.covariance_type == 'full':
-            normal_distrib = torch.distributions.multivariate_normal.MultivariateNormal(torch.full((self.dim_input,), fill_value= self.mean), self.cov)
+            normal_distrib = torch.distributions.multivariate_normal.MultivariateNormal(mean_vector, self.cov)
         else :
             raise NotImplementedError("covariance_type not implemented")
         sampled = normal_distrib.sample((self.nb_sample_train + self.nb_sample_test,))
@@ -165,10 +178,27 @@ def generateSwitchFeature(sigma, nb_sample_train, nb_sample_test,): # In the swi
   
 
 class SwitchFeature(GaussianDataset):
-    def __init__(self, sigma=1.0, nb_sample_train = 20, nb_sample_test = 20, give_index = False, noise_function = None, **kwargs):
-        super().__init__(sigma=sigma, nb_sample_train = nb_sample_train, nb_sample_test = nb_sample_test, give_index = give_index, noise_function= noise_function, **kwargs)
+    def __init__(self, sigma=1.0,
+            nb_sample_train = 20,
+            nb_sample_test = 20,
+            give_index = False,
+            noise_function = None,
+            train_seed = 0,
+            test_seed = 0,
+            **kwargs):
+        super().__init__(sigma=sigma,
+                        nb_sample_train = nb_sample_train,
+                        nb_sample_test = nb_sample_test,
+                        give_index = give_index,
+                        noise_function= noise_function,
+                        train_seed=train_seed,
+                        test_seed= test_seed,
+                        **kwargs)
         print(f"Given sigma is {self.sigma}")
-        self.data_train, self.target_train, self.optimal_S_train, self.data_test, self.target_test, self.optimal_S_test = generateSwitchFeature(sigma = self.sigma, nb_sample_train = self.nb_sample_train, nb_sample_test = self.nb_sample_test,)
+        self.data_train, self.target_train, self.optimal_S_train, self.data_test, self.target_test, self.optimal_S_test = generateSwitchFeature(sigma = self.sigma,
+                                                                                                                                                nb_sample_train = self.nb_sample_train,
+                                                                                                                                                nb_sample_test = self.nb_sample_test,
+                                                                                                                                            )
         self.dataset_train = TensorDatasetAugmented(self.data_train, self.target_train, give_index = self.give_index)
         self.dataset_test = TensorDatasetAugmented(self.data_test, self.target_test, give_index = self.give_index)
     
@@ -195,6 +225,8 @@ class SimpleGaussianDataset(GaussianDataset):
                 dscale_regression = True,
                 give_index = False,
                 noise_function = None,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
 
         super().__init__(mean = mean,
@@ -204,6 +236,8 @@ class SimpleGaussianDataset(GaussianDataset):
                         nb_sample_test = nb_sample_test,
                         give_index = give_index,
                         noise_function = noise_function,
+                        train_seed=train_seed,
+                        test_seed=test_seed,
                         **kwargs)
 
         self.used_dim = used_dim
@@ -256,6 +290,8 @@ class ExpProdGaussianDataset(SimpleGaussianDataset):
                 dscale_regression = True,
                 give_index = False,
                 noise_function = None,
+                train_seed = 0,
+                test_seed = 0,
                 **kwargs):
         self.function = f_prod
         super().__init__(mean = mean,
@@ -269,6 +305,8 @@ class ExpProdGaussianDataset(SimpleGaussianDataset):
                         dscale_regression = dscale_regression,
                         give_index = give_index,
                         noise_function = noise_function,
+                        train_seed = train_seed,
+                        test_seed = test_seed,
                         **kwargs)
 
       
@@ -288,6 +326,8 @@ class ExpSquaredSumGaussianDataset(SimpleGaussianDataset):
                 dscale_regression = True,
                 give_index = False,
                 noise_function = None,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
         self.function = f_squaredsum
         super().__init__(mean = mean,
@@ -301,6 +341,8 @@ class ExpSquaredSumGaussianDataset(SimpleGaussianDataset):
                         dscale_regression = dscale_regression,
                         give_index = give_index,
                         noise_function = noise_function,
+                        train_seed = train_seed,
+                        test_seed = test_seed,
                         **kwargs)
 
  
@@ -318,6 +360,8 @@ class ExpSquaredSumGaussianDatasetV2(SimpleGaussianDataset):
                 dscale_regression = True,
                 give_index = False,
                 noise_function = None,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
         self.function = f_squaredsum2
         super().__init__(mean = mean,
@@ -331,6 +375,8 @@ class ExpSquaredSumGaussianDatasetV2(SimpleGaussianDataset):
                         dscale_regression = dscale_regression,
                         give_index = give_index,
                         noise_function = noise_function,
+                        train_seed=train_seed,
+                        test_seed=test_seed,
                         **kwargs)
 
     
@@ -345,6 +391,8 @@ class DiagGaussianDataset(GaussianDataset):
                 give_index = False,
                 noise_function = None,
                 dim_input = 2,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
         super().__init__(mean = mean,
                         cov=cov,
@@ -354,6 +402,8 @@ class DiagGaussianDataset(GaussianDataset):
                         give_index = give_index,
                         noise_function = noise_function,
                         dim_input= dim_input,
+                        train_seed=train_seed,
+                        test_seed=test_seed,
                         **kwargs) 
 
         self.nb_sample = self.nb_sample_test + self.nb_sample_train

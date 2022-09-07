@@ -3,7 +3,8 @@ import torch
 def f_a(X):
     return X[:,0]*X[:,1]
 
-def getProbA(X):
+def getProbA(X, shift = 0):
+    X = X - shift
     fa = f_a(X)
     aux_fa = torch.exp(fa)
     b_fa = 1/(1+aux_fa)
@@ -14,7 +15,8 @@ def getProbA(X):
 def f_b(X):
     return X[:,2:6].pow(2).sum(axis = 1) - 4
 
-def getProbB(X):
+def getProbB(X, shift = 0):
+    X = X - shift
     fb = f_b(X)
     aux_fb = torch.exp(fb)
     b_fb = 1/(1+aux_fb)
@@ -25,7 +27,8 @@ def getProbB(X):
 def f_c(X):
     return -10*torch.sin(0.2*X[:,6]) + torch.abs(X[:,7]) + X[:,8] + torch.exp(-X[:,9])-2.4
 
-def getProbC(X):
+def getProbC(X, shift = 0):
+    X = X - shift
     fc = f_c(X)
     aux_fc = torch.exp(fc)
     b_fc = 1/(1+aux_fc)

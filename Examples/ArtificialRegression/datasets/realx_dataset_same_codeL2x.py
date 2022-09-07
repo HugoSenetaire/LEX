@@ -79,8 +79,6 @@ def Complex_Label_Generation(X, data_type):
     if (data_type == 'Syn4'):
         logit1 = np.exp(X[:,0]*X[:,1])
         logit2 = np.exp(np.sum(X[:,2:6]**2, axis = 1) - 4.0)
-        print("LOGIT1: ", logit1)
-        print("LOGIT2: ", logit2)
     
     # 2. Syn5
     elif (data_type == 'Syn5'):
@@ -159,20 +157,21 @@ data_type: Syn1 to Syn6
 out: Y or Prob_Y
 '''    
     
-def generate_data(n=10000, data_type='Syn4', seed = 0, out = 'Y'):
+def generate_data(n=10000, data_type='Syn4', seed = 0, out = 'Y', mean = 0., shift = 0.):
 
     # For same seed
     np.random.seed(seed)
 
     # X generation
-    X = generate_X(n)
+    X = generate_X(n) + mean
+
 
     # Y generation
     if (data_type in ['Syn1','Syn2','Syn3']):
-        Y, Prob_Y = Basic_Label_Generation(X, data_type)
+        Y, Prob_Y = Basic_Label_Generation(X - shift, data_type)
         
     elif (data_type in ['Syn4','Syn5','Syn6']):
-        Y, Prob_Y = Complex_Label_Generation(X, data_type)
+        Y, Prob_Y = Complex_Label_Generation(X - shift, data_type)
     
     # Output
     if out == 'Prob':
@@ -182,7 +181,7 @@ def generate_data(n=10000, data_type='Syn4', seed = 0, out = 'Y'):
         
     # Ground truth
     print("CREATION", Y_Out.mean(axis=0))
-    Ground_Truth = Ground_Truth_Generation(X, data_type)
+    Ground_Truth = Ground_Truth_Generation(X - shift, data_type)
         
     return X, Y_Out, Ground_Truth
     
@@ -199,6 +198,7 @@ class Syn_init(GaussianDataset):
                 give_index = False,
                 data_type = None,
                 noise_function = None,
+                shift = 0.,
                 train_seed = 0,
                 test_seed = 1,
                 **kwargs):
@@ -211,6 +211,7 @@ class Syn_init(GaussianDataset):
                         noise_function = noise_function,
                         train_seed=train_seed,
                         test_seed=test_seed,
+                        shift = shift,
                         **kwargs)
 
         print(f"Given cov is {self.cov}")
@@ -219,10 +220,25 @@ class Syn_init(GaussianDataset):
         self.epsilon_sigma = epsilon_sigma
         self.scaling_regression = scaling_regression
         self.data_type = data_type
+        self.shift = shift
         
         self.nb_classes = 2
-        self.data_train, self.target_train, self.optimal_S_train = generate_data(n = self.nb_sample_train, data_type = self.data_type,seed = train_seed,)
-        self.data_test, self.target_test, self.optimal_S_test = generate_data(n = self.nb_sample_test, data_type = self.data_type, seed=test_seed)
+        self.data_train, self.target_train, self.optimal_S_train = generate_data(n = self.nb_sample_train,
+                                                                    data_type = self.data_type,
+                                                                    seed = train_seed,
+                                                                    mean = self.mean,
+                                                                    shift = self.shift,
+                                                                )
+        self.data_test, self.target_test, self.optimal_S_test = generate_data(n = self.nb_sample_test,
+                                                                    data_type = self.data_type,
+                                                                    seed=test_seed,
+                                                                    mean = self.mean,
+                                                                    shift = self.shift,
+                                                                )
+
+        
+        print(self.data_train.mean(0))
+        print(self.target_train.mean(0))
         
         self.target_train = torch.from_numpy(np.argmax(self.target_train.astype('float32'), axis = 1))
         self.target_test = torch.from_numpy(np.argmax(self.target_test.astype('float32'), axis = 1))
@@ -283,6 +299,9 @@ class Syn1(Syn_init):
                 give_index = False,
                 noise_function = None,
                 data_type = "Syn1",
+                shift = 0.,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
         
         super().__init__(mean = mean,
@@ -295,6 +314,9 @@ class Syn1(Syn_init):
                 give_index = give_index,
                 noise_function = noise_function,
                 data_type=data_type,
+                shift = shift,
+                train_seed = train_seed,
+                test_seed = test_seed,
                 **kwargs)
 
 
@@ -310,6 +332,9 @@ class Syn2(Syn_init):
                 give_index = False,
                 noise_function = None,
                 data_type = "Syn2",
+                shift = 0.,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
         
         super().__init__(mean = mean,
@@ -322,6 +347,9 @@ class Syn2(Syn_init):
                 give_index = give_index,
                 noise_function = noise_function,
                 data_type=data_type,
+                shift = shift,
+                train_seed = train_seed,
+                test_seed = test_seed,
                 **kwargs)
 
 class Syn3(Syn_init):
@@ -336,6 +364,9 @@ class Syn3(Syn_init):
                 give_index = False,
                 noise_function = None,
                 data_type = "Syn3",
+                shift = 0.,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
         
         super().__init__(mean = mean,
@@ -348,6 +379,9 @@ class Syn3(Syn_init):
                 give_index = give_index,
                 noise_function = noise_function,
                 data_type=data_type,
+                shift = shift,
+                train_seed = train_seed,
+                test_seed = test_seed,
                 **kwargs)
 
 class Syn4(Syn_init):
@@ -362,6 +396,9 @@ class Syn4(Syn_init):
                 give_index = False,
                 noise_function = None,
                 data_type = "Syn4",
+                shift = 0.,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
         
         super().__init__(mean = mean,
@@ -374,6 +411,9 @@ class Syn4(Syn_init):
                 give_index = give_index,
                 noise_function = noise_function,
                 data_type=data_type,
+                shift = shift,
+                train_seed = train_seed,
+                test_seed = test_seed,
                 **kwargs)
             
 class Syn5(Syn_init):
@@ -388,6 +428,9 @@ class Syn5(Syn_init):
                 give_index = False,
                 noise_function = None,
                 data_type = "Syn5",
+                shift = 0.,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
         
         super().__init__(mean = mean,
@@ -400,6 +443,9 @@ class Syn5(Syn_init):
                 give_index = give_index,
                 noise_function = noise_function,
                 data_type=data_type,
+                shift = shift,
+                train_seed = train_seed,
+                test_seed = test_seed,
                 **kwargs)
 
 class Syn6(Syn_init):
@@ -414,6 +460,9 @@ class Syn6(Syn_init):
                 give_index = False,
                 noise_function = None,
                 data_type = "Syn6",
+                shift = 0.,
+                train_seed = 0,
+                test_seed = 1,
                 **kwargs):
         
         super().__init__(mean = mean,
@@ -426,4 +475,7 @@ class Syn6(Syn_init):
                 give_index = give_index,
                 noise_function = noise_function,
                 data_type=data_type,
+                shift = shift,
+                train_seed = train_seed,
+                test_seed = test_seed,
                 **kwargs)

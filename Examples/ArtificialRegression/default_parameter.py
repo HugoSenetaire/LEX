@@ -54,6 +54,7 @@ def get_default(args = None):
     args.args_dataset.args_dataset_parameters.classification = True  
     args.args_dataset.args_dataset_parameters.train_seed = 0
     args.args_dataset.args_dataset_parameters.test_seed = 1
+    args.args_dataset.args_dataset_parameters.shift = 0.0
 
 
 
