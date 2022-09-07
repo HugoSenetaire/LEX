@@ -34,7 +34,7 @@ class ArtificialDataset():
         return optimal_S
 
     def get_dim_input(self):
-        return (self.dim_input, )
+        return (1, self.dim_input, )
 
     def get_dim_output(self):
         return self.nb_classes

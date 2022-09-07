@@ -165,11 +165,15 @@ def eval_selection_local(interpretable_module, loader, rate = None):
     total_pi_list = None
 
     shape_input = interpretable_module.prediction_module.input_size
-    if shape_input[0] == 1:
-        channel_handling = False
+    if len(shape_input) >1 :
+        if shape_input[0] == 1:
+            channel_handling = False
+        else :
+            channel_handling = True
+        dim = np.prod(shape_input[1:])
     else :
-        channel_handling = True
-    dim = np.prod(shape_input[1:])
+        channel_handling = False
+        dim = np.prod(shape_input)
 
 
     for batch in loader.test_loader :
@@ -229,7 +233,7 @@ def eval_selection_local(interpretable_module, loader, rate = None):
                 pi_list = pi_list[:,0].reshape(batch_size, *shape_input[1:])
 
         if dim < 20 :
-            total_pi_list[index] = pi_list.detach().cpu().numpy()
+            total_pi_list[index] = pi_list.flatten(1).detach().cpu().numpy()
 
 
 
