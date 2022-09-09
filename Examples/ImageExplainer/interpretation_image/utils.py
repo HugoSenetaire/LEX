@@ -134,8 +134,12 @@ def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_tr
     
 def interpretation_image(interpretable_module, loader, final_path, nb_samples_image_per_category = 3, nb_imputation = 3, rate = None):
     interpretable_module.eval()
-    data, target, index= next(iter(loader.test_loader))
-
+    aux = next(iter(loader))
+    if len(aux) == 3:
+        data, target, index= aux[0], aux[1], aux[2]
+    else:
+        data, target= aux[0], aux[1]
+        index = None 
     output_category = loader.dataset.get_dim_output()
     indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
     data = data[indexes]
