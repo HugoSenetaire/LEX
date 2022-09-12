@@ -36,10 +36,10 @@ class MixtureOfLogisticsIterator():
             folder_weight = os.path.join(args.args_output.folder, "weights")
             if not os.path.exists(folder_weight):
                 os.makedirs(folder_weight)
-            imputation_network_weights_path = os.path.join(folder_weight,"logistic_"+dataset_name + "_" + str(component)+ "_type_of_training_"+self.type_of_training+".pth")
-            if not os.path.exists(imputation_network_weights_path) :
+            model_dir = os.path.join(folder_weight,"logistic_"+dataset_name + "_" + str(component)+ "_type_of_training_"+self.type_of_training)
+            if not os.path.exists(os.path.join(model_dir, "mixture_of_logistics.pt")):
                 train_MixtureOfLogistics(loader,
-                                        imputation_network_weights_path,
+                                        model_dir,
                                         component,
                                         epochs = self.nb_epoch,
                                         transform_mean = self.transform_mean,
@@ -51,7 +51,7 @@ class MixtureOfLogisticsIterator():
                                         nb_m_step = self.nb_m_step)
             input_size = loader.dataset.get_dim_input()
             args.args_classification.module_imputation_parameters = {"input_size" : input_size,
-                                                                    "imputation_network_weights_path": imputation_network_weights_path,
+                                                                    "model_dir": model_dir,
                                                                     "nb_component": component,
                                                                     "transform_mean": self.transform_mean,
                                                                     "transform_std": self.transform_std,
@@ -60,5 +60,5 @@ class MixtureOfLogisticsIterator():
                                                                     "nb_m_step": self.nb_m_step,
                                                                     }
             args.args_classification.module_imputation ="MixtureOfLogisticsImputation"
-            yield imputation_network_weights_path
+            yield model_dir
         

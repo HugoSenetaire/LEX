@@ -32,7 +32,7 @@ def get_default_autoencoder():
 
     args.args_trainer.complete_trainer = "trainingWithSelection"
     args.args_trainer.monte_carlo_gradient_estimator = "REBAR" # Ordinary training, Variational Traininig, No Variational Training, post hoc...
-    args.args_trainer.save_every_epoch = 20
+    args.args_trainer.save_every_epoch = 50
     
     args.args_interpretable_module.interpretable_module = "EVAL_X"
     args.args_interpretable_module.reshape_mask_function = "KernelReshape2D"
@@ -46,9 +46,8 @@ def get_default_autoencoder():
 
 
 
-    args.args_classification.input_size_prediction_module = (1,28,28) # Size before imputation
+    args.args_classification.input_size_prediction_module = (1,28,56) # Size before imputation
     args.args_classification.classifier = "AutoEncoderWrapper"
-
     args.args_classification.imputation = "ConstantImputation"
     args.args_classification.cste_imputation = 0
     args.args_classification.sigma_noise_imputation = 1.0
@@ -75,8 +74,8 @@ def get_default_autoencoder():
 
 
 
-    args.args_selection.input_size_selector = (1,28,28)
-    args.args_selection.output_size_selector = (1,28,28)
+    args.args_selection.input_size_selector = (1,28,56)
+    args.args_selection.output_size_selector = (1,28,56)
     args.args_selection.kernel_size = (1,1)
     args.args_selection.kernel_stride = (1,1)
     args.args_selection.selector = None
@@ -122,7 +121,7 @@ def get_default_autoencoder():
     args.args_classification_distribution_module.antitheis_sampling = False 
 
 
-    args.args_train.nb_epoch = 10 # Training the complete model
+    args.args_train.nb_epoch = 5 # Training the complete model
     args.args_train.nb_epoch_post_hoc = 0 # Training post_hoc
     args.args_train.nb_epoch_pretrain_selector = 0 # Pretrain selector
     args.args_train.use_regularization_pretrain_selector = False # Use regularization when pretraining the selector

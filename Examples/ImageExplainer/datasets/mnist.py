@@ -34,6 +34,9 @@ class MnistDataset():
 
         self.data_train = self.data_train.reshape(-1,1,28,28)
         self.data_test = self.data_test.reshape(-1,1,28,28)
+
+        # self.data_train = self.data_train[:1000]
+        # self.target_train = self.target_train[:1000]
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, None, target_transform, noise_function = noise_function)
         self.dataset_test = DatasetFromData(self.data_test, self.target_test, None, target_transform, noise_function = noise_function)
 

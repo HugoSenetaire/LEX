@@ -51,36 +51,36 @@ def multiple_experiment(count,
         print("The experiment was already launched")
         return count+1
 
-    try :
-        final_path, trainer, loader, dic_list = main_launcher.experiment(dataset,
-                                                            loader,
-                                                            complete_args=complete_args,
-                                                            )
+    # try :
+    final_path, trainer, loader, dic_list = main_launcher.experiment(dataset,
+                                                        loader,
+                                                        complete_args=complete_args,
+                                                        )
 
-        dic_interpretation = complete_analysis_image(trainer.interpretable_module, loader, trainer, args= complete_args, batch_size = batch_size_test, nb_samples_image_per_category = nb_samples_image_per_category, nb_imputation = nb_imputation)
-        current_path = os.path.join(final_path, "interpretation.txt")
-        with open(current_path, "w") as f:
-            for key in dic_interpretation:
-                f.write(f"{key} : {dic_interpretation[key]}\n")
-        current_path = os.path.join(final_path, "interpretation.pkl")
-        with open(current_path, "wb") as f :
-            pkl.dump(dic_interpretation, f)
-        return count+1
+    dic_interpretation = complete_analysis_image(trainer.interpretable_module, loader, trainer, args= complete_args, batch_size = batch_size_test, nb_samples_image_per_category = nb_samples_image_per_category, nb_imputation = nb_imputation)
+    current_path = os.path.join(final_path, "interpretation.txt")
+    with open(current_path, "w") as f:
+        for key in dic_interpretation:
+            f.write(f"{key} : {dic_interpretation[key]}\n")
+    current_path = os.path.join(final_path, "interpretation.pkl")
+    with open(current_path, "wb") as f :
+        pkl.dump(dic_interpretation, f)
+    return count+1
 
-    except Exception as e :
-        print(traceback.format_exc())
-        if os.path.exists(complete_args.args_output.path):
-            os.rename(complete_args.args_output.path, complete_args.args_output.path+"_error")
-        else :
-            if not os.path.exists(complete_args.args_output.path+"_error"):
-                os.makedirs(complete_args.args_output.path+"_error")
-        with open(complete_args.args_output.path+"_error/error.txt", "w") as f:
-            f.write(str(e))
-            f.write(traceback.format_exc())
+    # except Exception as e :
+    #     print(traceback.format_exc())
+    #     if os.path.exists(complete_args.args_output.path):
+    #         os.rename(complete_args.args_output.path, complete_args.args_output.path+"_error")
+    #     else :
+    #         if not os.path.exists(complete_args.args_output.path+"_error"):
+    #             os.makedirs(complete_args.args_output.path+"_error")
+    #     with open(complete_args.args_output.path+"_error/error.txt", "w") as f:
+    #         f.write(str(e))
+    #         f.write(traceback.format_exc())
         
-        try :
-            torch.cuda.empty_cache()
-        except BaseException as e:
-            print(e)
-            print("Can't empty the cache")
-        return count+1
+    #     try :
+    #         torch.cuda.empty_cache()
+    #     except BaseException as e:
+    #         print(e)
+    #         print("Can't empty the cache")
+    #     return count+1

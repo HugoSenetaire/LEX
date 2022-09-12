@@ -19,30 +19,33 @@ class MNIST_and_FASHIONMNIST():
             noise_function = None,
             target_mnist = True,
             random_panels = True,
+            add_noise = False,
             **kwargs,):
 
         self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, transform = transforms_mnist)
         self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, transform = transforms_mnist)
         self.fashion_mnist_train = torchvision.datasets.FashionMNIST(root_dir, train=True, download=download, transform = transforms_mnist)
         self.fashion_mnist_test = torchvision.datasets.FashionMNIST(root_dir, train=False, download=download, transform = transforms_mnist)
+        self.add_noise = add_noise
 
         self.data_train_mnist = self.mnist_train.data /255.
-        self.data_train_mnist += np.random.normal(0, 0.1, size = self.data_train_mnist.shape) #Handled the way it's handled in REAL X
-        self.data_train_mnist = self.data_train_mnist.reshape(-1, 1, 28, 28)
-
-
-
         self.data_test_mnist = self.mnist_test.data /255.
-        self.data_test_mnist += np.random.normal(0, 0.1, size = self.data_test_mnist.shape) #Handled the way it's handled in REAL X
-        self.data_test_mnist = self.data_test_mnist.reshape(-1, 1, 28, 28)
-
         self.data_train_fashion = self.fashion_mnist_train.data /255.
-        self.data_train_fashion += np.random.normal(0, 0.1, size = self.data_train_fashion.shape) #Handled the way it's handled in REAL X
-        self.data_train_fashion = self.data_train_fashion.reshape(-1, 1, 28, 28)
-
         self.data_test_fashion = self.fashion_mnist_test.data /255.
-        self.data_test_fashion += np.random.normal(0, 0.1, size = self.data_test_fashion.shape) #Handled the way it's handled in REAL X
-        self.data_test_fashion = self.data_test_fashion.reshape(-1, 1, 28, 28)
+
+        if self.add_noise :
+            self.data_train_mnist += np.random.normal(0, 0.1, size = self.data_train_mnist.shape) #Handled the way it's handled in REAL X
+            self.data_test_mnist += np.random.normal(0, 0.1, size = self.data_test_mnist.shape) #Handled the way it's handled in REAL X
+            self.data_train_fashion += np.random.normal(0, 0.1, size = self.data_train_fashion.shape) #Handled the way it's handled in REAL X
+            self.data_test_fashion += np.random.normal(0, 0.1, size = self.data_test_fashion.shape) #Handled the way it's handled in REAL X
+
+        
+        self.data_train_mnist = self.data_train_mnist.reshape(-1, 1, 28, 28).clip(0,1)
+        self.data_test_mnist = self.data_test_mnist.reshape(-1, 1, 28, 28).clip(0,1)
+        self.data_train_fashion = self.data_train_fashion.reshape(-1, 1, 28, 28).clip(0,1)
+        self.data_test_fashion = self.data_test_fashion.reshape(-1, 1, 28, 28).clip(0,1)
+
+
 
         self.target_train = self.mnist_train.targets
         self.target_test = self.mnist_test.targets
@@ -68,6 +71,14 @@ class MNIST_and_FASHIONMNIST():
         self.quadrant_test = torch.tensor(self.quadrant_test.reshape(-1,1,28,56), dtype = torch.int64, requires_grad=False)
         self.quadrant_train = torch.tensor(self.quadrant_train.reshape(-1,1,28,56), dtype = torch.int64, requires_grad=False)
 
+
+        # print("MNIST and FashionMNIST dataset loaded after treating")
+        # print(self.data_train.min(), self.data_train.max())
+
+        # self.data_train = self.data_train[:1000]
+        # self.target_train = self.target_train[:1000]
+        # self.data_test = self.data_test[:1000]
+        # self.target_test = self.target_test[:1000]
         
         del self.mnist_train, self.mnist_test, self.fashion_mnist_train, self.fashion_mnist_test
         del self.data_train_mnist, self.data_test_mnist, self.data_train_fashion, self.data_test_fashion
