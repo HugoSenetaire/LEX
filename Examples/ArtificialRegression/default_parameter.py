@@ -44,7 +44,7 @@ def get_default(args = None):
     args.args_dataset.args_dataset_parameters.noise_function = None
     args.args_dataset.args_dataset_parameters.cov = torch.tensor(1.0, dtype=torch.float32)
     args.args_dataset.args_dataset_parameters.covariance_type = "spherical" #Choice spherical diagonal full
-    args.args_dataset.args_dataset_parameters.mean = torch.tensor(0.0, dtype=torch.float32)
+    args.args_dataset.args_dataset_parameters.mean = 0.0
     args.args_dataset.args_dataset_parameters.download = True
     args.args_dataset.args_dataset_parameters.dim_input = 11
     args.args_dataset.args_dataset_parameters.used_dim = 10

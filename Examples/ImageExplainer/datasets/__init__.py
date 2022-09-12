@@ -10,6 +10,7 @@ from .blood_panels import BloodMNIST, BloodMNISTPanel
 from .autoencoder_dataset import AutoEncoderDataset
 from .CelebA_dataset import CELEBA
 from .CIFAR10_dataset import CIFAR10
+from .simple_logistic_dataset import SimpleLogisticDataset
 
 
 list_dataset = {
@@ -26,6 +27,7 @@ list_dataset = {
     "AutoEncoderDataset": AutoEncoderDataset,
     "CELEBA": CELEBA,
     "CIFAR10": CIFAR10,
+    "SimpleLogisticDataset" : SimpleLogisticDataset,
 }
 
 class args_dataset_parameters():
@@ -39,3 +41,4 @@ class args_dataset_parameters():
         self.test_seed = None
         self.dataset = None
         self.target = None
+        self.add_noise = False
