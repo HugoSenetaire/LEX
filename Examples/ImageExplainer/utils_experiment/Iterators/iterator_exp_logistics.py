@@ -13,12 +13,13 @@ class MixtureOfLogisticsIterator():
                 transform_mean,
                 transform_std,
                 list_component = [20,50,100],
-                nb_epoch = 20,
+                nb_epoch = 5,
                 batch_size = 64,
                 lr = 1e-4,
                 nb_e_step = 10,
                 nb_m_step = 10,
-                type_of_training = "sgd"):
+                type_of_training = "sgd",
+                mean_imputation = False,):
         self.transform_mean = transform_mean
         self.transform_std = transform_std
         self.list_component = list_component
@@ -28,6 +29,7 @@ class MixtureOfLogisticsIterator():
         self.nb_e_step = nb_e_step
         self.nb_m_step = nb_m_step
         self.type_of_training = type_of_training
+        self.mean_imputation = mean_imputation
 
 
 
@@ -58,6 +60,7 @@ class MixtureOfLogisticsIterator():
                                                                     "type_of_training": self.type_of_training,
                                                                     "nb_e_step": self.nb_e_step,
                                                                     "nb_m_step": self.nb_m_step,
+                                                                    "mean_imputation": self.mean_imputation,
                                                                     }
             args.args_classification.module_imputation ="MixtureOfLogisticsImputation"
             yield model_dir
