@@ -32,3 +32,24 @@ def create_panels(left_data, right_data, target_left, target_right, random_panel
         else :
             ypanels = target_right
         return Xpanels, ypanels, quadrant
+
+
+def create_validation(data, target, true_selection = None, size = 0.8):
+    size_train = int(size*len(data))
+    index_train = np.random.choice(np.arange(len(data)), size_train, replace = False)
+    index_val = np.setdiff1d(np.arange(len(data)), index_train)
+
+    data_train = data[index_train]
+    target_train = target[index_train]
+    data_val = data[index_val]
+    target_val = target[index_val]
+
+    if true_selection is not None :
+        true_selection_train = true_selection[index_train]
+        true_selection_val = true_selection[index_val]
+    else :
+        true_selection_train = None
+        true_selection_val = None
+
+    return data_train, target_train, true_selection_train, data_val, target_val, true_selection_val
+    

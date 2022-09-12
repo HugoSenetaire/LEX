@@ -5,7 +5,7 @@ import numpy as np
 
 from .dataset_from_data import DatasetFromData
 from .mnist import default_MNIST_transform
-from .utils import create_panels
+from .utils import create_panels, create_validation
 
 
 
@@ -64,6 +64,8 @@ class MNIST_and_FASHIONMNIST():
         self.data_test = Xpanels_test
         self.target_test = ypanels_test
 
+        
+
 
 
         self.data_train = torch.tensor(self.data_train.reshape(-1,1,28,56), dtype = torch.float32, requires_grad=False)
@@ -72,22 +74,20 @@ class MNIST_and_FASHIONMNIST():
         self.quadrant_train = torch.tensor(self.quadrant_train.reshape(-1,1,28,56), dtype = torch.int64, requires_grad=False)
 
 
-        # print("MNIST and FashionMNIST dataset loaded after treating")
-        # print(self.data_train.min(), self.data_train.max())
-
-        # self.data_train = self.data_train[:1000]
-        # self.target_train = self.target_train[:1000]
-        # self.data_test = self.data_test[:1000]
-        # self.target_test = self.target_test[:1000]
         
         del self.mnist_train, self.mnist_test, self.fashion_mnist_train, self.fashion_mnist_test
         del self.data_train_mnist, self.data_test_mnist, self.data_train_fashion, self.data_test_fashion
 
+        self.data_train, self.target_train, self.quadrant_train, self.data_val, self.target_val, self.quadrant_val = create_validation(self.data_train, self.target_train, self.quadrant_train, 0.8) 
+
+
         # TODO : DELETE THE ADDING OF NOISE
         self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
         self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+        self.dataset_val = DatasetFromData(self.data_val, self.target_val, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
         self.optimal_S_train = self.quadrant_train
         self.optimal_S_test = self.quadrant_test
+        self.optimal_S_val = self.quadrant_val
 
 
 
@@ -102,6 +102,8 @@ class MNIST_and_FASHIONMNIST():
             optimal_S = self.optimal_S_train[indexes]
         elif type == "test" :
             optimal_S = self.optimal_S_test[indexes]
+        elif type == "val" :
+            optimal_S = self.optimal_S_val[indexes]
         else :
             raise ValueError("dataset_type must be either train or test")
 

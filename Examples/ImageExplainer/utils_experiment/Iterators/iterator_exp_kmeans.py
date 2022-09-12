@@ -14,17 +14,19 @@ class KmeansIterator():
         self.list_component = list_component
         self.nb_points = nb_points
 
-    def get_data_train(self, dataset):
-        if hasattr(dataset, "data_train"):
-            return dataset.data_train
+    def get_data_val(self, dataset):
+        if hasattr(dataset, "data_val"):
+            return dataset.data_val
+        elif hasattr(dataset, "dataset_val"):
+            return torch.stack([dataset.dataset_val.__getitem__(k)[0] for k in range(len(dataset.dataset_train))])
         else :
-            return torch.stack([dataset.dataset_train.__getitem__(k)[0] for k in range(len(dataset.dataset_train))])
+            raise ValueError("Dataset has no data_val or dataset_val attribute")
 
-    def get_random_nb_points(self, data_train):
-        if self.nb_points > len(data_train):
-            self.nb_points = len(data_train)
-        random_index = np.random.choice(len(data_train), self.nb_points, replace=False)
-        return data_train[random_index]
+    def get_random_nb_points(self, data_val):
+        if self.nb_points > len(data_val):
+            self.nb_points = len(data_val)
+        random_index = np.random.choice(len(data_val), self.nb_points, replace=False)
+        return data_val[random_index]
 
     def __iter__(self, args, dataset, dataset_name):
         for component in self.list_component :
@@ -33,10 +35,10 @@ class KmeansIterator():
                 os.makedirs(folder_weight)
             imputation_network_weights_path = os.path.join(folder_weight,dataset_name + "_kmeans_"+ str(component))
 
-            data_train = self.get_data_train(dataset)
+            data_val = self.get_data_val(dataset)
             if not os.path.exists(imputation_network_weights_path) :
-                train_kmeans(data_train, component, imputation_network_weights_path)
-            data_to_impute = self.get_random_nb_points(data_train)
+                train_kmeans(data_val, component, imputation_network_weights_path)
+            data_to_impute = self.get_random_nb_points(data_val)
             
             args.args_classification.module_imputation_parameters = {"imputation_network_weights_path": imputation_network_weights_path,
                                                                     "nb_component": component,
