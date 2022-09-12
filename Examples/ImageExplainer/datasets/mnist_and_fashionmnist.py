@@ -71,6 +71,14 @@ class MNIST_and_FASHIONMNIST():
         self.quadrant_test = torch.tensor(self.quadrant_test.reshape(-1,1,28,56), dtype = torch.int64, requires_grad=False)
         self.quadrant_train = torch.tensor(self.quadrant_train.reshape(-1,1,28,56), dtype = torch.int64, requires_grad=False)
 
+
+        # print("MNIST and FashionMNIST dataset loaded after treating")
+        # print(self.data_train.min(), self.data_train.max())
+
+        # self.data_train = self.data_train[:1000]
+        # self.target_train = self.target_train[:1000]
+        # self.data_test = self.data_test[:1000]
+        # self.target_test = self.target_test[:1000]
         
         del self.mnist_train, self.mnist_test, self.fashion_mnist_train, self.fashion_mnist_test
         del self.data_train_mnist, self.data_test_mnist, self.data_train_fashion, self.data_test_fashion

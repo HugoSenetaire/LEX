@@ -37,8 +37,8 @@ class EncapsulateCelebA(Dataset):
         self.dataset = dataset
         self.target_index = target_index
     def __len__(self):
-        return len(self.dataset)
-
+        # return len(self.dataset)
+        return 100
     def __getitem__(self, index):
         image, target = self.dataset.__getitem__(index)
         true_target = target[0][self.target_index].to(torch.int64)
