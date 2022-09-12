@@ -37,8 +37,8 @@ class EncapsulateCelebA(Dataset):
         self.dataset = dataset
         self.target_index = target_index
     def __len__(self):
-        # return len(self.dataset)
-        return 100
+        return len(self.dataset)
+        # return 100
     def __getitem__(self, index):
         image, target = self.dataset.__getitem__(index)
         true_target = target[0][self.target_index].to(torch.int64)
@@ -56,6 +56,7 @@ class CELEBA():
 
         self.celeba_train = torchvision.datasets.CelebA(root = root_dir, split="train", download=download, transform = transform, target_type=["attr", "landmarks"])
         self.celeba_test  = torchvision.datasets.CelebA(root = root_dir, split="test", download=download, transform = transform, target_type=["attr", "landmarks"])
+        self.celeba_val    = torchvision.datasets.CelebA(root = root_dir, split="valid", download=download, transform = transform, target_type=["attr", "landmarks"])
         
         assert target in order_target
     
@@ -64,6 +65,7 @@ class CELEBA():
 
         self.dataset_train = EncapsulateCelebA(self.celeba_train, self.target_index)
         self.dataset_test = EncapsulateCelebA(self.celeba_test, self.target_index)
+        self.dataset_val = EncapsulateCelebA(self.celeba_val, self.target_index)
 
     def get_true_selection(self, indexes, type = "test",):
         """
@@ -75,13 +77,15 @@ class CELEBA():
             dataset = self.celeba_train
         elif type == "test" :
             dataset = self.celeba_test
+        elif type == "val" :
+            dataset = self.celeba_val
         else :
             raise ValueError("dataset_type must be either train or test")
 
         mouth_list = []
         for index in indexes :
             out_celeba = dataset.__getitem__(index)
-            data = out_celeba[0]
+            # data = out_celeba[0]
             landmarks = out_celeba[1][1].reshape(1,10)
             mouth_landmarks_left= landmarks[:,[7,6]].flatten(1) - torch.tensor([45, 25])
             mouth_landmarks_right= landmarks[:,[9,8]].flatten(1) - torch.tensor([45, 25])
