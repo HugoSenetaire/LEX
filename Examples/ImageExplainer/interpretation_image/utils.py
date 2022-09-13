@@ -134,7 +134,7 @@ def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_tr
     
 def interpretation_image(interpretable_module, loader, final_path, nb_samples_image_per_category = 3, nb_imputation = 3, rate = None):
     interpretable_module.eval()
-    aux = next(iter(loader))
+    aux = next(iter(loader.test_loader))
     if len(aux) == 3:
         data, target, index= aux[0], aux[1], aux[2]
     else:
