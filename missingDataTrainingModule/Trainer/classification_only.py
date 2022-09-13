@@ -87,7 +87,7 @@ class ordinaryPredictionTraining():
         data, target, index, data_expanded, target_expanded, index_expanded, batch_size = self.define_input(data, target, index, dataset,)
         log_y_hat, regul_classification = self.interpretable_module.prediction_module(data, index= index)
 
-        out_loss = self.loss_function.eval(input = log_y_hat, target = target,)
+        out_loss = self.loss_function.eval(input = log_y_hat, target = target, dim_output = dataset.get_dim_output(),)
         total_loss = out_loss
         if regul_classification is not None :
             total_loss += regul_classification
