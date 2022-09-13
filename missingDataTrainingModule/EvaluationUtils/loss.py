@@ -150,7 +150,7 @@ class BrierScore():
         
 
         current_input = input.reshape((-1,iwae_mask, iwae_sample, np.prod(dim_output)))
-        batch_size = input.shape[0]
+        batch_size = current_input.shape[0]
         current_target= target.reshape((batch_size, iwae_mask, iwae_sample,-1))
         if current_target.shape[-1] == 1 :
             current_target = torch.nn.functional.one_hot(current_target.flatten(), np.prod(dim_output)).type(torch.float32)
