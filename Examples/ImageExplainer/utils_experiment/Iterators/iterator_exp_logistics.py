@@ -12,7 +12,7 @@ class MixtureOfLogisticsIterator():
     def __init__(self,
                 transform_mean,
                 transform_std,
-                list_component = [20,50,100],
+                list_component = [100],
                 nb_epoch = 5,
                 batch_size = 64,
                 lr = 1e-4,
