@@ -154,7 +154,7 @@ class BrierScore():
         try :
             current_target = target.reshape((batch_size, iwae_mask, iwae_sample, np.prod(dim_output)))
         except RuntimeError:
-            current_target = torch.nn.functional.one_hot(target, np.prod(dim_output)).type(torch.float32)
+            current_target = torch.nn.functional.one_hot(target.flatten(), np.prod(dim_output)).type(torch.float32)
             current_target = current_target.reshape((batch_size, iwae_mask, iwae_sample, np.prod(dim_output)))
         
         if iwae_sample > 1 :
