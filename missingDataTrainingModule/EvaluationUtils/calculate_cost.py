@@ -48,6 +48,7 @@ def calculate_cost(mask_expanded,
         target_expanded_multiple_imputation = extend_input(target_expanded_flatten, mc_part = nb_imputation_mc, iwae_part = nb_imputation_iwae)
         
         # The loss function should calculate average on the IWAE part for both imputation and masks.
+        
         loss_result = loss_function.eval(
                     input = log_y_hat,
                     target = target_expanded_multiple_imputation.flatten(0,2),
@@ -59,6 +60,7 @@ def calculate_cost(mask_expanded,
 
         loss_result = loss_result.reshape(nb_imputation_mc, nb_sample_z_monte_carlo, batch_size,)
         loss_result = loss_result.mean(dim = 0) # Mean on the mc imputation part
+        # We do not average on the MC part because this can be used for different methods of reducting gradient variance.
 
 
 

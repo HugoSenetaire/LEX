@@ -131,21 +131,43 @@ def save_f1score(data, target, quadrant, pi_list, final_path, k, wanted_shape_tr
     plt.savefig(os.path.join(target_path, f"{k}.png"))
     plt.close(fig)
     
-    
-def interpretation_image(interpretable_module, loader, final_path, nb_samples_image_per_category = 3, nb_imputation = 3, rate = None):
-    interpretable_module.eval()
-    aux = next(iter(loader.test_loader))
-    if len(aux) == 3:
-        data, target, index= aux[0], aux[1], aux[2]
-    else:
-        data, target= aux[0], aux[1]
-        index = None 
+def get_enough_data_per_target(loader, nb_samples_image_per_category):
     output_category = loader.dataset.get_dim_output()
-    indexes = torch.cat([torch.where(target==num)[0][:nb_samples_image_per_category] for num in range(output_category)])
-    data = data[indexes]
-    target =  target[indexes]
+    nb_samples_image_per_category_index = [nb_samples_image_per_category for i in range(output_category)]
+    total_data = []
+    total_target = []
+    total_indexes = []
+    for index in range(len(loader.test_loader.dataset)):
+        aux = loader.test_loader.dataset.__getitem__(index)
+        
+        data, target = aux[0], aux[1]
+        if nb_samples_image_per_category_index[target] > 0:
+            nb_samples_image_per_category_index[target] -= 1
+            if not isinstance(data, torch.Tensor):
+                data = torch.tensor(data)
+            if not isinstance(target, torch.Tensor):
+                target = torch.tensor(target)
+            if not isinstance(index, torch.Tensor):
+                index = torch.tensor(index, dtype = torch.int64)
+            total_data += [data]
+            total_indexes += [index]
+            total_target += [target]
+        if sum(nb_samples_image_per_category_index) <= 0:
+            break
+    total_target = torch.stack(total_target)
+    total_data = torch.stack(total_data)
+    total_indexes = torch.stack(total_indexes)
     if hasattr(loader.dataset, "get_true_selection"):
-        quadrant = loader.dataset.get_true_selection(indexes)
+        quadrant = loader.dataset.get_true_selection(total_indexes)
+    else :
+        quadrant = None
+    
+    return total_indexes, total_data, total_target, quadrant
+    
+def interpretation_image(interpretable_module, loader, final_path, nb_samples_image_per_category = 1, nb_imputation = 3, rate = None):
+    interpretable_module.eval()
+
+    indexes, data, target, quadrant = get_enough_data_per_target(loader, nb_samples_image_per_category)
     total_image = len(data)
 
     shape_input = interpretable_module.prediction_module.input_size
@@ -227,6 +249,10 @@ def interpretation_image(interpretable_module, loader, final_path, nb_samples_im
             save_f1score(data[k], target[k], quadrant[k], pi_list[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, pi_list_estimation = "straight_pi_list")
             save_f1score(data[k], target[k], quadrant[k], pi_list_selected[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, pi_list_estimation = "selected_pi_list")
             save_f1score(data[k], target[k], quadrant[k], pi_list_sampled[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, pi_list_estimation = "sampled_pi_list")
+        else :
+            save_f1score(data[k], target[k], np.zeros_like(pi_list[k]), pi_list[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, pi_list_estimation = "straight_pi_list")
+            save_f1score(data[k], target[k], np.zeros_like(pi_list[k]), pi_list_selected[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, pi_list_estimation = "selected_pi_list")
+            save_f1score(data[k], target[k], np.zeros_like(pi_list[k]), pi_list_sampled[k], final_path, k, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, pi_list_estimation = "sampled_pi_list")
 
         for l in range(nb_imputation):
             save_imputation(data[k], target[k], data_imputed[l][k], z[k], final_path, k, l, wanted_shape_transpose = wanted_shape_transpose, transpose_set = transpose_set, )
