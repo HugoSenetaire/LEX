@@ -122,10 +122,16 @@ def experiment(dataset, loader, complete_args,):
     pretrainer_pred = None
     if complete_args_converted.args_train.nb_epoch_pretrain > 0 :
         if (complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION or complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION):
+            if complete_args_converted.args_train.post_hoc and post_hoc_guidance_prediction_module is None :
+                current_posthoc_guidance = None
+                current_posthoc = False
+            else :
+                current_posthoc_guidance = post_hoc_guidance_prediction_module
+                current_posthoc = True
             if complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION :
                 pretrainer_pred = trainingWithSelection(interpretable_module.EVALX, 
-                                post_hoc_guidance = post_hoc_guidance_prediction_module,
-                                post_hoc = complete_args_converted.args_train.post_hoc,
+                                post_hoc_guidance = current_posthoc_guidance,
+                                post_hoc = current_posthoc,
                                 argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
                                 loss_function = loss_function,
                                 nb_sample_z_monte_carlo = complete_args_converted.args_train.nb_sample_z_train_monte_carlo_classification,
@@ -133,8 +139,8 @@ def experiment(dataset, loader, complete_args,):
                                 )
             elif complete_args_converted.args_interpretable_module.interpretable_module is COUPLED_SELECTION :
                 pretrainer_pred = ordinaryPredictionTraining(interpretable_module,
-                                post_hoc_guidance = post_hoc_guidance_prediction_module,
-                                post_hoc = complete_args_converted.args_train.post_hoc,
+                                post_hoc_guidance = current_posthoc_guidance,
+                                post_hoc = current_posthoc,
                                 argmax_post_hoc = complete_args_converted.args_train.argmax_post_hoc,
                                 loss_function = loss_function,
                                 )
