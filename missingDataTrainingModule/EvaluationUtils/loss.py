@@ -84,11 +84,17 @@ class continuous_NLLLoss():
             target: the target given by another NN this should be probability, not log probability here(batch_size * iwae_mask * iwae_sample, nb_category)
         """
 
-        input = input.reshape((-1,np.prod(dim_output)))
-        target = target.reshape((-1,np.prod(dim_output)))
-        assert input.shape == target.shape
+        assert type(dim_output) == int or len(dim_output) == 1
+        
 
-        outloss = - torch.sum(input * target, -1)
+        current_input = input.reshape((-1,iwae_mask, iwae_sample, np.prod(dim_output)))
+        batch_size = current_input.shape[0]
+        current_target= target.reshape((batch_size, iwae_mask, iwae_sample,-1))
+        if current_target.shape[-1] == 1 :
+            current_target = torch.nn.functional.one_hot(current_target.flatten(), np.prod(dim_output)).type(torch.float32)
+        current_target = current_target.reshape((batch_size, iwae_mask, iwae_sample, np.prod(dim_output)))
+
+        outloss = - torch.sum(current_input * current_target, -1)
         outloss = outloss.reshape((-1, iwae_mask, iwae_sample))
         outloss = torch.logsumexp(outloss, dim=-1) - torch.log(torch.tensor(iwae_sample, dtype=torch.float32))
         outloss = torch.logsumexp(outloss, dim=-1) - torch.log(torch.tensor(iwae_mask, dtype=torch.float32))
