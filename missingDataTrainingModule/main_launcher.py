@@ -127,7 +127,7 @@ def experiment(dataset, loader, complete_args,):
                 current_posthoc = False
             else :
                 current_posthoc_guidance = post_hoc_guidance_prediction_module
-                current_posthoc = True
+                current_posthoc = complete_args_converted.args_train.post_hoc
             if complete_args_converted.args_interpretable_module.interpretable_module is DECOUPLED_SELECTION :
                 pretrainer_pred = trainingWithSelection(interpretable_module.EVALX, 
                                 post_hoc_guidance = current_posthoc_guidance,
