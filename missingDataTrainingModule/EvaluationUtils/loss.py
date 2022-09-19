@@ -120,15 +120,15 @@ class AccuracyLoss():
         nb_category = np.prod(dim_output)
         try :
             current_target = target.reshape((-1, iwae_mask, iwae_sample))
+            if iwae_sample > 1 :
+                assert current_target[0,0,0] == current_target[0,0,1] 
+            if iwae_mask >1 :
+                assert current_target[0,0,0] == current_target[0,1,0] 
         except :
             current_target = target.reshape((-1, iwae_mask, iwae_sample, nb_category))
             current_target = torch.argmax(current_target, -1)
 
-        if iwae_sample > 1 :
-            assert current_target[0,0,0] == current_target[0,0,1] 
-        if iwae_mask >1 :
-            assert current_target[0,0,0] == current_target[0,1,0] 
-
+        
         current_target = current_target[:,0,0]
         current_input = input.reshape((-1, iwae_mask, iwae_sample, nb_category))
         current_input = current_input.mean(dim=2).mean(dim=1)
