@@ -211,8 +211,12 @@ def multiple_test_classification(interpretable_module, loader, nb_sample_z_monte
                 
                 nb_imputation_mc = interpretable_module.prediction_module.imputation.nb_imputation_mc_test
                 nb_imputation_iwae = interpretable_module.prediction_module.imputation.nb_imputation_iwae_test
-                target_expanded_multiple = target_expanded.reshape(nb_sample_z_monte_carlo * batch_size, nb_sample_z_iwae)[:,0].unsqueeze(0).expand(nb_imputation_mc, -1).flatten()
+                try :
+                    target_expanded_multiple = target_expanded.reshape(nb_sample_z_monte_carlo * batch_size, nb_sample_z_iwae)[:,0].unsqueeze(0).expand(nb_imputation_mc, -1).flatten()
+                except :
+                    target_expanded_multiple = target_expanded.reshape(nb_sample_z_monte_carlo * batch_size, nb_sample_z_iwae, dim_output)[:,0].argmax(-1).unsqueeze(0).expand(nb_imputation_mc, -1).flatten()
                 current_pred = log_y_hat.reshape(nb_imputation_mc * nb_sample_z_monte_carlo* batch_size, nb_sample_z_iwae * nb_imputation_iwae, dim_output).mean(-2).argmax(-1) 
+                
                 y_true = y_true + target_expanded_multiple.cpu().tolist()
                 y_pred = y_pred + current_pred.cpu().tolist()
                     
