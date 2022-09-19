@@ -86,6 +86,8 @@ def parameter_to_dic(file):
             dic[key] = dic[key].item()
         except AttributeError as e:
             continue
+        except ValueError as e :
+            print("ValueError for key {} and value {}".format(key, dic[key]))
     
     for key in dic.keys():
         if dic[key] == None :
