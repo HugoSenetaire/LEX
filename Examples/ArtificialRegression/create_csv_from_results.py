@@ -101,6 +101,7 @@ def parameter_to_dic(file):
             continue
     try :
         dic["parameters_args_classification_module_imputation"] = str(dic["parameters_args_classification_module_imputation"])
+        print(dic["parameters_args_classification_module_imputation"])
     except KeyError as e :
         print("No imputation")
     dic["parameters_args_dataset_dataset"] = str(dic["parameters_args_dataset_dataset"])
