@@ -274,6 +274,7 @@ def complete_analysis_image(interpretable_module, loader, trainer, args, batch_s
         dic["sampled_" +key] = dic[key]
 
     dic.update(eval_selection(interpretable_module, loader,args))
-    dic.update(test_epoch(interpretable_module, "Analysis", loader, args, liste_mc = [(1,1,1,1),], trainer = trainer,))
+    if trainer is not None :
+        dic.update(test_epoch(interpretable_module, "Analysis", loader, args, liste_mc = [(1,1,1,1),], trainer = trainer,))
     
     return dic
