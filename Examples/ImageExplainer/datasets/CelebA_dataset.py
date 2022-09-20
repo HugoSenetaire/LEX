@@ -24,8 +24,14 @@ def get_mouth(point_left, point_right):
     direction = direction.to(torch.float32)
     direction = direction / torch.linalg.norm(direction)
     orthogonal = torch.stack([-direction[0,1], direction[0,0]])
-    height = 0.4 * np.linalg.norm(point_right - point_left)
-    bb = torch.cat([point_left-(height/2)*orthogonal, point_left + (height/2) * orthogonal, point_right + (height/2) * orthogonal, point_right - height/2 * orthogonal]).to(torch.int64)
+    height = 1.0 * np.linalg.norm(point_right - point_left)
+    width = 0.8 * np.linalg.norm(point_right - point_left)
+    bb = torch.cat(
+        [point_left-(height/2)*orthogonal - (width/2) * direction, \
+        point_left + (height/2) * orthogonal - (width/2) * direction, \
+        point_right + (height/2) * orthogonal + (width/2) * direction, \
+        point_right - height/2 * orthogonal + (width/2) * direction]
+        ).to(torch.int64)
     mouth = polygon2mask((128,128),bb.numpy())
     return mouth
 
