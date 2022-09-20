@@ -13,6 +13,7 @@ import tqdm
 import pickle as pkl
 import args_class
 from missingDataTrainingModule import instantiate, load_full_module
+import torch
 
 from multiple_experiment_launcher import get_dataset
 from interpretation_image import complete_analysis_image
@@ -81,6 +82,8 @@ if __name__ == '__main__':
                 os.makedirs(final_path)
             complete_args.args_output.path = final_path
             interpretable_module = load_full_module(folder_path, interpretable_module, suffix = "_last")
+            if torch.cuda.is_available() :
+                interpretable_module = interpretable_module.to("cuda:0")
 
             dic_interpretation = complete_analysis_image(interpretable_module, loader, None, args= complete_args, batch_size = 64, nb_samples_image_per_category = args.nb_samples_image_per_category, nb_imputation = args.nb_imputation)
             
