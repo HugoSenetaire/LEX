@@ -42,3 +42,4 @@ class args_dataset_parameters():
         self.dataset = None
         self.target = None
         self.add_noise = False
+        self.target_mnist = True
