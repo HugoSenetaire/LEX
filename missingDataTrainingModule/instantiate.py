@@ -67,7 +67,7 @@ def instantiate(complete_args, dataset = None):
                                                 args_selection=complete_args_converted.args_selection,
                                                 )
     
-    if complete_args_converted.args_train.use_cuda:
+    if complete_args_converted.args_train.use_cuda and torch.cuda.is_available():
         interpretable_module.cuda()
         
     return interpretable_module, complete_args_converted
