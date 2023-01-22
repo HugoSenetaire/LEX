@@ -2,7 +2,7 @@ import torchvision
 import numpy as np
 import torch
 from .dataset_from_data import DatasetFromData
-from .utils import create_panels
+from .utils import create_panels, create_validation
 
 import medmnist
 from medmnist import INFO, Evaluator
@@ -49,10 +49,12 @@ class Dermamnist():
             target_transform = None,
             download: bool = False,
             noise_function = None,
+            give_index = False,
             **kwargs,):
 
 
         data_flag = 'dermamnist'
+        self.give_index = give_index
         info = INFO[data_flag]
         task = info['task']
         n_channels = info['n_channels']
@@ -64,6 +66,7 @@ class Dermamnist():
         # load the data
         self.dermamnist_train = DataClass(split='train',  download=download)
         self.dermamnist_test = DataClass(split='test',  download=download)
+        self.dermamnist_val = DataClass(split='val',  download=download)
 
         Xtrain =  self.dermamnist_train.imgs/255.
         Xtrain = np.transpose(Xtrain, (0,3,1,2))
@@ -73,15 +76,22 @@ class Dermamnist():
         Xtest = self.dermamnist_test.imgs/255
         Xtest = np.transpose(Xtest, (0,3,1,2))
         ytest = self.dermamnist_test.labels
+
+        Xval = self.dermamnist_val.imgs/255
+        Xval = np.transpose(Xval, (0,3,1,2))
+        yval = self.dermamnist_val.labels
         
 
         self.data_train = torch.tensor(Xtrain, dtype=torch.float32)
         self.data_test = torch.tensor(Xtest, dtype=torch.float32)
+        self.data_val = torch.tensor(Xval, dtype=torch.float32)
         self.target_train = torch.tensor(ytrain, dtype=torch.long)
         self.target_test = torch.tensor(ytest, dtype=torch.long)
+        self.target_val = torch.tensor(yval, dtype=torch.long)
 
-        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = None, noise_function = noise_function, give_index=True)
-        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = None, noise_function = noise_function, give_index=True)
+        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = None, noise_function = noise_function, give_index=self.give_index)
+        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = None, noise_function = noise_function, give_index=self.give_index)
+        self.dataset_val = DatasetFromData(self.data_val, self.target_val, transforms = None, target_transforms = None, noise_function = noise_function, give_index=self.give_index)
 
     def get_dim_input(self,):
         return (3,28,28)
@@ -101,10 +111,11 @@ class DermamnistPanel():
             download: bool = False,
             noise_function = None,
             random_panels = False,
+            give_index = False,
             **kwargs,):
 
         self.random_panels = random_panels
-
+        self.give_index = give_index
         data_flag = 'dermamnist'
         info = INFO[data_flag]
         task = info['task']
@@ -117,6 +128,7 @@ class DermamnistPanel():
         # load the data
         self.dermamnist_train = DataClass(split='train',  download=download)
         self.dermamnist_test = DataClass(split='test',  download=download)
+        self.dermamnist_val = DataClass(split='val',  download=download)
 
 
         
@@ -129,23 +141,31 @@ class DermamnistPanel():
         data_test_nevi, y_test_nevi, index_test_nevi, data_test_notnevi, y_test_notnevi, index_test_notnevi = get_no_nevi(self.dermamnist_test, shuffle = True, enforce_lenght = True)
         Xpanels_test, ypanels_test, self.quadrant_test = create_panels(data_test_nevi, data_test_notnevi, y_test_nevi, y_test_notnevi, random_panels=self.random_panels, target = "right", )
 
-        
+        #VAL DATASET
+        data_val_nevi, y_val_nevi, index_val_nevi, data_val_notnevi, y_val_notnevi, index_val_notnevi = get_no_nevi(self.dermamnist_val, shuffle = True, enforce_lenght = True)
+        Xpanels_val, ypanels_val, self.quadrant_val = create_panels(data_val_nevi, data_val_notnevi, y_val_nevi, y_val_notnevi, random_panels=self.random_panels, target = "right", )
         
         self.data_train = torch.tensor(Xpanels_train, dtype=torch.float32)
         self.data_test = torch.tensor(Xpanels_test, dtype=  torch.float32)
+        self.data_val = torch.tensor(Xpanels_val, dtype=torch.float32)
         self.target_train = torch.tensor(ypanels_train, dtype=torch.long)
         self.target_test = torch.tensor(ypanels_test, dtype=torch.long)
+        self.target_val = torch.tensor(ypanels_val, dtype=torch.long)
         self.optimal_S_train = torch.tensor(self.quadrant_train, dtype=torch.float32)
         self.optimal_S_test = torch.tensor(self.quadrant_test, dtype=torch.float32)
+        self.optimal_S_val = torch.tensor(self.quadrant_val, dtype=torch.float32)
 
 
         self.quadrant_train = np.zeros((self.data_train.shape[0], 1, *self.data_train.shape[2:]))
         self.quadrant_train[:, :, :, 28:] = np.ones_like(self.quadrant_train[:, :, :, 28:])
         self.quadrant_test = np.zeros((self.data_test.shape[0], 1, *self.data_test.shape[2:]))
         self.quadrant_test[:, :, :, 28:] = np.ones_like(self.quadrant_test[:, :, :, 28:])
+        self.quadrant_val = np.zeros((self.data_val.shape[0], 1, *self.data_val.shape[2:]))
+        self.quadrant_val[:, :, :, 28:] = np.ones_like(self.quadrant_val[:, :, :, 28:])
 
-        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = None, noise_function = noise_function, give_index=True)
-        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = None, noise_function = noise_function, give_index=True)
+        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = None, noise_function = noise_function, give_index=self.give_index)
+        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = None, noise_function = noise_function, give_index=self.give_index)
+        self.dataset_val = DatasetFromData(self.data_val, self.target_val, transforms = None, target_transforms = None, noise_function = noise_function, give_index=self.give_index)
 
     def get_dim_input(self,):
         return (3,28,56)

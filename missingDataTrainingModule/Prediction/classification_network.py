@@ -203,7 +203,7 @@ class ConvClassifier(PredictorAbstract):
         x = self.maxpool1(self.conv1(x))
         x = self.maxpool2(self.conv2(x))
         x = torch.flatten(x,1)
-        result = self.activation(self.elu(self.fc(x))).reshape(batch_size, -1)
+        result = self.activation(self.elu(self.fc(x)))
         return result #N_expectation, Batch_size, Category
 
 

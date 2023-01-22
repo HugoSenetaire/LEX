@@ -43,3 +43,4 @@ class args_dataset_parameters():
         self.target = None
         self.add_noise = False
         self.target_mnist = True
+        self.give_index = True

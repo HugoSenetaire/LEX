@@ -39,6 +39,8 @@ class MixtureOfLogisticsIterator():
             if not os.path.exists(folder_weight):
                 os.makedirs(folder_weight)
             model_dir = os.path.join(folder_weight,"logistic_"+dataset_name + "_" + str(component)+ "_type_of_training_"+self.type_of_training)
+            if not os.path.exists(model_dir):
+                os.makedirs(model_dir)
             if not os.path.exists(os.path.join(model_dir, "mixture_of_logistics.pt")):
                 train_MixtureOfLogistics(loader,
                                         model_dir,

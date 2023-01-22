@@ -20,8 +20,9 @@ class MNIST_and_FASHIONMNIST():
             target_mnist = True,
             random_panels = True,
             add_noise = False,
+            give_index=True,
             **kwargs,):
-
+        self.give_index = give_index
         self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, transform = transforms_mnist)
         self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, transform = transforms_mnist)
         self.fashion_mnist_train = torchvision.datasets.FashionMNIST(root_dir, train=True, download=download, transform = transforms_mnist)
@@ -45,7 +46,7 @@ class MNIST_and_FASHIONMNIST():
         self.data_train_fashion = self.data_train_fashion.reshape(-1, 1, 28, 28).clip(0,1)
         self.data_test_fashion = self.data_test_fashion.reshape(-1, 1, 28, 28).clip(0,1)
 
-
+    
 
         self.target_train = self.mnist_train.targets
         self.target_test = self.mnist_test.targets
@@ -66,7 +67,10 @@ class MNIST_and_FASHIONMNIST():
 
         
 
-
+        self.data_train = self.data_train
+        self.target_train = self.target_train
+        self.data_test = self.data_test
+        self.target_test = self.target_test
 
         self.data_train = torch.tensor(self.data_train.reshape(-1,1,28,56), dtype = torch.float32, requires_grad=False)
         self.data_test = torch.tensor(self.data_test.reshape(-1,1,28,56), dtype = torch.float32, requires_grad=False)
@@ -82,9 +86,9 @@ class MNIST_and_FASHIONMNIST():
 
 
         # TODO : DELETE THE ADDING OF NOISE
-        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
-        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
-        self.dataset_val = DatasetFromData(self.data_val, self.target_val, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=True)
+        self.dataset_train = DatasetFromData(self.data_train, self.target_train, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=self.give_index)
+        self.dataset_test = DatasetFromData(self.data_test, self.target_test, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=self.give_index)
+        self.dataset_val = DatasetFromData(self.data_val, self.target_val, transforms = None, target_transforms = target_transforms, noise_function = noise_function, give_index=self.give_index)
         self.optimal_S_train = self.quadrant_train
         self.optimal_S_test = self.quadrant_test
         self.optimal_S_val = self.quadrant_val

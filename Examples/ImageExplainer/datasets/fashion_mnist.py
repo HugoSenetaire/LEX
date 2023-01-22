@@ -21,11 +21,12 @@ class FashionMNISTDataset(torchvision.datasets.FashionMNIST):
             download: bool = False,
             noisy: bool = False,
             noise_function = None,
-    ) :
+            give_index=True,
+            **kwargs,):
 
 
         super().__init__(root, train, transform, target_transform, download)
-
+        self.give_index = give_index
         self.optimal_S_train = None
         self.optimal_S_test = None
         self.noisy = noisy
@@ -46,8 +47,8 @@ class FashionMNISTDataset(torchvision.datasets.FashionMNIST):
 
             if self.target_transform is not None:
                 target = self.target_transform(target)
+            
 
-            return img, target
         else :
             img, target = self.data[idx], self.data[idx]
             
@@ -60,7 +61,9 @@ class FashionMNISTDataset(torchvision.datasets.FashionMNIST):
 
             img = self.noise_function(img).type(torch.float32)
 
-
+        if self.give_index :
+            return img, target, idx
+        else :  
             return img, target
 
 

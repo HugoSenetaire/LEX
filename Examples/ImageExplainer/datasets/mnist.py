@@ -2,6 +2,7 @@ import torchvision
 import numpy as np
 import torch
 from .dataset_from_data import DatasetFromData
+from .utils import create_validation
 
 default_MNIST_transform = torchvision.transforms.Compose([
                                     torchvision.transforms.ToTensor(),
@@ -18,8 +19,10 @@ class MnistDataset():
             target_transform = None,
             download: bool = False,
             noise_function = None,
+            give_index = True,
             **kwargs,):
 
+        self.give_index = give_index
         self.mnist_train = torchvision.datasets.MNIST(root = root_dir, train=True, download=download, transform=default_MNIST_transform)
         self.mnist_test  = torchvision.datasets.MNIST(root = root_dir, train=False, download=download, transform=default_MNIST_transform)
 
@@ -34,11 +37,12 @@ class MnistDataset():
 
         self.data_train = self.data_train.reshape(-1,1,28,28)
         self.data_test = self.data_test.reshape(-1,1,28,28)
+        self.data_train, self.target_train, self.quadrant_train, self.data_val, self.target_val, self.quadrant_val = create_validation(self.data_train, self.target_train, self.quadrant_train, 0.8) 
 
-        # self.data_train = self.data_train[:1000]
-        # self.target_train = self.target_train[:1000]
-        self.dataset_train = DatasetFromData(self.data_train, self.target_train, None, target_transform, noise_function = noise_function)
-        self.dataset_test = DatasetFromData(self.data_test, self.target_test, None, target_transform, noise_function = noise_function)
+
+        self.dataset_train = DatasetFromData(self.data_train, self.target_train, None, target_transform, noise_function = noise_function, give_index=self.give_index)
+        self.dataset_test = DatasetFromData(self.data_test, self.target_test, None, target_transform, noise_function = noise_function, give_index=self.give_index)
+        self.dataset_val = DatasetFromData(self.data_val, self.target_val, None, target_transform, noise_function = noise_function, give_index=self.give_index)
 
     def get_dim_input(self,):
         return (1,28,28)

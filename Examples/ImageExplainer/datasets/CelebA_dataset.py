@@ -38,17 +38,21 @@ def get_mouth(point_left, point_right):
 
 
 class EncapsulateCelebA(Dataset):
-    def __init__(self, dataset, target_index):
+    def __init__(self, dataset, target_index, give_index = False):
         super().__init__()
         self.dataset = dataset
         self.target_index = target_index
+        self.give_index = give_index
     def __len__(self):
         return len(self.dataset)
         # return 100
     def __getitem__(self, index):
         image, target = self.dataset.__getitem__(index)
         true_target = target[0][self.target_index].to(torch.int64)
-        return image, true_target, index
+        if self.give_index:
+            return image, true_target, index
+        else :
+            return image, true_target
         
 
 class CELEBA():
@@ -58,20 +62,22 @@ class CELEBA():
             target_transforms = None,
             download: bool = False,
             target = "Smiling",
+            give_index = False,
             **kwargs,):
 
         self.celeba_train = torchvision.datasets.CelebA(root = root_dir, split="train", download=download, transform = transform, target_type=["attr", "landmarks"])
         self.celeba_test  = torchvision.datasets.CelebA(root = root_dir, split="test", download=download, transform = transform, target_type=["attr", "landmarks"])
-        self.celeba_val    = torchvision.datasets.CelebA(root = root_dir, split="valid", download=download, transform = transform, target_type=["attr", "landmarks"])
+        self.celeba_val   = torchvision.datasets.CelebA(root = root_dir, split="valid", download=download, transform = transform, target_type=["attr", "landmarks"])
         
         assert target in order_target
+        self.give_index = give_index
     
         self.target_index = order_target.index(target)
 
 
-        self.dataset_train = EncapsulateCelebA(self.celeba_train, self.target_index)
-        self.dataset_test = EncapsulateCelebA(self.celeba_test, self.target_index)
-        self.dataset_val = EncapsulateCelebA(self.celeba_val, self.target_index)
+        self.dataset_train = EncapsulateCelebA(self.celeba_train, self.target_index, give_index = self.give_index)
+        self.dataset_test = EncapsulateCelebA(self.celeba_test, self.target_index, give_index = self.give_index)
+        self.dataset_val = EncapsulateCelebA(self.celeba_val, self.target_index, give_index = self.give_index)
 
     def get_true_selection(self, indexes, type = "test",):
         """

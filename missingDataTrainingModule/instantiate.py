@@ -29,6 +29,8 @@ def instantiate(complete_args, dataset = None):
             interpretable_module, _ = instantiate(args_module)
             interpretable_module = load_full_module(path_module, interpretable_module)
             complete_args_converted.args_classification.module_imputation_parameters["module"] = interpretable_module
+
+    ### Imputation :
     imputation = get_imputation_method(complete_args_converted.args_classification, dataset,)
 
 
@@ -40,7 +42,6 @@ def instantiate(complete_args, dataset = None):
     classification_distribution_module = get_distribution_module_from_args(complete_args_converted.args_classification_distribution_module)
 
 
-    ### Imputation :
 
 
     ### Complete Module :
