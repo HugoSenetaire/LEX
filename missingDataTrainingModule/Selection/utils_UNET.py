@@ -83,7 +83,7 @@ class OutConv(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, n_classes, bilinear=True, nb_block = 4, log2_min_channel = 6):
+    def __init__(self, n_classes, bilinear=True, nb_block = 4, log2_min_channel = 6,):
         super(UNet, self).__init__()
         self.n_classes = n_classes
         self.bilinear = bilinear
