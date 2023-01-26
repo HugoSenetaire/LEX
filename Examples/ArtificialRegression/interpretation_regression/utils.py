@@ -248,7 +248,7 @@ def calculate_score(interpretable_module, loader, trainer, args, CFindex = None)
   for key in list(dic.keys()) :
     dic["sampled_" +key] = dic[key]
 
-  dic.update(eval_selection(interpretable_module, loader, args))
-  dic.update(test_epoch(interpretable_module, None, loader, args, liste_mc = [(1,1,1,1),], trainer = trainer,))
+  dic.update(eval_selection(interpretable_module, loader, rate = args.args_selection.rate))
+  dic.update(test_epoch(interpretable_module, None, loader, rate = args.args_selection.rate, liste_mc = [(1,1,1,1),], trainer = trainer,))
 
   return dic

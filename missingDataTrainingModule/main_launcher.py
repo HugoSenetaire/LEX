@@ -105,7 +105,7 @@ def experiment(dataset, loader, complete_args,):
             test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch_post_hoc)
             if test_this_epoch :
                 with torch.no_grad():
-                    dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = [], trainer = trainer)
+                    dic_test = test_epoch(interpretable_module, epoch, loader, rate = complete_args.args_selection.rate, liste_mc = [], trainer = trainer)
                 total_dic_test = fill_dic(total_dic_test, dic_test)
 
         save_dic(os.path.join(final_path,"train_post_hoc"), total_dic_train)
@@ -166,7 +166,7 @@ def experiment(dataset, loader, complete_args,):
                 test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch_post_hoc)
                 if test_this_epoch :
                     with torch.no_grad():
-                        dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = [], trainer = pretrainer_pred)
+                        dic_test = test_epoch(interpretable_module, epoch, loader, rate = complete_args.args_selection.rate, liste_mc = [], trainer = pretrainer_pred)
                     total_dic_test = fill_dic(total_dic_test, dic_test)
 
             dic_list["train_pretraining"] = total_dic_train
@@ -309,7 +309,7 @@ def experiment(dataset, loader, complete_args,):
         test_this_epoch = complete_args_converted.args_trainer.save_epoch_function(epoch, complete_args_converted.args_train.nb_epoch)
         if test_this_epoch :
             with torch.no_grad():
-                dic_test = test_epoch(interpretable_module, epoch, loader, args = complete_args, liste_mc = complete_args_converted.args_test.liste_mc, trainer = trainer)
+                dic_test = test_epoch(interpretable_module, epoch, loader, rate = complete_args.args_selection.rate, liste_mc = complete_args_converted.args_test.liste_mc, trainer = trainer)
             total_dic_test = fill_dic(total_dic_test, dic_test)
             if complete_args_converted.args_output.save_weights :
                 last_train_loss_in_test = dic_test["train_loss_in_test"]
