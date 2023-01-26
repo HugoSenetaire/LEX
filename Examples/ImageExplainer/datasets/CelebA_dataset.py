@@ -95,6 +95,8 @@ class CELEBA():
             raise ValueError("dataset_type must be either train or test")
 
         mouth_list = []
+        if isinstance(indexes, int):
+            indexes = [indexes]
         for index in indexes :
             out_celeba = dataset.__getitem__(index)
             # data = out_celeba[0]
