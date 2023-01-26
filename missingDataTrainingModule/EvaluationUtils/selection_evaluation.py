@@ -5,13 +5,12 @@ import sklearn
 
 from ..utils.utils import *
 
-def eval_selection(interpretable_module, loader, args):
+def eval_selection(interpretable_module, loader, rate):
     interpretable_module.prediction_module.imputation.nb_imputation_mc_test = 1
     interpretable_module.prediction_module.imputation.nb_imputation_iwae_test = 1     
     interpretable_module.eval()   
 
-    if args.args_selection.rate is not None :
-        rate = args.args_selection.rate
+    if rate is not None :
         dic = eval_selection_local(interpretable_module, loader, rate)
     else :
         dic = eval_selection_local(interpretable_module, loader,)

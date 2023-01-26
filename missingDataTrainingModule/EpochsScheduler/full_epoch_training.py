@@ -3,6 +3,9 @@ from ..utils import parse_batch, print_dic, save_dic_helper
 import numpy as np
 
 class classic_train_epoch():
+    """
+    Train the full interpretable model for one epoch without any fixing of parameters.
+    """
     def __init__(self, save_dic=False, verbose=True, **kwargs):
         self.save_dic = save_dic
         self.verbose = verbose
@@ -31,6 +34,9 @@ class classic_train_epoch():
 
 
 class alternate_fixing_train_epoch():
+    """
+    Alternate between fixing the classifier and the selector parameters.
+    """
     def __init__(self, save_dic= False, verbose= True, nb_step_fixed_classifier = 1, nb_step_fixed_selector = 1, nb_step_all_free = 1,) :
         super().__init__(save_dic, verbose)
         assert np.any(np.array([nb_step_fixed_classifier, nb_step_fixed_selector, nb_step_all_free])>0)
@@ -72,6 +78,9 @@ class alternate_fixing_train_epoch():
 
     
 class alternate_ordinary_train_epoch():
+    """
+    Alternate between training the predictor using selection and without any selection (ordinary training).
+    """
     def __init__(self, save_dic= False, verbose= True, ratio_class_selection = 2, ordinaryTraining=None,) :
         super().__init__(save_dic, verbose)
 

@@ -107,11 +107,10 @@ class SEPARATE_LOSS(SINGLE_LOSS):
         # Destructive module :
         log_pi_list, loss_reg = self.interpretable_module.selection_module(data)
         log_pi_list_classification = log_pi_list.unsqueeze(1).expand(batch_size, self.nb_sample_z_iwae_classification, -1)
-        pi_list_classification = torch.exp(log_pi_list_classification)
+        pi_list_classification = torch.exp(log_pi_list_classification).detach()
 
 
-        log_pi_list = log_pi_list.unsqueeze(1).expand(batch_size, self.nb_sample_z_iwae, -1) # IWae is part of the parameters while monte carlo is used in the monte carlo gradient estimator.
-        pi_list = torch.exp(log_pi_list)
+       
 
 
         #### TRAINING CLASSIFICATION :
@@ -138,6 +137,10 @@ class SEPARATE_LOSS(SINGLE_LOSS):
             self.interpretable_module.zero_grad()
 
         #### TRAINING SELECTION :
+
+        log_pi_list, loss_reg = self.interpretable_module.selection_module(data)
+        log_pi_list = log_pi_list.unsqueeze(1).expand(batch_size, self.nb_sample_z_iwae, -1) # IWae is part of the parameters while monte carlo is used in the monte carlo gradient estimator.
+        pi_list = torch.exp(log_pi_list)
 
         cost_calculation = partial(calculate_cost,
                         interpretable_module = self.interpretable_module,

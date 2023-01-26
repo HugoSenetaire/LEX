@@ -168,9 +168,6 @@ def multiple_test_classification(interpretable_module, loader, nb_sample_z_monte
 
 
 
-                if torch.any(torch.isnan(log_y_hat)) :
-                    print(torch.any(torch.isnan(z)))
-                    assert 1==0
 
 
                 

@@ -9,7 +9,7 @@ from .selection_evaluation import *
 
     
     
-def test_epoch(interpretable_module, epoch, loader, args, liste_mc = [(1,1,1,1),], trainer = None,):
+def test_epoch(interpretable_module, epoch, loader, rate = None, liste_mc = [(1,1,1,1),], trainer = None, use_cuda = False):
     """
     Do multiple test with/without sel, with different number of MC samples for mask sampling and imputation sampling.
     """
@@ -64,9 +64,9 @@ def test_epoch(interpretable_module, epoch, loader, args, liste_mc = [(1,1,1,1),
     
     if hasattr(interpretable_module, "sample_z"):
         if hasattr(loader.dataset, "get_true_selection") :
-            total_dic.update(eval_selection(interpretable_module = interpretable_module, loader = loader, args = args,))
-        
-        if args.args_train.use_cuda :
+            total_dic.update(eval_selection(interpretable_module = interpretable_module, loader = loader, rate = rate,))
+
+        if use_cuda :        
             interpretable_module.cuda() # QUICK FIX BECAUSE SELECTION TEST THROW OUT OF CUDA @HHJS TODO LEAVE ON CUDA``
 
         

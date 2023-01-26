@@ -26,12 +26,12 @@ class PredictorAbstract(nn.Module):
             if self.output > 1:
                 self.activation = nn.LogSoftmax(-1)
             else :
-                self.activation = lambda x: x
+                self.activation = None
         else:
             self.output = np.prod(self.output_size)
             if len(self.output_size) >1:
                 raise NotImplementedError
-            self.activation = lambda x : x
+            self.activation = None
         
     def forward(self, x):
         raise NotImplementedError
@@ -45,7 +45,11 @@ class ClassifierLinear(PredictorAbstract):
     def __call__(self, x):
         x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
         x = self.fc1(x)
-        return self.activation(x) #N_expectation * Batch_size, Category
+        
+        if self.activation is not None :
+            return self.activation(x)
+        else :
+            return x #N_expectation * Batch_size, Category
 
 class ClassifierLVL1(PredictorAbstract):
     def __init__(self,input_size = (1,28,28), output_size = 10, middle_size = 50):
@@ -59,7 +63,11 @@ class ClassifierLVL1(PredictorAbstract):
         x = x.flatten(1)  # Nexpec* Batch_size, Channels, SizeProduct
         x = F.elu(self.fc1(x))
         x = self.fc2(x)
-        return self.activation(x) #N_expectation * Batch_size, Category
+        
+        if self.activation is not None :
+            return self.activation(x)
+        else :
+            return x #N_expectation * Batch_size, Category
 
 class ClassifierLVL2(PredictorAbstract):
     def __init__(self,input_size = (1,28,28), output_size = 10, middle_size = 50):
@@ -75,7 +83,11 @@ class ClassifierLVL2(PredictorAbstract):
         x = F.elu(self.fc1(x))
         x = F.elu(self.fc2(x))
         x = self.fc3(x)
-        return self.activation(x) #N_expectation * Batch_size, Category
+        
+        if self.activation is not None :
+            return self.activation(x)
+        else :
+            return x #N_expectation * Batch_size, Category
 
 
 class ClassifierLVL3(PredictorAbstract):
@@ -97,7 +109,11 @@ class ClassifierLVL3(PredictorAbstract):
         x = F.elu(self.fc3(x))
         x = F.elu(self.fc4(x))
         x = self.fc5(x)
-        return self.activation(x)
+        
+        if self.activation is not None :
+            return self.activation(x)
+        else :
+            return x
 
 class RealXClassifier_withBatchnorm(PredictorAbstract):
     def __init__(self, input_size = (1,28,28), output_size = 10, middle_size = 50):
@@ -118,7 +134,11 @@ class RealXClassifier_withBatchnorm(PredictorAbstract):
         x = self.bn2(x)
         x = self.fc3(x)
 
-        return self.activation(x)
+        
+        if self.activation is not None :
+            return self.activation(x)
+        else :
+            return x
 
 
 def init_weights(m):
@@ -144,7 +164,11 @@ class RealXClassifier(PredictorAbstract):
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
 
-        return self.activation(x)
+        
+        if self.activation is not None :
+            return self.activation(x)
+        else :
+            return x
 
 class StupidClassifier(PredictorAbstract):
     def __init__(self, input_size = (1,28,28),output_size = 10, bias = True):
@@ -158,7 +182,11 @@ class StupidClassifier(PredictorAbstract):
 
     def __call__(self, x):
         x = x.flatten(1)
-        return self.activation(self.elu(self.fc1(x)))
+        x =self.elu(self.fc1(x))
+        if self.activation is not None :
+            return self.activation(x)
+        else :
+            return x
 
 
 class PretrainedVGGPytorch(PredictorAbstract):
@@ -184,7 +212,9 @@ class PretrainedVGGPytorch(PredictorAbstract):
         x = self.model.features(x)
         x = self.model.avgpool(x)
         x = self.new_classifier(x)
-        x = self.activation(self.elu(x))
+        x = self.elu(x)
+        if self.activation is not None :
+            return self.activation(x)
         return x
 
 
@@ -203,8 +233,10 @@ class ConvClassifier(PredictorAbstract):
         x = self.maxpool1(self.conv1(x))
         x = self.maxpool2(self.conv2(x))
         x = torch.flatten(x,1)
-        result = self.activation(self.elu(self.fc(x)))
-        return result #N_expectation, Batch_size, Category
+        x = self.elu(self.fc(x))
+        if self.activation is not None :
+            return self.activation(x)
+        return x #N_expectation, Batch_size, Category
 
 
 
@@ -243,7 +275,9 @@ class ConvClassifier2(PredictorAbstract):
             x = self.conv[k](x)
         x = x.flatten(1)
         x = self.elu(self.fc(x))
-        x = self.activation(self.fc2(x))
+        x = self.fc2(x)
+        if self.activation is not None :
+            x = self.activation(x)
         return x 
 
 
@@ -258,7 +292,8 @@ class ResNet50(PredictorAbstract):
 
     def __call__(self, x):
         x = self.model(x)
-        x = self.activation(x)
+        if self.activation is not None :
+            x = self.activation(x)
         return x
 
 class ResNet34(PredictorAbstract):
@@ -270,7 +305,8 @@ class ResNet34(PredictorAbstract):
 
     def __call__(self, x):
         x = self.model(x)
-        x = self.activation(x)
+        if self.activation is not None :
+            x = self.activation(x)
         return x
 
 class ProteinCNN(PredictorAbstract):
@@ -302,11 +338,12 @@ class ProteinCNN(PredictorAbstract):
             nn.Linear(128, 32),
             nn.ReLU(),
             nn.Linear(32, self.output),
-            nn.LogSoftmax(-1),
         )
     def __call__(self, x):
         x = self.cnns(x)
         x = torch.flatten(x,1)
         x = self.fc(x)
+        if self.activation is not None :
+            x = self.activation(x)
         return x
 

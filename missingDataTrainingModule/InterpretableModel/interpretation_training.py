@@ -33,7 +33,7 @@ class COUPLED_SELECTION(nn.Module):
         pi_list = torch.exp(log_pi_list)
 
         p_z = self.distribution_module(probs = pi_list)
-        mask = p_z.sample((nb_sample_z_monte_carlo,))
+        mask = self.distribution_module.sample((nb_sample_z_monte_carlo,))
         mask = self.reshape(mask)
 
         # Classification Module :
